@@ -1,7 +1,6 @@
 # SecuriPDF — HTTP -> HTTPS yonlendirme (prod overlay)
 # oauth2-proxy ic backend nginx:8080 uzerinden calisir; dis 80 yalnizca redirect
-
-include /etc/nginx/conf.d/ip-whitelist.conf;
+# Ortak snippet: 00-http-snippet.conf
 
 server {
     listen 80;

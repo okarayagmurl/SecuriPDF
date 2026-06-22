@@ -1,10 +1,7 @@
 # SecuriPDF — TLS edge (Faz 1 prod)
 # Dis erisim: 443 -> oauth2-proxy -> nginx:8080 (ic backend)
 # Dev: bu dosya mount edilmez; giris dogrudan oauth2-proxy host portu uzerinden
-
-resolver 127.0.0.11 valid=10s ipv6=off;
-
-include /etc/nginx/conf.d/ip-whitelist.conf;
+# Ortak snippet: 00-http-snippet.conf
 
 server {
     listen 443 ssl http2;

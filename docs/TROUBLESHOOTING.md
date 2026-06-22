@@ -23,6 +23,42 @@ curl -v http://localhost/api/v1/info/status
 
 Stirling container'ı 90 saniyeye kadar başlangıç süresi gerektirebilir (`start_period`).
 
+### `entera-nginx is unhealthy`
+
+oauth2-proxy bu yüzden başlamaz (`dependency failed to start`).
+
+**Teşhis:**
+
+```bash
+cd docker
+docker logs entera-nginx --tail 80
+docker inspect entera-nginx --format='{{json .State.Health}}' | jq .
+```
+
+**Yaygın nedenler:**
+
+| Log / belirti | Çözüm |
+|---------------|--------|
+| `resolver directive is duplicate` | Prod (HTTPS) modda eski nginx şablonları — güncel kodu çekin; `00-http-snippet.conf` olmalı |
+| `cannot load certificate ... securipdf.crt` | HTTPS modu seçildi ama TLS yok — `cd docker && ./generate-tls.sh` |
+| `invalid number of arguments in client_max_body_size` | `.env` içinde `CLIENT_MAX_BODY_SIZE=500M` olmalı |
+| Nginx log temiz, healthcheck fail | `docker exec entera-nginx wget -qO- http://127.0.0.1:8080/nginx-health` |
+
+**Hızlı onarım (HTTP / lab):**
+
+```bash
+cd docker
+docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --force-recreate nginx
+```
+
+**HTTPS kurulumu:**
+
+```bash
+cd docker
+./generate-tls.sh
+docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.prod.yml up -d --force-recreate nginx oauth2-proxy
+```
+
 ## OCR Çalışmıyor
 
 1. Fat image kullanıldığından emin olun (`*-fat` tag)
@@ -71,8 +107,30 @@ cd docker
 ### Login loop veya 502
 
 1. `OAUTH2_CLIENT_SECRET` Keycloak client secret ile eslesmeli
-2. Redirect URI: `http://localhost:8080/oauth2/callback`
+2. Redirect URI: `http://SUNUCU_IP:8080/oauth2/callback` (localhost degil)
 3. oauth2-proxy log: `docker logs securipdf-oauth2-proxy --tail 50`
+
+### `192.168.x.x:8080` acinca `localhost:8090` yonleniyor
+
+`.env` icinde tum erisim adresleri ayni IP/FQDN olmali:
+
+```bash
+KEYCLOAK_HOSTNAME=192.168.6.175
+PUBLIC_FQDN=192.168.6.175
+PUBLIC_SERVER_IP=192.168.6.175
+OAUTH2_ISSUER_URL=http://192.168.6.175:8090/realms/securipdf
+OAUTH2_REDIRECT_URL=http://192.168.6.175:8080/oauth2/callback
+```
+
+Sonra:
+
+```bash
+cd docker
+docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --force-recreate oauth2-proxy keycloak
+pwsh -File bootstrap-keycloak-realm.ps1
+```
+
+Keycloak Admin → Clients → `securipdf` → **Valid redirect URIs** listesinde IP tabanli callback olmali.
 
 ### AD kullanicisi giremiyor
 

@@ -24,6 +24,15 @@ deploy_stack() {
     load_offline_images
   fi
 
+  if [[ "${INSTALLER_PROD:-0}" == "1" ]]; then
+    log "HTTPS modu — TLS sertifikasi kontrol ediliyor..."
+    if [[ -x "${DOCKER_DIR}/generate-tls.sh" ]]; then
+      "${DOCKER_DIR}/generate-tls.sh"
+    else
+      die "generate-tls.sh bulunamadi (HTTPS icin zorunlu)"
+    fi
+  fi
+
   if [[ -x "${ROOT_DIR}/scripts/sync-tools-config.sh" ]]; then
     log "Arac yapilandirmasi senkronize ediliyor..."
     (cd "${ROOT_DIR}" && ./scripts/sync-tools-config.sh)

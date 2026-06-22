@@ -71,6 +71,7 @@ services:
       PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT:-3600}
       PROXY_SEND_TIMEOUT: ${PROXY_SEND_TIMEOUT:-3600}
     volumes:
+      - ./nginx/00-http-snippet.conf:/etc/nginx/conf.d/00-http-snippet.conf:ro
       - ./nginx/default.conf:/etc/nginx/templates/default.conf.template:ro
       - ./nginx/ip-whitelist.conf:/etc/nginx/conf.d/ip-whitelist.conf:ro
       - ./nginx/auth-headers.conf:/etc/nginx/conf.d/auth-headers.conf:ro
@@ -82,10 +83,11 @@ services:
       entera-pdf:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/nginx-health || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/nginx-health | grep -q healthy || exit 1"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 20s
     networks:
       - entera-net
 
