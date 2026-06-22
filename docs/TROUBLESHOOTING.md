@@ -112,25 +112,34 @@ cd docker
 
 ### `192.168.x.x:8080` acinca `localhost:8090` yonleniyor
 
-`.env` icinde tum erisim adresleri ayni IP/FQDN olmali:
+**Neden:** `.env` icinde yalnizca `OAUTH2_REDIRECT_URL` IP iken `KEYCLOAK_HOSTNAME` hala `localhost` (veya oauth2-proxy yeniden baslatilmadi).
+
+**Tek komutla duzeltme:**
+
+```bash
+cd docker
+chmod +x fix-access-url.sh
+./fix-access-url.sh 192.168.6.175
+```
+
+Manuel `.env` (tum satirlar ayni IP olmali):
 
 ```bash
 KEYCLOAK_HOSTNAME=192.168.6.175
 PUBLIC_FQDN=192.168.6.175
-PUBLIC_SERVER_IP=192.168.6.175
 OAUTH2_ISSUER_URL=http://192.168.6.175:8090/realms/securipdf
 OAUTH2_REDIRECT_URL=http://192.168.6.175:8080/oauth2/callback
+OAUTH2_LOGIN_URL=http://192.168.6.175:8090/realms/securipdf/protocol/openid-connect/auth?ui_locales=tr
 ```
 
 Sonra:
 
 ```bash
-cd docker
 docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --force-recreate oauth2-proxy keycloak
 pwsh -File bootstrap-keycloak-realm.ps1
+docker exec securipdf-oauth2-proxy printenv OAUTH2_PROXY_LOGIN_URL
+# Beklenen: http://192.168.6.175:8090/realms/...
 ```
-
-Keycloak Admin → Clients → `securipdf` → **Valid redirect URIs** listesinde IP tabanli callback olmali.
 
 ### AD kullanicisi giremiyor
 
