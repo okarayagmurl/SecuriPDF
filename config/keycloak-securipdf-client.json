@@ -1,0 +1,12 @@
+{
+  "clientId": "securipdf",
+  "enabled": true,
+  "clientAuthenticatorType": "client-secret",
+  "secret": "SecuriPDF-OAuth2-Dev-Secret-2026",
+  "redirectUris": ["http://localhost:8080/oauth2/callback"],
+  "webOrigins": ["http://localhost:8080"],
+  "publicClient": false,
+  "standardFlowEnabled": true,
+  "directAccessGrantsEnabled": true,
+  "protocol": "openid-connect"
+}

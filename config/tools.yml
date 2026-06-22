@@ -1,0 +1,41 @@
+# Entera PDF - Aktif Araç Listesi (Whitelist)
+# Bu dosyayı düzenledikten sonra: ./scripts/sync-tools-config.sh
+# Ardından container'ı yeniden başlatın.
+
+product: SecuriPDF
+version: "1.0"
+
+# MVP'de aktif olacak araçlar (Stirling-PDF endpoint ID'leri)
+# Tam liste: https://docs.stirlingpdf.com/Configuration/Endpoint%20or%20Feature%20Customisation
+enabled:
+  # Birleştirme ve bölme
+  - merge-pdfs
+  - split-pages
+
+  # Sıkıştırma ve OCR
+  - compress-pdf
+  - ocr-pdf
+
+  # Dönüşüm
+  - pdf-to-word          # PDF → Word (LibreOffice)
+  - file-to-pdf          # Word/Office → PDF (LibreOffice)
+  - img-to-pdf           # Görsel → PDF
+
+  # Düzenleme
+  - rotate-pdf
+  - add-watermark
+  - text-editor-pdf   # PDF metin düzenleyici
+  - view-pdf           # PDF görüntüleyici (navbar linki için gerekli)
+
+  # Güvenlik
+  - add-password
+  - remove-password
+  - sign                 # Çizim/metin imza
+  - cert-sign            # Sertifika imzası
+
+# UI davranışı
+ui:
+  hide_unavailable_tools: true
+
+# Not: Word → PDF işlemi file-to-pdf endpoint'i üzerinden LibreOffice ile yapılır.
+# OCR için fat image ve tessdata volume gereklidir.

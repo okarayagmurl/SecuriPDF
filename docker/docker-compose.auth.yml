@@ -1,0 +1,185 @@
+# SecuriPDF — Auth PoC compose şablonu
+# Kullanım: docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d
+#
+# Tam stack: Stirling + nginx + Keycloak + oauth2-proxy + Platform (Vault/Admin/License)
+
+name: entera-pdf
+
+services:
+  nginx:
+    ports: !reset null
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/ip-whitelist.conf:/etc/nginx/conf.d/ip-whitelist.conf:ro
+      - ./nginx/auth-headers.conf:/etc/nginx/conf.d/auth-headers.conf:ro
+      - ./nginx/platform-proxy.conf:/etc/nginx/conf.d/platform-proxy.conf:ro
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: securipdf-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-change-me-in-production}
+    volumes:
+      - securipdf_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - entera-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: securipdf-keycloak
+    restart: unless-stopped
+    command: start-dev
+    ports:
+      - "${KEYCLOAK_HTTP_PORT:-8090}:8080"
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-change-me-in-production}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: ${KEYCLOAK_PROXY:-edge}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me-in-production}
+      LDAP_HOST: ${LDAP_HOST:-192.168.6.10}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-dc=entera,dc=test}
+    volumes:
+      - ./keycloak/themes:/opt/keycloak/themes:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 sh -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - entera-net
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+    container_name: securipdf-oauth2-proxy
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:4180"
+    environment:
+      OAUTH2_PROXY_PROVIDER: keycloak-oidc
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_CLIENT_ID:-securipdf}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET:-change-me}
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${OAUTH2_ISSUER_URL:-http://localhost:8090/realms/securipdf}
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "${OAUTH2_INSECURE_ISSUER:-true}"
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "${OAUTH2_SKIP_DISCOVERY:-true}"
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/securipdf/protocol/openid-connect/certs
+      OAUTH2_PROXY_LOGIN_URL: http://localhost:${KEYCLOAK_HTTP_PORT:-8090}/realms/securipdf/protocol/openid-connect/auth?ui_locales=tr
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/securipdf/protocol/openid-connect/token
+      OAUTH2_PROXY_PROFILE_URL: http://keycloak:8080/realms/securipdf/protocol/openid-connect/userinfo
+      OAUTH2_PROXY_SKIP_CLAIMS_FROM_PROFILE_URL: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "${OAUTH2_ALLOW_UNVERIFIED_EMAIL:-true}"
+      OAUTH2_PROXY_OIDC_EMAIL_CLAIM: email
+      OAUTH2_PROXY_OIDC_USERNAME_CLAIM: preferred_username
+      OAUTH2_PROXY_OIDC_GROUPS_CLAIM: ${OAUTH2_GROUPS_CLAIM:-realm_access.roles}
+      # Keycloak access token aud=account; azp=client-id (keycloak-oidc provider)
+      OAUTH2_PROXY_OIDC_AUDIENCE_CLAIM: azp
+      OAUTH2_PROXY_SCOPE: openid email profile
+      OAUTH2_PROXY_OIDC_INSECURE_SKIP_VERIFY: "${OAUTH2_INSECURE_TLS:-true}"
+      OAUTH2_PROXY_REDIRECT_URL: ${OAUTH2_REDIRECT_URL:-http://localhost:8080/oauth2/callback}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_COOKIE_SECRET:-0123456789abcdef0123456789abcdef}
+      OAUTH2_PROXY_COOKIE_EXPIRE: ${OAUTH2_COOKIE_EXPIRE:-30m}
+      OAUTH2_PROXY_COOKIE_SECURE: "${OAUTH2_COOKIE_SECURE:-false}"
+      OAUTH2_PROXY_UPSTREAMS: http://entera-nginx:8080/
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PROMPT: login
+      OAUTH2_PROXY_SKIP_AUTH_REGEX: ^/api/license/v1/status$
+      OAUTH2_PROXY_SIGN_OUT_REDIRECT_URL: http://localhost:${KEYCLOAK_HTTP_PORT:-8090}/realms/securipdf/protocol/openid-connect/logout?client_id=securipdf&post_logout_redirect_uri=http://localhost:${HTTP_PORT:-8080}/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      keycloak:
+        condition: service_started
+      securipdf-platform:
+        condition: service_healthy
+      nginx:
+        condition: service_healthy
+    networks:
+      - entera-net
+
+  securipdf-platform:
+    build:
+      context: ../services/platform
+      dockerfile: Dockerfile
+    image: securipdf-platform:${IMAGE_TAG:-1.0.0-stirling-0.46.2}
+    container_name: securipdf-platform
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      PLATFORM_CONFIG: /config/platform.yml
+      VAULT_CONFIG: /config/vault.yml
+      LICENSE_CONFIG: /config/license.yml
+      SECURITY_CONFIG: /config/security.yml
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:-dev-master-key-change-in-production!!}
+      PLATFORM_DEV_AUTH: "false"
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ChangeMe-KcAdmin-2026}
+      KEYCLOAK_REALM: securipdf
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-securipdf}
+      OAUTH2_ISSUER_URL: ${OAUTH2_ISSUER_URL:-http://localhost:8090/realms/securipdf}
+      OAUTH2_COOKIE_SECURE: ${OAUTH2_COOKIE_SECURE:-false}
+      OAUTH2_INSECURE_ISSUER: ${OAUTH2_INSECURE_ISSUER:-true}
+      OAUTH2_INSECURE_TLS: ${OAUTH2_INSECURE_TLS:-true}
+      OAUTH2_ALLOW_UNVERIFIED_EMAIL: ${OAUTH2_ALLOW_UNVERIFIED_EMAIL:-true}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_AUTH_ENABLED: ${SMTP_AUTH_ENABLED:-false}
+      SMTP_MAX_ATTACHMENT_MB: ${SMTP_MAX_ATTACHMENT_MB:-25}
+    volumes:
+      - securipdf_vault_data:/vault-data
+      - securipdf_platform_logs:/logs
+      - ../config/platform.yml:/config/platform.yml:ro
+      - ../config/vault.yml:/config/vault.yml:ro
+      - ../config/license.yml:/config/license.yml:ro
+      - ../config/security.yml:/config/security.yml:ro
+      - ../config/ad.yml:/config/ad.yml:ro
+      - ../config/tools.yml:/config/tools.yml:ro
+      # Admin UI — rebuild gerektirmeden guncelleme (dev)
+      - ../services/platform/app/static/admin:/app/app/static/admin:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - entera-net
+
+volumes:
+  securipdf_postgres:
+    driver: local
+  securipdf_vault_data:
+    driver: local
+  securipdf_platform_logs:
+    driver: local

@@ -1,0 +1,28 @@
+# SecuriPDF — Kapali ag (offline) kurulum overlay
+# Build/pull yok; image'lar onceden docker load ile yuklenmis olmali.
+#
+# Kullanim:
+#   docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.offline.yml up -d --no-build
+
+name: entera-pdf
+
+services:
+  entera-pdf:
+    build: !reset null
+    pull_policy: never
+
+  securipdf-platform:
+    build: !reset null
+    pull_policy: never
+
+  nginx:
+    pull_policy: never
+
+  postgres:
+    pull_policy: never
+
+  keycloak:
+    pull_policy: never
+
+  oauth2-proxy:
+    pull_policy: never

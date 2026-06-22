@@ -1,0 +1,27 @@
+{
+  "name": "entera-ad",
+  "providerId": "ldap",
+  "providerType": "org.keycloak.storage.UserStorageProvider",
+  "parentId": "securipdf",
+  "config": {
+    "enabled": ["true"],
+    "priority": ["0"],
+    "editMode": ["READ_ONLY"],
+    "syncRegistrations": ["false"],
+    "vendor": ["ad"],
+    "usernameLDAPAttribute": ["sAMAccountName"],
+    "rdnLDAPAttribute": ["cn"],
+    "uuidLDAPAttribute": ["objectGUID"],
+    "userObjectClasses": ["person, organizationalPerson, user"],
+    "connectionUrl": ["ldap://192.168.6.10:389"],
+    "usersDn": ["CN=Users,dc=entera,dc=test"],
+    "bindDn": ["CN=svc-securipdf,CN=Users,dc=entera,dc=test"],
+    "bindCredential": ["REPLACE_AT_RUNTIME"],
+    "searchScope": ["2"],
+    "referral": ["ignore"],
+    "pagination": ["false"],
+    "importEnabled": ["true"],
+    "connectionPooling": ["true"],
+    "useTruststoreSpi": ["ldapsOnly"]
+  }
+}

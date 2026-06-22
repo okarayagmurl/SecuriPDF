@@ -1,0 +1,141 @@
+name: entera-pdf
+
+services:
+  entera-pdf:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        STIRLING_VERSION: ${STIRLING_VERSION:-0.46.2}
+        STIRLING_IMAGE: ${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}
+    image: entera-pdf:${IMAGE_TAG:-1.0.0-stirling-0.46.2}
+    container_name: entera-pdf
+    restart: unless-stopped
+    expose:
+      - "${STIRLING_INTERNAL_PORT:-8080}"
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      UMASK: "022"
+      DOCKER_ENABLE_SECURITY: ${DOCKER_ENABLE_SECURITY:-false}
+      SECURITY_ENABLELOGIN: ${SECURITY_ENABLELOGIN:-false}
+      SYSTEM_DEFAULTLOCALE: ${SYSTEM_DEFAULTLOCALE:-tr-TR}
+      LANGS: ${LANGS:-tr_TR,en_GB}
+      UI_APPNAME: ${UI_APPNAME:-SecuriPDF}
+      UI_HOMEDESCRIPTION: ${UI_HOMEDESCRIPTION:-Kurumsal PDF işlem platformu}
+      UI_APPNAMENAVBAR: ${UI_APPNAMENAVBAR:-SecuriPDF}
+      UI_LOGOSTYLE: ${UI_LOGOSTYLE:-classic}
+      SYSTEM_MAXFILESIZE: ${SYSTEM_MAXFILESIZE:-500}
+      SYSTEM_ENABLEANALYTICS: ${SYSTEM_ENABLEANALYTICS:-false}
+      SYSTEM_GOOGLEVISIBILITY: ${SYSTEM_GOOGLEVISIBILITY:-false}
+      SYSTEM_CUSTOMHTMLFILES: ${SYSTEM_CUSTOMHTMLFILES:-true}
+      SYSTEM_ENABLEURLTOPDF: "false"
+      SHOW_SURVEY: ${SHOW_SURVEY:-false}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      LEGAL_TERMSANDCONDITIONS: ${LEGAL_TERMSANDCONDITIONS:-}
+      LEGAL_PRIVACYPOLICY: ${LEGAL_PRIVACYPOLICY:-}
+      # endpoints.toRemove: config/custom_settings.yml (ENDPOINTS_TOREMOVE env kullanmayin — shell .env'i ezer)
+      UI_DEFAULTHIDEUNAVAILABLETOOLS: "true"
+      DISABLE_ADDITIONAL_FEATURES: "false"
+    volumes:
+      - entera_data:/usr/share/tessdata
+      - entera_config:/configs
+      - entera_logs:/logs
+      - entera_pipeline:/pipeline
+      - entera_uploads:/uploads
+      - ../config/custom_settings.yml:/configs/custom_settings.yml:ro
+      - ../branding/static:/customFiles/static:ro
+      - ../branding/templates:/customFiles/templates:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${STIRLING_MEMORY_LIMIT:-4G}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -o /dev/null http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - entera-net
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: entera-nginx
+    restart: unless-stopped
+    expose:
+      - "8080"
+    # Host port yalnızca auth (oauth2-proxy) veya docker-compose.direct.yml ile açılır
+    environment:
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-500M}
+      PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT:-3600}
+      PROXY_SEND_TIMEOUT: ${PROXY_SEND_TIMEOUT:-3600}
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/ip-whitelist.conf:/etc/nginx/conf.d/ip-whitelist.conf:ro
+      - ./nginx/auth-headers.conf:/etc/nginx/conf.d/auth-headers.conf:ro
+      - ./nginx/platform-proxy.conf:/etc/nginx/conf.d/platform-proxy.conf:ro
+      # TLS (Faz 1): .\generate-tls.ps1 sonra asagidaki satirlari acin
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
+      # - ./nginx/ssl-server.conf.template:/etc/nginx/templates/ssl-server.conf.template:ro
+    depends_on:
+      entera-pdf:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - entera-net
+
+  # --- Gelecek servisler (yorumda) ---
+  # keycloak:
+  #   image: quay.io/keycloak/keycloak:latest
+  #   container_name: entera-keycloak
+  #   restart: unless-stopped
+  #   environment:
+  #     KC_DB: postgres
+  #     KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+  #     KC_DB_USERNAME: keycloak
+  #     KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+  #   networks:
+  #     - entera-net
+  #
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: entera-postgres
+  #   restart: unless-stopped
+  #   volumes:
+  #     - entera_postgres:/var/lib/postgresql/data
+  #   networks:
+  #     - entera-net
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: entera-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - entera_redis:/data
+  #   networks:
+  #     - entera-net
+
+volumes:
+  entera_data:
+    driver: local
+  entera_config:
+    driver: local
+  entera_logs:
+    driver: local
+  entera_pipeline:
+    driver: local
+  entera_uploads:
+    driver: local
+  entera_backups:
+    driver: local
+  # entera_postgres:
+  # entera_redis:
+
+networks:
+  entera-net:
+    driver: bridge

@@ -1,0 +1,14 @@
+{
+  "id": "d6c5848e-bac3-4957-a354-ca09f4d54996",
+  "name": "realm roles",
+  "protocol": "openid-connect",
+  "protocolMapper": "oidc-usermodel-realm-role-mapper",
+  "config": {
+    "claim.name": "roles",
+    "access.token.claim": "true",
+    "id.token.claim": "true",
+    "userinfo.token.claim": "true",
+    "introspection.token.claim": "true",
+    "multivalued": "true"
+  }
+}

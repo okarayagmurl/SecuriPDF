@@ -1,0 +1,280 @@
+/* SecuriPDF — modern split-screen login */
+
+:root {
+  --sp-primary: #2563eb;
+  --sp-primary-dark: #1d4ed8;
+  --sp-panel-bg: #f3f4f6;
+  --sp-card-bg: #ffffff;
+  --sp-text: #0f172a;
+  --sp-muted: #64748b;
+  --sp-border: #e2e8f0;
+  --sp-hero-start: #1e40af;
+  --sp-hero-end: #06b6d4;
+}
+
+html.pf-v5-theme-dark,
+html.pf-v5-theme-dark body {
+  /* Login sayfasinda sabit acik tema */
+  color-scheme: light;
+}
+
+body#keycloak-bg.securipdf-login-page,
+.login-pf body.securipdf-login-page {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--sp-panel-bg) !important;
+  background-image: none !important;
+  font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+}
+
+.securipdf-login-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Dil secici — sag ust kose */
+.securipdf-lang-bar {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 100;
+}
+
+.securipdf-lang-select {
+  appearance: none;
+  padding: 0.45rem 2rem 0.45rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23ffffff' d='M6 8 0 0h12z'/%3E%3C/svg%3E") no-repeat right 0.75rem center;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+}
+
+@media (max-width: 991px) {
+  .securipdf-lang-bar {
+    top: 1rem;
+    right: 1rem;
+  }
+
+  .securipdf-lang-select {
+    border-color: var(--sp-border);
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%230f172a' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
+    color: var(--sp-text);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  }
+}
+
+/* Split layout */
+.securipdf-login-split {
+  display: grid;
+  grid-template-columns: minmax(420px, 520px) 1fr;
+  min-height: 100vh;
+}
+
+.securipdf-login-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem 2.5rem 4.5rem;
+  background: var(--sp-panel-bg);
+}
+
+.securipdf-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--sp-card-bg);
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+  padding: 2rem 2rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.securipdf-card-brand {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.securipdf-login-logo {
+  display: block;
+  height: 5.5rem;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.securipdf-card-header {
+  margin-bottom: 1.5rem;
+}
+
+#kc-page-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--sp-text);
+  line-height: 1.3;
+  text-align: left;
+}
+
+.securipdf-card-body .pf-v5-c-form__group,
+.securipdf-card-body .pf-v5-c-form__label {
+  margin-bottom: 0.35rem;
+}
+
+.securipdf-card-body .pf-v5-c-form__label-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sp-text);
+}
+
+.securipdf-card-body input[type="text"],
+.securipdf-card-body input[type="password"] {
+  border-radius: 0.5rem;
+  border-color: var(--sp-border);
+  padding: 0.65rem 0.85rem;
+}
+
+.securipdf-card-body input[type="text"]:focus,
+.securipdf-card-body input[type="password"]:focus {
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  outline: none;
+}
+
+.pf-v5-c-button.pf-m-primary,
+.securipdf-card-body button[type="submit"] {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.7rem 1rem;
+  border-radius: 0.5rem;
+  background-color: var(--sp-primary) !important;
+  border-color: var(--sp-primary) !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background-color: var(--sp-primary-dark) !important;
+  border-color: var(--sp-primary-dark) !important;
+}
+
+.securipdf-login-footer {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 2.5rem;
+  margin-top: 0;
+  color: var(--sp-muted);
+  font-size: 0.8rem;
+}
+
+.securipdf-footer-brand {
+  font-weight: 600;
+  color: var(--sp-text);
+}
+
+/* Hero panel */
+.securipdf-login-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 3rem;
+  background: linear-gradient(135deg, var(--sp-hero-start) 0%, #0891b2 45%, var(--sp-hero-end) 100%);
+  overflow: hidden;
+}
+
+.securipdf-login-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.08) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+.securipdf-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 36rem;
+  color: #fff;
+}
+
+.securipdf-hero-tagline {
+  margin: 0 0 2.5rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  opacity: 0.9;
+  letter-spacing: 0.02em;
+}
+
+.securipdf-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.securipdf-stat-label,
+.securipdf-stat-value {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.securipdf-stat-value {
+  font-size: 0.8rem;
+}
+
+/* PatternFly kalintilari gizle / sifirla */
+.pf-v5-c-login,
+.pf-v5-c-login__container,
+.pf-v5-c-login__header,
+#kc-header {
+  all: unset;
+  display: contents;
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-header-utilities {
+  display: none !important;
+}
+
+/* Mobil: hero altta */
+@media (max-width: 991px) {
+  .securipdf-login-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .securipdf-login-panel {
+    order: 1;
+    padding: 5rem 1.25rem 2rem;
+  }
+
+  .securipdf-login-hero {
+    order: 2;
+    min-height: 14rem;
+    padding: 2rem 1.5rem;
+  }
+
+  .securipdf-hero-stats {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .securipdf-hero-tagline {
+    margin-bottom: 1.25rem;
+  }
+}

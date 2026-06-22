@@ -1,0 +1,27 @@
+/**
+ * Entera PDF - Tema değişkenleri
+ * custom.css ile birlikte kullanılır.
+ */
+
+:root {
+  --entera-font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--entera-font-family);
+}
+
+/* Karanlık mod uyumu */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --entera-primary: #3b82f6;
+    --entera-primary-dark: #2563eb;
+    --entera-footer-bg: #111827;
+  }
+}
+
+/* Odak erişilebilirliği */
+:focus-visible {
+  outline: 2px solid var(--entera-primary, #1a56db);
+  outline-offset: 2px;
+}

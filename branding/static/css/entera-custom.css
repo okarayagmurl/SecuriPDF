@@ -1,0 +1,5 @@
+/**
+ * Entera PDF - Ana CSS override
+ * Mount: branding/ -> /customFiles (static/ altına yerleştirilir)
+ */
+@import url("entera-theme.css");

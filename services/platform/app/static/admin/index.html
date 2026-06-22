@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecuriPDF Admin</title>
+  <link rel="stylesheet" href="/admin/static/admin.css?v=8">
+</head>
+<body>
+  <div id="setupBanner" class="setup-banner hidden" role="status">
+    <div class="setup-banner-text">
+      <strong>Kurulum tamamlanmadi.</strong>
+      <span id="setupBannerMessage">Asagidaki adimlari tamamlayin; ilk giris parolasini degistirmeyi unutmayin.</span>
+    </div>
+    <button type="button" id="btnSetupBannerDismiss" class="secondary">Listeyi goster</button>
+  </div>
+  <header class="admin-header">
+    <h1>SecuriPDF Admin</h1>
+    <p class="subtitle">Yapılandırma · Kullanıcılar · Kota · Operasyon · Araçlar · Audit</p>
+    <nav class="admin-tabs" id="adminTabs">
+      <button type="button" class="tab active" data-tab="settings">Yapılandırma</button>
+      <button type="button" class="tab" data-tab="users">Kullanıcılar</button>
+      <button type="button" class="tab" data-tab="quota">Kota</button>
+      <button type="button" class="tab" data-tab="ops">Operasyon</button>
+      <button type="button" class="tab" data-tab="tools">Araçlar</button>
+      <button type="button" class="tab" data-tab="audit">Audit</button>
+    </nav>
+  </header>
+  <main class="admin-grid">
+
+    <div id="panel-settings" class="tab-panel active">
+      <section class="card full setup-card" id="setupChecklistCard">
+        <h2>Kurulum tamamlama</h2>
+        <p class="hint">Installer sonrasi bu adimlari sirayla tamamlayin. Otomatik maddeler islem yaptikca yesile doner.</p>
+        <div id="setupProgressSummary" class="readiness-summary"></div>
+        <ul id="setupChecklistList" class="readiness-list setup-checklist"></ul>
+        <div class="row-actions">
+          <button type="button" id="btnRefreshSetup">Yenile</button>
+          <button type="button" id="btnSetupWizardComplete" class="secondary">Kurulumu tamamladim</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Active Directory / LDAP</h2>
+        <p class="hint">Kaydedilen ayarlar vault volume'da saklanır. "Keycloak'a uygula" ile federation güncellenir.</p>
+        <label>LDAP Host <input id="ldapHost" type="text"></label>
+        <label>Base DN <input id="ldapBaseDn" type="text"></label>
+        <label>Users DN <input id="ldapUsersDn" type="text"></label>
+        <label>Groups DN <input id="ldapGroupsDn" type="text"></label>
+        <label>Bind DN <input id="ldapBindDn" type="text"></label>
+        <label>Bind parolası (boş = değiştirme) <input id="ldapBindPassword" type="password" autocomplete="new-password"></label>
+        <label>Grup filtresi <input id="ldapGroupFilter" type="text" placeholder="(cn=SecuriPDF-*)"></label>
+        <label>Kullanıcı grubu <input id="ldapGroupUser" type="text" placeholder="SecuriPDF-Users"></label>
+        <label>Admin grubu <input id="ldapGroupAdmin" type="text" placeholder="SecuriPDF-Admins"></label>
+        <button id="btnSaveLdap">LDAP kaydet</button>
+        <button id="btnLdapTest" class="secondary">Bağlantı testi</button>
+        <button id="btnLdapApply" class="secondary">Keycloak'a uygula</button>
+        <pre id="ldapResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Vault varsayılanları</h2>
+        <label>Varsayılan kota (bayt) <input id="vaultDefaultQuota" type="number"></label>
+        <label>Maks. dosya (bayt) <input id="vaultMaxFile" type="number"></label>
+        <label>Soft-delete (gün) <input id="vaultSoftDelete" type="number"></label>
+        <button id="btnSaveVault">Kaydet</button>
+        <pre id="vaultResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Lisans</h2>
+        <label>Lisans anahtarı <input id="licenseKey" type="text"></label>
+        <label>Bitiş (ISO) <input id="licenseExpires" type="text" placeholder="2027-12-31T23:59:59Z"></label>
+        <label>Maks. kullanıcı <input id="licenseMaxUsers" type="number"></label>
+        <label>Maks. eşzamanlı oturum <input id="licenseMaxSessions" type="number"></label>
+        <label>Açık araçlar (virgülle) <input id="licenseTools" type="text"></label>
+        <button id="btnSaveLicense">Kaydet</button>
+        <button id="btnLoadLicenseStatus" class="secondary">Durum</button>
+        <pre id="licenseResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>E-posta (SMTP)</h2>
+        <p class="hint">Kullanicilarin arsiv belgelerini kendilerine gondermesi icin. Ayarlar vault volume'da saklanir; .env varsayilanlarini gecebilir.</p>
+        <label><input id="smtpEnabled" type="checkbox"> SMTP etkin</label>
+        <label>SMTP sunucu <input id="smtpHost" type="text" placeholder="smtp.sirket.local"></label>
+        <label>Port <input id="smtpPort" type="number" placeholder="587"></label>
+        <label>Kullanici adi <input id="smtpUser" type="text" autocomplete="off"></label>
+        <label>Parola (bos = degistirme) <input id="smtpPassword" type="password" autocomplete="new-password"></label>
+        <label><input id="smtpAuthEnabled" type="checkbox"> Kimlik dogrulama kullan (AUTH)</label>
+        <label>Gonderici adresi <input id="smtpFrom" type="email" placeholder="securipdf@sirket.local"></label>
+        <label>Guvenlik modu
+          <select id="smtpSecurity">
+            <option value="starttls">STARTTLS (genelde port 587)</option>
+            <option value="ssl">SSL/TLS (genelde port 465)</option>
+            <option value="none">Yok — ic ag relay (sifresiz)</option>
+          </select>
+        </label>
+        <p class="hint">
+          Ic ag relay (or. <code>192.168.x.x</code>): <strong>Yok</strong> + port <strong>25/587</strong>,
+          <strong>kimlik dogrulama kapali</strong> (relay IP ile yetkilendirir).
+          Docker sunucusunun IP'si relay'de izinli olmali.
+        </p>
+        <label>Maks. ek (MB) <input id="smtpMaxAttachmentMb" type="number" min="1" max="100"></label>
+        <label>Test alicisi (bos = yalnizca baglanti) <input id="smtpTestRecipient" type="email" placeholder="opsiyonel"></label>
+        <button id="btnSaveSmtp">SMTP kaydet</button>
+        <button id="btnSmtpTest" class="secondary">Baglanti testi</button>
+        <pre id="smtpResult"></pre>
+      </section>
+
+      <section class="card full">
+        <h2>E-posta sablonlari (HTML)</h2>
+        <p class="hint">
+          Placeholder: <code id="emailTemplatePlaceholders">{product_name}, {filename}, {user_id}, {timestamp}</code>
+          — vault volume'da saklanir. SMTP ayarlarindan bagimsiz duzenlenebilir.
+        </p>
+
+        <h3 class="subsection">Ortak govde</h3>
+        <label>Baslik alt metni <input id="etHeaderSubtitle" type="text"></label>
+        <label>Alt bilgi (HTML) <textarea id="etFooterHtml" rows="3" spellcheck="false"></textarea></label>
+
+        <h3 class="subsection">Belge e-postasi</h3>
+        <label>Konu <input id="etDocSubject" type="text"></label>
+        <label>Onizleme metni (preheader) <input id="etDocPreheader" type="text"></label>
+        <label>Baslik <input id="etDocTitle" type="text"></label>
+        <label>Giris (HTML) <textarea id="etDocIntroHtml" rows="4" spellcheck="false"></textarea></label>
+        <label>Kapanis (HTML) <textarea id="etDocClosingHtml" rows="3" spellcheck="false"></textarea></label>
+        <label>Duz metin govde <textarea id="etDocPlainBody" rows="6" spellcheck="false"></textarea></label>
+
+        <h3 class="subsection">SMTP test e-postasi</h3>
+        <label>Konu <input id="etTestSubject" type="text"></label>
+        <label>Onizleme metni <input id="etTestPreheader" type="text"></label>
+        <label>Baslik <input id="etTestTitle" type="text"></label>
+        <label>Giris (HTML) <textarea id="etTestIntroHtml" rows="3" spellcheck="false"></textarea></label>
+        <label>Basari kutusu (HTML) <textarea id="etTestSuccessHtml" rows="3" spellcheck="false"></textarea></label>
+        <label>Kapanis (HTML) <textarea id="etTestClosingHtml" rows="3" spellcheck="false"></textarea></label>
+        <label>Duz metin govde <textarea id="etTestPlainBody" rows="5" spellcheck="false"></textarea></label>
+
+        <div class="row-actions">
+          <button id="btnSaveEmailTemplates">Sablonlari kaydet</button>
+          <button id="btnResetEmailTemplates" class="secondary">Varsayilana don</button>
+        </div>
+        <pre id="emailTemplatesResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Branding / UI</h2>
+        <p class="hint">Stirling container yeniden başlatılınca etkin olur (.env ile senkron önerilir).</p>
+        <label>Uygulama adı <input id="brandAppName" type="text"></label>
+        <label>Navbar adı <input id="brandNavbar" type="text"></label>
+        <label>Açıklama <input id="brandDescription" type="text"></label>
+        <label>Varsayılan dil <input id="brandLocale" type="text" placeholder="tr-TR"></label>
+        <label>Diller <input id="brandLangs" type="text" placeholder="tr_TR,en_GB"></label>
+        <button id="btnSaveBranding">Kaydet</button>
+        <pre id="brandingResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Sistem / Uyumluluk</h2>
+        <label>Maks. dosya (MB) <input id="sysMaxFileMb" type="number"></label>
+        <label>Nginx body limit <input id="sysBodySize" type="text" placeholder="500M"></label>
+        <label>Proxy timeout (sn) <input id="sysProxyTimeout" type="number"></label>
+        <label><input id="compAnalytics" type="checkbox"> Analytics</label>
+        <label><input id="compGoogle" type="checkbox"> Google görünürlük</label>
+        <label><input id="compSurvey" type="checkbox"> Anket kapalı</label>
+        <button id="btnSaveSystem">Sistem kaydet</button>
+        <button id="btnSaveCompliance">Uyumluluk kaydet</button>
+        <pre id="systemResult"></pre>
+      </section>
+
+      <section class="card full">
+        <h2>Salt okunur (.env)</h2>
+        <pre id="readOnlyInfo"></pre>
+      </section>
+    </div>
+
+    <div id="panel-users" class="tab-panel">
+      <section class="card full">
+        <h2>Keycloak kullanıcıları</h2>
+        <p class="hint">AD kullanicilari icin once "AD kullanici sync", ardindan "AD grup sync" calistirin. Roller AD grup uyeliginden okunur.</p>
+        <div class="row-actions">
+          <label>Arama <input id="userSearch" type="text" placeholder="kullanici adi"></label>
+          <label class="inline-check"><input id="userFederatedOnly" type="checkbox"> Yalnizca AD</label>
+          <button id="btnLoadUsers">Listeyi yenile</button>
+          <button id="btnSyncUsers" class="secondary">AD kullanici sync</button>
+          <button id="btnSyncGroups" class="secondary">AD grup sync</button>
+        </div>
+        <p id="usersSummary" class="hint"></p>
+        <p class="hint status-legend">
+          <span class="status-badge status-session">Oturum acik</span>
+          <span class="status-badge status-login_error">Giris hatasi</span>
+          <span class="status-badge status-idle">Giris yok</span>
+        </p>
+        <div class="table-wrap">
+          <table class="admin-table" id="usersTable">
+            <thead>
+              <tr>
+                <th>Kullanici</th>
+                <th>Ad</th>
+                <th>E-posta</th>
+                <th>Roller</th>
+                <th>Kaynak</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
+        <pre id="usersResult"></pre>
+      </section>
+      <section class="card">
+        <h2>Yerel kullanici ekle</h2>
+        <p class="hint">Keycloak realm'inde AD disi kullanici (break-glass, servis hesabi vb.)</p>
+        <div class="form-grid">
+          <label>Kullanici adi <input id="localUserName" type="text" placeholder="ornek-admin"></label>
+          <label>Parola <input id="localUserPassword" type="password" placeholder="min. 8 karakter"></label>
+          <label>E-posta <input id="localUserEmail" type="email" placeholder="opsiyonel"></label>
+          <label>Ad <input id="localUserFirstName" type="text"></label>
+          <label>Soyad <input id="localUserLastName" type="text"></label>
+        </div>
+        <div class="row-actions">
+          <label class="inline-check"><input id="localRoleUser" type="checkbox" checked> pdf-user</label>
+          <label class="inline-check"><input id="localRoleAdmin" type="checkbox"> pdf-admin</label>
+          <button id="btnCreateLocalUser">Yerel kullanici olustur</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="panel-quota" class="tab-panel">
+      <section class="card">
+        <h2>Kullanıcı kotası</h2>
+        <label>Kullanıcı ID <input id="quotaUserId" type="text" placeholder="administrator"></label>
+        <button id="btnLoadQuota">Yükle</button>
+        <label>Maks. bayt <input id="quotaMaxBytes" type="number"></label>
+        <button id="btnSaveQuota">Kaydet</button>
+        <pre id="quotaResult"></pre>
+      </section>
+    </div>
+
+    <div id="panel-ops" class="tab-panel">
+      <section class="card full">
+        <h2>Sistem durumu</h2>
+        <p class="hint">Vault servisi, disk kullanimi ve yedek ozeti.</p>
+        <div class="stat-grid" id="opsHealthCards">
+          <p class="hint">Yukleniyor...</p>
+        </div>
+        <button id="btnRefreshHealth">Yenile</button>
+        <pre id="opsHealthDetail"></pre>
+      </section>
+
+      <section class="card full">
+        <h2>Prod hazirlik kontrol listesi</h2>
+        <p class="hint">Kritik maddeler tamamlanmadan prod'a gecmeyin. Tam stack yedegi icin asagidaki komutlar gerekir.</p>
+        <div id="opsReadinessSummary" class="readiness-summary"></div>
+        <ul id="opsReadinessList" class="readiness-list"></ul>
+        <p id="opsHostBackupNote" class="hint"></p>
+        <button id="btnRefreshReadiness">Kontrolu yenile</button>
+      </section>
+
+      <section class="card">
+        <h2>Ortam, erisim ve yedek</h2>
+        <p class="hint">Sunucu IP ve FQDN bilgileri vault volume'da saklanir. Prod gecisinde .env (OAUTH2_REDIRECT_URL, KEYCLOAK_HOSTNAME) ile eslestirin.</p>
+        <label>Ortam
+          <select id="deployEnvironment">
+            <option value="dev">dev</option>
+            <option value="staging">staging</option>
+            <option value="prod">prod</option>
+          </select>
+        </label>
+        <label>Sunucu IP <input id="deployServerIp" type="text" placeholder="192.168.6.248"></label>
+        <label>Erisim FQDN <input id="deployPublicFqdn" type="text" placeholder="pdf.sirket.local"></label>
+        <label>Keycloak FQDN (bos = erisim FQDN) <input id="deployKeycloakFqdn" type="text" placeholder="pdf.sirket.local"></label>
+        <label class="inline-check"><input id="deployUseHttps" type="checkbox"> HTTPS (prod)</label>
+        <label>Yedek saklama suresi (gun) <input id="deployRetention" type="number" min="1" max="365"></label>
+        <label>Notlar <textarea id="deployNotes" rows="3" placeholder="Prod gecis notlari, bakim penceresi vb."></textarea></label>
+        <h3 class="subsection">Hesaplanan erisim adresleri</h3>
+        <pre id="deployAccessUrls" class="access-urls"></pre>
+        <button id="btnSaveDeployment">Kaydet</button>
+        <pre id="deployResult"></pre>
+      </section>
+
+      <section class="card full">
+        <h2>Vault yedekleme</h2>
+        <p class="hint">Belgeler (.enc), imzalar, sertifikalar ve metadata.db — Admin UI uzerinden.</p>
+        <div class="row-actions">
+          <label>Yedek etiketi <input id="backupLabel" type="text" placeholder="manual"></label>
+          <button id="btnCreateBackup">Yedek al</button>
+          <button id="btnRefreshBackups" class="secondary">Listeyi yenile</button>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table" id="backupsTable">
+            <thead>
+              <tr>
+                <th>Kimlik</th>
+                <th>Etiket</th>
+                <th>Tarih</th>
+                <th>Belgeler</th>
+                <th>Boyut</th>
+                <th>Islemler</th>
+              </tr>
+            </thead>
+            <tbody id="backupsTableBody"></tbody>
+          </table>
+        </div>
+        <pre id="backupResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Geri yukleme</h2>
+        <p class="hint danger-text">Dikkat: Mevcut Vault verisi uzerine yazar. Islem sonrasi platform container yeniden baslatilmalidir.</p>
+        <label>Yedek kimligi <input id="restoreBackupId" type="text" placeholder="20250619_143022"></label>
+        <label>Onay (kimligi tekrar yazin) <input id="restoreConfirm" type="text" placeholder="20250619_143022"></label>
+        <button id="btnRestoreBackup" class="danger">Geri yukle</button>
+        <pre id="restoreResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Bakim</h2>
+        <p class="hint">Soft-delete suresi dolmus kayitlari kalici olarak temizler.</p>
+        <button id="btnPurgeSoftDeleted" class="secondary">Soft-delete temizligi</button>
+        <pre id="maintenanceResult"></pre>
+      </section>
+
+      <section class="card full">
+        <h2>Tam stack yedek (sunucu komutlari)</h2>
+        <p class="hint">Keycloak Postgres, Stirling volume ve .env icin sunucuda calistirin:</p>
+        <pre class="code-block"># Linux / Git Bash
+./scripts/backup.sh
+
+# Windows — Keycloak realm export
+cd docker
+.\backup-keycloak.ps1 ..\backups\manual-export
+
+# Prod sertlestirme
+.\apply-prod-hardening.ps1 -Force
+.\deploy-prod.ps1 -Force</pre>
+      </section>
+    </div>
+
+    <div id="panel-tools" class="tab-panel">
+      <section class="card">
+        <h2>Aktif araçlar</h2>
+        <button id="btnLoadTools">Listele</button>
+        <label>Araç listesi (virgülle) <input id="toolsEnabled" type="text" placeholder="merge-pdfs,sign,..."></label>
+        <button id="btnSaveTools">Kaydet</button>
+        <pre id="toolsResult"></pre>
+      </section>
+    </div>
+
+    <div id="panel-audit" class="tab-panel">
+      <section class="card full">
+        <h2>Audit log</h2>
+        <label>Kullanıcı <input id="auditUserId" type="text"></label>
+        <label>Aksiyon <input id="auditAction" type="text"></label>
+        <label>Başlangıç (ISO) <input id="auditFrom" type="text" placeholder="2026-01-01T00:00:00Z"></label>
+        <label>Bitiş (ISO) <input id="auditTo" type="text"></label>
+        <button id="btnLoadAudit">Yükle</button>
+        <pre id="auditResult"></pre>
+      </section>
+    </div>
+
+  </main>
+  <script src="/admin/static/admin.js?v=7"></script>
+</body>
+</html>

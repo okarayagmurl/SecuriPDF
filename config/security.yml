@@ -1,0 +1,83 @@
+# SecuriPDF — Güvenlik Yapılandırması
+#
+# Ticari mimari (Seçenek B):
+#   - Kimlik: Keycloak + Active Directory (oauth2-proxy / nginx)
+#   - Kişisel veri: SecuriPDF Vault (config/vault.yml)
+#   - Stirling login: KAPALI (proprietary lisans — docs/AUTH-ARCHITECTURE.md)
+
+authentication:
+  # proxy = Keycloak + oauth2-proxy (prod hedef)
+  mode: proxy  # disabled | proxy
+
+  # Stirling-PDF dahili auth — ticari dağıtımda ASLA açmayın
+  stirling:
+    enable_login: false
+    docker_enable_security: false
+    # Gerekçe: app/proprietary/ Stirling User License gerektirir (MIT değil)
+
+  # SecuriPDF proxy katmanı (prod)
+  proxy:
+    provider: oauth2-proxy
+    upstream: keycloak
+    # oauth2_proxy_listen: "4180"
+    # cookie_domain: ".securipdf.local"
+
+  keycloak:
+    realm: securipdf
+    client_id: securipdf
+    # issuer_url: https://auth.securipdf.local/realms/securipdf
+    # redirect_uri: https://pdf.securipdf.local/oauth2/callback
+
+  # Active Directory — Keycloak user federation (Entera test)
+  # Detay: config/ad.yml · docs/AD-KEYCLOAK-SETUP.md
+  ldap:
+    provider: active_directory
+    host: 192.168.6.10
+    url: ldap://192.168.6.10:389
+    url_tls: ldaps://192.168.6.10:636
+    base_dn: dc=entera,dc=test
+    users_dn: CN=Users,dc=entera,dc=test
+    bind_dn: CN=svc-securipdf,CN=Users,dc=entera,dc=test
+    bind_password: ${LDAP_BIND_PASSWORD}
+    groups:
+      user: SecuriPDF-Users
+      admin: SecuriPDF-Admins
+
+  roles:
+    user: pdf-user
+    admin: pdf-admin
+
+  # AD dışı acil giriş — Keycloak realm'de manuel kullanıcı (Stirling admin DEĞİL)
+  break_glass:
+    enabled: true
+    keycloak_username: securipdf-local-admin
+    # Parola Keycloak UI veya bootstrap script ile; repoda tutulmaz
+
+  # SecuriPDF Admin UI (Faz 5) — pdf-admin rolü ile /admin
+  admin_ui:
+    enabled: true  # Faz 5 — pdf-admin rolü ile /admin
+    manages:
+      - vault_quotas
+      - ldap_connection_test
+      - tools_whitelist
+      - audit_logs
+      - license_status
+
+  intranet_only: true
+  ip_whitelist:
+    - 10.0.0.0/8
+    - 192.168.0.0/16
+    - 172.16.0.0/12
+    - 127.0.0.0/8
+
+vault:
+  config_file: config/vault.yml
+  # Vault servisi Faz 3 — API: docs/VAULT-API.md
+
+license:
+  enabled: true  # Faz 6 — config/license.yml
+
+compliance:
+  analytics_enabled: false
+  google_visibility: false
+  survey_disabled: true

@@ -1,0 +1,35 @@
+# Ortam ve gizli dosyalar
+.env
+*.env.local
+
+# Docker runtime verileri
+data/
+uploads/
+backups/
+logs/
+volumes/
+
+# Geçici dosyalar
+*.tmp
+*.bak
+*.swp
+docker/tmp-*.json
+docker/nginx/ssl/
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+
+# Release / offline paket ciktisi
+dist/
+offline/debs/
+offline/debs-pwsh/
+installer/CREDENTIALS-*.txt

@@ -1,0 +1,42 @@
+# SecuriPDF Platform servisi
+product: SecuriPDF
+version: "1.0"
+
+server:
+  host: 0.0.0.0
+  port: 8000
+
+storage:
+  data_path: /vault-data
+  db_path: /vault-data/metadata.db
+
+auth:
+  user_header: X-Auth-Request-User
+  email_header: X-Auth-Request-Email
+  groups_header: X-Auth-Request-Groups
+  admin_role: pdf-admin
+  user_role: pdf-user
+
+admin_ui:
+  enabled: true
+  path: /admin
+
+license:
+  enabled: true
+  config_file: /config/license.yml
+
+audit:
+  enabled: true
+  log_path: /logs/platform-audit.log
+
+orchestration:
+  stirling_internal_url: http://entera-pdf:8080
+
+mail:
+  enabled: false
+  host: ""
+  port: 587
+  from: ""
+  security: starttls
+  auth_enabled: false
+  max_attachment_mb: 25

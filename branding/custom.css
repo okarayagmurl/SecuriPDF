@@ -1,0 +1,67 @@
+/**
+ * Entera PDF - Kurumsal Tema Override
+ * Stirling-PDF core dosyalarına dokunmadan CSS ile markalama.
+ * Upstream güncellemelerinde bu dosya bağımsız kalır.
+ */
+
+:root {
+  --entera-primary: #1a56db;
+  --entera-primary-dark: #1e429f;
+  --entera-accent: #0e9f6e;
+  --entera-footer-bg: #1f2937;
+  --entera-footer-text: #9ca3af;
+}
+
+/* Navbar ve başlık renkleri */
+header,
+nav,
+[class*="navbar"],
+[class*="Navbar"] {
+  border-bottom-color: var(--entera-primary) !important;
+}
+
+[class*="logo"],
+[class*="Logo"] {
+  max-height: 48px;
+}
+
+/* Birincil butonlar */
+button[class*="primary"],
+a[class*="primary"],
+.btn-primary,
+[data-variant="primary"] {
+  background-color: var(--entera-primary) !important;
+  border-color: var(--entera-primary) !important;
+}
+
+button[class*="primary"]:hover,
+a[class*="primary"]:hover {
+  background-color: var(--entera-primary-dark) !important;
+}
+
+/* Footer özelleştirmesi (template override olmadan) */
+footer,
+[class*="footer"],
+[class*="Footer"] {
+  background-color: var(--entera-footer-bg) !important;
+  color: var(--entera-footer-text) !important;
+}
+
+footer::after {
+  content: " © Entera - Kurumsal PDF Platformu";
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  padding: 0.5rem;
+  color: var(--entera-footer-text);
+}
+
+/* Stirling-PDF promosyon / survey öğelerini gizle */
+[class*="survey"],
+[class*="Survey"],
+[class*="upgrade"],
+[class*="Upgrade"],
+[class*="pro-banner"],
+[class*="ProBanner"] {
+  display: none !important;
+}

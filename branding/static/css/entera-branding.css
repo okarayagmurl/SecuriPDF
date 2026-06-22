@@ -1,0 +1,156 @@
+/**
+ * Entera PDF — Upstream markalama gizleme
+ * Stirling-PDF, Pro, anket, GitHub ve upgrade öğeleri
+ */
+
+.go-pro-link,
+.go-pro-badge,
+.update-notice,
+a[href*="stirlingpdf.com/pricing"],
+a[href*="stirlingpdf.com/pro"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+a[href*="github.com/Stirling-Tools"],
+a[href*="hub.docker.com/r/stirlingtools"],
+#github-button,
+a#github-button,
+#releases,
+a[href*="github.com/Stirling-Tools/Stirling-PDF/releases"] {
+  display: none !important;
+}
+
+#surveyModal,
+#analyticsModal,
+#survey,
+a[href*="stirlingpdf.info"],
+a[href*="calendly.com/d/cm4p"] {
+  display: none !important;
+}
+
+.footer-powered-by .stirling-link,
+.stirling-link,
+a.stirling-link {
+  display: none !important;
+}
+
+img[src*="pixel.stirlingpdf.com"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+a[href="https://stirlingpdf.com"],
+a[href="https://www.stirlingpdf.com"] {
+  display: none !important;
+}
+
+/* oauth2-proxy oturum bilgisi (navbar) */
+.auth-user-dropdown {
+  min-width: 14rem;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.auth-user-panel {
+  padding: 0.85rem 1rem 0.75rem;
+}
+
+.auth-user-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-sys-color-on-surface-variant, #6c757d);
+  margin-bottom: 0.2rem;
+}
+
+.auth-user-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  word-break: break-word;
+  color: var(--md-sys-color-on-surface, #212529);
+}
+
+.auth-user-sub {
+  margin-top: 0.15rem;
+}
+
+.auth-user-divider {
+  height: 1px;
+  margin: 0;
+  background-color: var(--md-sys-color-surface-5, #dee2e6);
+}
+
+.auth-user-signout {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  color: var(--md-sys-color-on-surface, #212529) !important;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background-color 0.15s ease;
+}
+
+.auth-user-signout:hover,
+.auth-user-signout:focus {
+  background-color: var(--md-sys-color-surface-2, #f1f3f5);
+  color: var(--md-sys-color-error, #c62828) !important;
+  text-decoration: none;
+}
+
+.auth-user-signout .material-symbols-rounded {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.auth-user-settings-banner {
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+}
+
+.auth-user-nav-label {
+  display: inline-flex !important;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* view-pdf: PDF.js toolbar bu kadar aşağı kaydırılır (view-pdf.css) */
+@import url('/css/vault-documents.css?v=4');
+
+:root {
+  --securipdf-navbar-offset: 7.5rem;
+}
+
+/* Header yüksekliği ~%20 (63px → ~76px); logo büyüyünce biraz daha alan */
+.navbar.navbar-expand-xl {
+  min-height: 5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.navbar .nav-link {
+  padding: 0.625rem 1.2rem;
+}
+
+.navbar-brand-logo {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-right: 1rem;
+}
+
+.navbar-logo {
+  height: 3.6rem;
+  width: auto;
+  max-width: min(18rem, 48vw);
+  object-fit: contain;
+}
+
+.navbar .nav-link > .material-symbols-rounded,
+.navbar .nav-icon {
+  font-size: 1.75rem !important;
+}

@@ -1,0 +1,30 @@
+# SecuriPDF License Service (Faz 6)
+product: SecuriPDF
+package: enterprise
+version: "1.0"
+
+limits:
+  max_users: 500
+  max_concurrent_sessions: 50
+
+# tools.yml ile uyumlu — lisans paketinde açık araçlar
+enabled_tools:
+  - merge-pdfs
+  - split-pages
+  - compress-pdf
+  - ocr-pdf
+  - pdf-to-word
+  - file-to-pdf
+  - img-to-pdf
+  - rotate-pdf
+  - add-watermark
+  - text-editor-pdf
+  - view-pdf
+  - add-password
+  - remove-password
+  - sign
+  - cert-sign
+
+# Lisans dosyası imzası (prod'da kurumsal anahtar ile değiştirilir)
+license_key: SECURIPDF-DEV-ENTERPRISE-2026
+expires_at: "2027-12-31T23:59:59Z"

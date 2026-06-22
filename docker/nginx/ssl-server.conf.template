@@ -1,0 +1,62 @@
+# SecuriPDF — TLS edge (Faz 1 prod)
+# Dis erisim: 443 -> oauth2-proxy -> nginx:8080 (ic backend)
+# Dev: bu dosya mount edilmez; giris dogrudan oauth2-proxy host portu uzerinden
+
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+include /etc/nginx/conf.d/ip-whitelist.conf;
+
+server {
+    listen 443 ssl http2;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/ssl/securipdf.crt;
+    ssl_certificate_key /etc/nginx/ssl/securipdf.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+
+    if ($ip_allowed = 0) {
+        return 403;
+    }
+
+    client_max_body_size ${CLIENT_MAX_BODY_SIZE};
+    client_body_timeout 3600s;
+    client_header_timeout 60s;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location /nginx-health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    location / {
+        set $oauth2 securipdf-oauth2-proxy:4180;
+        proxy_pass http://$oauth2;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port 443;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_connect_timeout 60s;
+        proxy_send_timeout ${PROXY_SEND_TIMEOUT}s;
+        proxy_read_timeout ${PROXY_READ_TIMEOUT}s;
+
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+}

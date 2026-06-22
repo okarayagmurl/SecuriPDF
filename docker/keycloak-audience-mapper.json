@@ -1,0 +1,10 @@
+{
+  "name": "audience-securipdf",
+  "protocol": "openid-connect",
+  "protocolMapper": "oidc-audience-mapper",
+  "config": {
+    "included.client.audience": "securipdf",
+    "access.token.claim": "true",
+    "id.token.claim": "true"
+  }
+}

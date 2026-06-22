@@ -1,0 +1,31 @@
+# SecuriPDF Vault — depolama ve kota varsayılanları
+# Uygulama: services/platform (FastAPI + SQLite metadata)
+# Stirling storage / login KULLANILMAZ
+
+product: SecuriPDF
+version: "1.0"
+
+storage:
+  provider: local
+  base_path: /vault-data
+  encryption:
+    enabled: true
+    algorithm: AES-256-GCM
+    # Prod: env VAULT_MASTER_KEY (32+ karakter)
+
+quotas:
+  default_max_bytes_per_user: 1073741824  # 1 GB
+  max_file_bytes: 524288000             # 500 MB
+  # Admin: PUT /api/vault/v1/admin/users/{id}/quota
+
+paths:
+  documents: documents
+  signatures: signatures
+  certificates: certificates
+
+retention:
+  soft_delete_days: 30  # Platform baslangicinda purge edilir
+
+audit:
+  enabled: true
+  log_path: /logs/platform-audit.log

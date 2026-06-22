@@ -1,0 +1,17 @@
+{
+  "name": "ad-role-pdf-user",
+  "providerId": "role-ldap-mapper",
+  "providerType": "org.keycloak.storage.ldap.mappers.LDAPStorageMapper",
+  "parentId": "jw7TUSlnSUiDc_yqEyf9Zg",
+  "config": {
+    "roles.dn": ["dc=entera,dc=test"],
+    "role.name.ldap.attribute": ["cn"],
+    "role.object.classes": ["group"],
+    "membership.ldap.attribute": ["member"],
+    "membership.attribute.type": ["DN"],
+    "roles.ldap.filter": ["(cn=SecuriPDF-Users)"],
+    "mode": ["READ_ONLY"],
+    "use.realm.roles.mapping": ["true"],
+    "roles.realm.role.mapping": ["SecuriPDF-Users=pdf-user"]
+  }
+}

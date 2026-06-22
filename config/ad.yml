@@ -1,0 +1,36 @@
+# Active Directory — Keycloak user federation (Entera test ortamı)
+# Keycloak Admin → User federation → Add LDAP provider
+#
+# Bu dosya referans içindir; şifreleri .env'de tutun (.env git'e eklenmez).
+
+connection:
+  host: 192.168.6.10
+  url: ldap://192.168.6.10:389
+  url_tls: ldaps://192.168.6.10:636
+  base_dn: dc=entera,dc=test
+
+  # Kullanıcı arama kökü (çoğu AD kurulumunda):
+  users_dn: CN=Users,dc=entera,dc=test
+  # Alternatif (tüm domain): dc=entera,dc=test
+
+  # Servis hesabı — IT tarafından doldurulacak
+  bind_dn: CN=svc-securipdf,CN=Users,dc=entera,dc=test
+  # bind_password: ${LDAP_BIND_PASSWORD}
+
+keycloak_ldap_settings:
+  vendor: Active Directory
+  username_ldap_attribute: sAMAccountName
+  rdn_ldap_attribute: cn
+  uuid_ldap_attribute: objectGUID
+  user_object_classes: person, organizationalPerson, user
+  edit_mode: READ_ONLY
+  sync_registrations: false
+
+groups:
+  # AD'de oluşturulacak güvenlik grupları
+  user: SecuriPDF-Users
+  admin: SecuriPDF-Admins
+  # Keycloak: Mapper → ldap-groups → Group LDAP Filter örnek:
+  # memberOf: cn=SecuriPDF-Users,cn=Users,dc=entera,dc=test
+
+realm: securipdf

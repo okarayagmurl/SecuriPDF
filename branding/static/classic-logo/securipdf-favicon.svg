@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SecuriPDF favicon">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1E40AF"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="18" y1="12" x2="48" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#bg)"/>
+  <path d="M32 11l20 6v15c0 14-8 25-20 31C20 57 12 46 12 32V17l20-6z" fill="url(#shield)" stroke="#E0F2FE" stroke-width="3"/>
+  <path d="M32 18l13 4v10c0 9-5 16-13 20-8-4-13-11-13-20V22l13-4z" fill="none" stroke="#60A5FA" stroke-width="2.5"/>
+  <text x="32" y="42" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" font-weight="800" fill="#FFFFFF">S</text>
+</svg>

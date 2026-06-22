@@ -1,0 +1,30 @@
+# SecuriPDF — Prod compose overlay (TLS edge + oauth2 sertlestirme)
+# Kullanim: .\deploy-prod.ps1 -Force
+
+name: entera-pdf
+
+services:
+  nginx:
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/ssl-server.conf.template:/etc/nginx/templates/ssl-server.conf.template:ro
+      - ./nginx/http-redirect.conf.template:/etc/nginx/templates/http-redirect.conf.template:ro
+
+  keycloak:
+    command: start
+    environment:
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+
+  oauth2-proxy:
+    ports: !reset null
+    environment:
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "false"
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "false"
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "false"
+      OAUTH2_PROXY_OIDC_INSECURE_SKIP_VERIFY: "false"

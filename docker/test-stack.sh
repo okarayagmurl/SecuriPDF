@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# SecuriPDF — stack dogrulama (Ubuntu/Linux)
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${SCRIPT_DIR}"
+
+FAIL=0
+
+step() {
+  local name="$1"
+  shift
+  if "$@"; then
+    echo "[OK] ${name}"
+  else
+    echo "[FAIL] ${name}" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+test_platform_health() {
+  local out
+  out="$(docker exec securipdf-platform curl -sf http://127.0.0.1:8000/health)"
+  [[ "${out}" == *'"status":"ok"'* ]]
+}
+
+test_license() {
+  local out
+  out="$(docker exec securipdf-platform curl -sf http://127.0.0.1:8000/api/license/v1/status)"
+  [[ "${out}" == *'"valid":true'* ]] || [[ "${out}" == *'"valid": true'* ]]
+}
+
+test_vault_quota() {
+  local out
+  out="$(docker exec entera-nginx wget -qO- \
+    --header="X-Auth-Request-User: test-user" \
+    --header="X-Auth-Request-Groups: pdf-user" \
+    http://127.0.0.1:8080/api/vault/v1/quota 2>/dev/null || true)"
+  [[ "${out}" == *maxBytes* ]]
+}
+
+test_admin_settings() {
+  local out
+  out="$(docker exec entera-nginx wget -qO- \
+    --header="X-Auth-Request-User: admin-test" \
+    --header="X-Auth-Request-Groups: pdf-admin" \
+    http://127.0.0.1:8080/api/vault/v1/admin/settings 2>/dev/null || true)"
+  [[ "${out}" == *'"ldap"'* ]]
+}
+
+test_admin_ldap() {
+  local out
+  out="$(docker exec entera-nginx wget -qO- \
+    --header="X-Auth-Request-User: admin-test" \
+    --header="X-Auth-Request-Groups: pdf-admin" \
+    http://127.0.0.1:8080/api/vault/v1/admin/ldap/test 2>/dev/null || true)"
+  [[ "${out}" == *'"ok"'* ]]
+}
+
+test_nginx() {
+  docker exec entera-nginx wget -qO- http://127.0.0.1:8080/nginx-health >/dev/null 2>&1
+}
+
+test_keycloak() {
+  docker exec securipdf-keycloak sh -c "timeout 2 sh -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'" >/dev/null 2>&1
+}
+
+test_postgres() {
+  docker exec securipdf-postgres pg_isready -U keycloak -d keycloak >/dev/null 2>&1
+}
+
+# shellcheck disable=SC1091
+[[ -f .env ]] && set -a && source .env && set +a
+
+step "Platform health" test_platform_health
+step "License API" test_license
+step "Vault quota (simulated auth)" test_vault_quota
+step "Admin settings API" test_admin_settings
+step "Admin LDAP test API" test_admin_ldap
+step "Nginx health" test_nginx
+step "Keycloak" test_keycloak
+step "Postgres" test_postgres
+
+if [[ "${FAIL}" -gt 0 ]]; then
+  echo ""
+  echo "${FAIL} test basarisiz" >&2
+  exit 1
+fi
+
+echo ""
+echo "Tum testler gecti."
