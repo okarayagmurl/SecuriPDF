@@ -64,6 +64,8 @@ cd SecuriPDF
 sudo bash scripts/ubuntu/download-offline-debs.sh
 ```
 
+> **Not:** Microsoft repo URL'si `ubuntu/24.04` formatinda olmalidir (`noble` degil). Script bunu otomatik kullanir. APT basarisiz olursa GitHub universal `.deb` yedegi denenir.
+
 **Ne yapar?**
 
 | Klasör | İçerik |
@@ -80,28 +82,30 @@ ls offline/debs-pwsh/*.deb | wc -l   # en az 1 (powershell)
 
 `debs-pwsh` boşsa müşteride `pwsh` kurulamaz ve Keycloak realm bootstrap çalışmaz.
 
-**Manuel alternatif (script başarısız olursa):**
+**Manuel alternatif (script basarisiz olursa — Ubuntu 24.04):**
 
 ```bash
-# Docker — resmi repo
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list
-sudo apt-get update
-mkdir -p offline/debs && cd offline/debs
-sudo apt-get download docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-# PowerShell — Microsoft repo
+cd SecuriPDF
+sudo mkdir -p offline/debs-pwsh
 cd /tmp
-wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb
+sudo rm -f packages-microsoft-prod.deb packages-microsoft-prod.deb.*
+
+# DOGRU URL: 24.04 (noble degil)
+wget -O packages-microsoft-prod.deb https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb
+file packages-microsoft-prod.deb   # "Debian binary package" olmali
 sudo dpkg -i packages-microsoft-prod.deb
 sudo apt-get update
-mkdir -p ../../offline/debs-pwsh && cd ../../offline/debs-pwsh
-sudo apt-get download powershell
+sudo apt-get install --download-only -y powershell
+sudo cp /var/cache/apt/archives/*.deb /home/securipdfadmin/SecuriPDF/offline/debs-pwsh/
+```
+
+**GitHub yedegi (repo calismazsa):**
+
+```bash
+cd SecuriPDF/offline/debs-pwsh
+wget https://github.com/PowerShell/PowerShell/releases/download/v7.5.2/powershell_7.5.2-1.deb_amd64.deb
+sudo apt-get install -y --download-only ./powershell_7.5.2-1.deb_amd64.deb
+sudo cp /var/cache/apt/archives/*.deb .
 ```
 
 `.deb` dosyalarını USB ile müşteriye taşıyın; `offline/debs/` yapısını koruyun.
