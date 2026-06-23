@@ -45,7 +45,11 @@ VERSION_DIR="securipdf-${IMAGE_TAG}-offline"
 STAGING="${OUTPUT_ROOT}/${VERSION_DIR}"
 IMAGES_TAR="${STAGING}/images/securipdf-images.tar"
 
-COMPOSE_FILES=(
+COMPOSE_BUILD=(
+  -f docker-compose.yml
+  -f docker-compose.auth.yml
+)
+COMPOSE_OFFLINE=(
   -f docker-compose.yml
   -f docker-compose.auth.yml
   -f docker-compose.offline.yml
@@ -61,7 +65,7 @@ cd "${DOCKER_DIR}"
 
 echo ""
 echo "[1/5] SecuriPDF image'lari derleniyor..."
-docker compose "${COMPOSE_FILES[@]}" build entera-pdf securipdf-platform
+docker compose "${COMPOSE_BUILD[@]}" build entera-pdf securipdf-platform
 
 echo ""
 echo "[2/5] Upstream image'lar cekiliyor..."
