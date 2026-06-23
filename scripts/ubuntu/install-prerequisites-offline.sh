@@ -23,8 +23,11 @@ export DEBIAN_FRONTEND=noninteractive
 echo "=== SecuriPDF — Offline on gereksinimler ==="
 
 if [[ -d "${DEBS_DIR}" ]] && ls "${DEBS_DIR}"/*.deb &>/dev/null; then
-  echo "Yerel .deb paketleri kuruluyor: ${DEBS_DIR}"
-  dpkg -i "${DEBS_DIR}"/*.deb || apt-get -f install -y -q
+  echo "Yerel Docker .deb paketleri kuruluyor: ${DEBS_DIR}"
+  apt-get install -y -qq "${DEBS_DIR}"/*.deb || {
+    dpkg -i "${DEBS_DIR}"/*.deb || true
+    apt-get -f install -y -q
+  }
 else
   echo "UYARI: ${DEBS_DIR} bos veya yok." >&2
   if command -v docker &>/dev/null; then
@@ -38,7 +41,13 @@ fi
 # PowerShell offline (opsiyonel)
 PWSH_DEBS="${ROOT_DIR}/offline/debs-pwsh"
 if [[ -d "${PWSH_DEBS}" ]] && ls "${PWSH_DEBS}"/*.deb &>/dev/null; then
-  dpkg -i "${PWSH_DEBS}"/*.deb || apt-get -f install -y -q
+  echo "PowerShell (pwsh) kuruluyor: ${PWSH_DEBS}"
+  apt-get install -y -qq "${PWSH_DEBS}"/*.deb || {
+    dpkg -i "${PWSH_DEBS}"/*.deb || true
+    apt-get -f install -y -q
+  }
+else
+  echo "UYARI: offline/debs-pwsh bos — Keycloak bootstrap icin pwsh gerekir." >&2
 fi
 
 systemctl enable docker 2>/dev/null || true

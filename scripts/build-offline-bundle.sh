@@ -103,7 +103,7 @@ copy_tree "${DOCKER_DIR}" "${STAGING}/docker"
 copy_tree "${ROOT_DIR}/config" "${STAGING}/config"
 copy_tree "${ROOT_DIR}/branding" "${STAGING}/branding"
 copy_tree "${ROOT_DIR}/scripts" "${STAGING}/scripts"
-if [[ -d "${ROOT_DIR}/offline/debs" ]]; then
+if [[ -d "${ROOT_DIR}/offline" ]]; then
   copy_tree "${ROOT_DIR}/offline" "${STAGING}/offline"
 fi
 mkdir -p "${STAGING}/docs"
@@ -112,10 +112,24 @@ cp "${ROOT_DIR}/docs/OFFLINE-INSTALL.md" "${STAGING}/docs/" 2>/dev/null || true
 cp "${ROOT_DIR}/docs/AD-KEYCLOAK-SETUP.md" "${STAGING}/docs/" 2>/dev/null || true
 cp "${ROOT_DIR}/docs/TROUBLESHOOTING.md" "${STAGING}/docs/" 2>/dev/null || true
 
-cp "${DOCKER_DIR}/.env.ubuntu.example" "${STAGING}/docker/.env.example"
+cp "${DOCKER_DIR}/.env.offline.example" "${STAGING}/docker/.env.example"
+cp "${ROOT_DIR}/scripts/install-offline.sh" "${STAGING}/install-offline.sh"
 copy_tree "${ROOT_DIR}/installer" "${STAGING}/installer"
+chmod +x "${STAGING}/install-offline.sh" 2>/dev/null || true
 chmod +x "${STAGING}/installer/install.sh" "${STAGING}/installer/lib/"*.sh 2>/dev/null || true
 chmod +x "${STAGING}/scripts/ubuntu/"*.sh 2>/dev/null || true
+chmod +x "${STAGING}/docker/fix-access-url.sh" "${STAGING}/docker/"*.sh 2>/dev/null || true
+
+DEB_COUNT=0
+PWSH_COUNT=0
+[[ -d "${ROOT_DIR}/offline/debs" ]] && DEB_COUNT=$(find "${ROOT_DIR}/offline/debs" -name '*.deb' 2>/dev/null | wc -l)
+[[ -d "${ROOT_DIR}/offline/debs-pwsh" ]] && PWSH_COUNT=$(find "${ROOT_DIR}/offline/debs-pwsh" -name '*.deb' 2>/dev/null | wc -l)
+if [[ "${DEB_COUNT}" -eq 0 ]]; then
+  echo "UYARI: offline/debs bos — musteri Docker onceden kurulu olmali veya download-offline-debs.sh calistirin."
+fi
+if [[ "${PWSH_COUNT}" -eq 0 ]]; then
+  echo "UYARI: offline/debs-pwsh bos — musteride Keycloak bootstrap icin pwsh gerekir."
+fi
 
 cat > "${STAGING}/MANIFEST.json" <<EOF
 {
@@ -137,7 +151,10 @@ cat > "${STAGING}/MANIFEST.json" <<EOF
     "docker/docker-compose.auth.yml",
     "docker/docker-compose.offline.yml"
   ],
-  "install": "cd installer && ./install.sh"
+  "install": "cd installer && ./install.sh",
+  "install_offline_cli": "./install-offline.sh --load-images --deploy --verify",
+  "offline_debs": "offline/debs",
+  "offline_pwsh_debs": "offline/debs-pwsh"
 }
 EOF
 
@@ -162,4 +179,6 @@ echo "Boyut: $(du -h "${OUTPUT_ROOT}/${VERSION_DIR}.tar.gz" | cut -f1)"
 echo ""
 echo "Musteri sunucusunda:"
 echo "  tar xzf ${VERSION_DIR}.tar.gz"
-echo "  cd ${VERSION_DIR}/installer && ./install.sh"
+echo "  cd ${VERSION_DIR}"
+echo "  sudo bash scripts/ubuntu/install-prerequisites-offline.sh"
+echo "  cd installer && ./install.sh"

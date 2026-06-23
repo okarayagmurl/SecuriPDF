@@ -87,6 +87,14 @@ if [[ "${DO_DEPLOY}" -eq 1 ]]; then
     echo "  cp docker/.env.example docker/.env && nano docker/.env" >&2
     exit 1
   fi
+  # shellcheck disable=SC1091
+  set -a && source "${DOCKER_DIR}/.env" && set +a
+  if [[ -z "${OAUTH2_CLIENT_SECRET:-}" ]]; then
+    echo "HATA: OAUTH2_CLIENT_SECRET bos — oauth2-proxy 500 (unauthorized_client) verir." >&2
+    echo "  .env dosyasinda guclu bir secret tanimlayin, sonra:" >&2
+    echo "  cd docker && ./fix-access-url.sh SUNUCU_IP" >&2
+    exit 1
+  fi
 
   if [[ -x "${ROOT_DIR}/scripts/sync-tools-config.sh" ]]; then
     echo "Arac yapilandirmasi senkronize ediliyor..."
@@ -108,7 +116,11 @@ if [[ "${DO_DEPLOY}" -eq 1 ]]; then
 
   if [[ "${SKIP_BOOTSTRAP}" -eq 0 ]]; then
     run_ps1 bootstrap-keycloak-realm.ps1
-    run_ps1 fix-keycloak-ldap.ps1
+    if [[ -n "${LDAP_BIND_PASSWORD:-}" ]]; then
+      run_ps1 fix-keycloak-ldap.ps1
+    else
+      echo "LDAP_BIND_PASSWORD bos — LDAP script atlandi (Admin panelden yapilandirin)."
+    fi
   fi
 fi
 
@@ -126,8 +138,9 @@ if [[ "${DO_DEPLOY}" -eq 1 ]]; then
   # shellcheck disable=SC1091
   [[ -f "${DOCKER_DIR}/.env" ]] && set -a && source "${DOCKER_DIR}/.env" && set +a
   HTTP_PORT="${HTTP_PORT:-8080}"
+  APP_HOST="${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-localhost}}"
   echo ""
-  echo "SecuriPDF (offline): http://localhost:${HTTP_PORT}"
-  echo "Admin:               http://localhost:${HTTP_PORT}/admin"
-  echo "Keycloak:            http://localhost:${KEYCLOAK_HTTP_PORT:-8090}"
+  echo "SecuriPDF (offline): http://${APP_HOST}:${HTTP_PORT}"
+  echo "Admin:               http://${APP_HOST}:${HTTP_PORT}/admin"
+  echo "Keycloak:            http://${APP_HOST}:${KEYCLOAK_HTTP_PORT:-8090}"
 fi

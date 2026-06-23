@@ -1,12 +1,19 @@
 # Ubuntu sunucu scriptleri
 
-| Script | Açıklama |
-|--------|----------|
-| [install-prerequisites.sh](install-prerequisites.sh) | Docker, Compose, git, python3; opsiyonel PowerShell |
-| [install-prerequisites-offline.sh](install-prerequisites-offline.sh) | Kapalı ağ: yerel .deb ile Docker kurulumu |
-| [download-offline-debs.sh](download-offline-debs.sh) | Build makinesinde Docker .deb indirme |
+| Script | Nerede çalışır | Açıklama |
+|--------|----------------|----------|
+| [download-offline-debs.sh](download-offline-debs.sh) | **Entera (internet var)** | Docker + pwsh `.deb` → `offline/debs/` |
+| [install-prerequisites-offline.sh](install-prerequisites-offline.sh) | **Müşteri (kapalı ağ)** | Yerel `.deb` ile Docker + pwsh kurulumu |
+| [install-prerequisites.sh](install-prerequisites.sh) | Online Ubuntu | Docker apt repo ile kurulum |
 
-Kurulum kılavuzu: [../docs/INSTALL-UBUNTU.md](../docs/INSTALL-UBUNTU.md)  
-Kapalı ağ: [../docs/OFFLINE-INSTALL.md](../docs/OFFLINE-INSTALL.md)
+## `.deb` hazırlama (kısa)
 
-Linux operasyon scriptleri: `scripts/build-offline-bundle.sh`, `scripts/install-offline.sh`, `docker/up-auth.sh`, `docker/deploy-prod.sh`
+```bash
+cd SecuriPDF
+sudo bash scripts/ubuntu/download-offline-debs.sh
+ls offline/debs/*.deb offline/debs-pwsh/*.deb
+```
+
+Sonra: `./scripts/build-offline-bundle.sh`
+
+Kılavuz: [docs/OFFLINE-INSTALL.md](../docs/OFFLINE-INSTALL.md)

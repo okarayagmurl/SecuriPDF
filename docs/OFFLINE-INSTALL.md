@@ -1,196 +1,319 @@
 # SecuriPDF — Kapalı Ağ (Offline) Kurulum
 
-Müşteri ortamında **internet erişimi yoksa** kurulum iki aşamada yapılır:
+Müşteri ortamında **internet yoksa** kurulum iki aşamada yapılır:
 
-1. **Entera build makinesi** (internet var) — paket üretimi  
-2. **Müşteri sunucusu** (kapalı ağ) — paket kurulumu  
+1. **Entera build makinesi** (internet var) — `.deb` + Docker image paketi üretimi  
+2. **Müşteri sunucusu** (kapalı ağ) — yerel kurulum  
 
-Genel Ubuntu kılavuzu: [INSTALL-UBUNTU.md](INSTALL-UBUNTU.md)
+Genel Ubuntu kılavuzu: [INSTALL-UBUNTU.md](INSTALL-UBUNTU.md)  
+Sorun giderme: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ---
 
 ## Mimari özet
 
 ```
-[Entera LAN — build]                    [USB / SFTP / fiziksel medya]
-     build-offline-bundle.sh      →      securipdf-x.y.z-offline.tar.gz
-     download-offline-debs.sh            + Docker .deb paketleri (opsiyonel)
+[Entera — internet VAR]
+  1) download-offline-debs.sh     → offline/debs/ + offline/debs-pwsh/
+  2) build-offline-bundle.sh      → dist/securipdf-*-offline.tar.gz
 
-[Müşteri kapalı ağ]
-     install.sh --prereqs     → Docker kurulumu (offline deb)
-     install.sh --load-images → docker load
-     install.sh --deploy      → compose up + Keycloak bootstrap
-     install.sh --verify      → test-stack
+[USB / SFTP / fiziksel medya]
+
+[Müşteri — internet YOK]
+  1) install-prerequisites-offline.sh   → Docker + pwsh (.deb)
+  2) installer/install.sh               → sihirbaz + docker load + stack
+     veya install-offline.sh --load-images --deploy
 ```
 
-**Dış bağımlılık (müşteri sunucusunda gerekli):**
+**Müşteri sunucusunda dış bağımlılık:**
 
-| Bağlantı | Hedef | Zorunlu |
-|----------|-------|---------|
-| LDAP | Active Directory | Evet |
-| (Opsiyonel) SMTP | Kurumsal posta sunucusu | Hayır |
-| İnternet | — | **Hayır** |
+| Bağlantı | Zorunlu |
+|----------|---------|
+| Active Directory (LDAP) | Evet (giriş için) |
+| İnternet | **Hayır** |
+| SMTP | Hayır (opsiyonel) |
 
 ---
 
-## Bölüm A — Entera tarafı (paket hazırlığı)
+## Bölüm A — Entera: `.deb` paketlerini hazırlama
 
-### A.1 Gereksinimler
+Bu adım **internet olan** bir Ubuntu makinede yapılır. Müşteri sunucusu ile **aynı Ubuntu major sürümü** kullanın (ör. build 24.04 → müşteri 24.04).
 
-- Ubuntu 22.04/24.04 veya WSL2 (build için)
-- Docker + internet
-- Git + SecuriPDF kaynak kodu
-- Disk: ~8–12 GB (image arşivi için)
+### A.1 Build makinesi gereksinimleri
 
-### A.2 Docker .deb paketlerini indirin (müşteri sunucusu için)
+- Ubuntu 22.04 veya 24.04 LTS (müşteri ile eşleşmeli)
+- `sudo` yetkisi
+- ~500 MB disk (`.deb` dosyaları)
+- İnternet
 
-Müşteri sunucusunda Docker yoksa, önce `.deb` paketlerini hazırlayın:
+### A.2 Kaynak kodu
+
+```bash
+git clone https://github.com/okarayagmurl/SecuriPDF.git
+cd SecuriPDF
+git checkout main
+git log -1 --oneline
+```
+
+> Güncel kod `main` dalındadır. `git clone` varsayılan dalı `main` olmalıdır.
+
+### A.3 Docker ve PowerShell `.deb` indirme
 
 ```bash
 cd SecuriPDF
-sudo chmod +x scripts/ubuntu/download-offline-debs.sh
-sudo ./scripts/ubuntu/download-offline-debs.sh
+sudo bash scripts/ubuntu/download-offline-debs.sh
 ```
 
-Çıktı: `offline/debs/` (Docker Engine + Compose plugin)
+**Ne yapar?**
 
-> **Alternatif:** Müşteriye Docker önceden kurulu **altın imaj (golden VM)** verin; bu adım atlanır.
+| Klasör | İçerik |
+|--------|--------|
+| `offline/debs/` | Docker Engine, containerd, compose plugin + bağımlılıklar |
+| `offline/debs-pwsh/` | PowerShell (`pwsh`) — Keycloak bootstrap için **şiddetle önerilir** |
 
-### A.3 Offline kurulum paketini oluşturun
+**Doğrulama:**
 
 ```bash
+ls offline/debs/*.deb | wc -l          # örn. 15–40 dosya
+ls offline/debs-pwsh/*.deb | wc -l   # en az 1 (powershell)
+```
+
+`debs-pwsh` boşsa müşteride `pwsh` kurulamaz ve Keycloak realm bootstrap çalışmaz.
+
+**Manuel alternatif (script başarısız olursa):**
+
+```bash
+# Docker — resmi repo
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list
+sudo apt-get update
+mkdir -p offline/debs && cd offline/debs
+sudo apt-get download docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# PowerShell — Microsoft repo
+cd /tmp
+wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+sudo apt-get update
+mkdir -p ../../offline/debs-pwsh && cd ../../offline/debs-pwsh
+sudo apt-get download powershell
+```
+
+`.deb` dosyalarını USB ile müşteriye taşıyın; `offline/debs/` yapısını koruyun.
+
+---
+
+## Bölüm B — Entera: offline kurulum paketi (image arşivi)
+
+### B.1 Gereksinimler
+
+- Docker çalışır durumda (build makinesinde)
+- Disk: ~8–12 GB (image arşivi)
+- `offline/debs/` hazır (önerilir; pakete gömülür)
+
+### B.2 Paketi oluşturma
+
+```bash
+cd SecuriPDF
 chmod +x scripts/build-offline-bundle.sh scripts/install-offline.sh
 ./scripts/build-offline-bundle.sh
 ```
 
-Çıktı:
+Süre: ilk build 15–30 dk (Stirling fat image).
+
+**Çıktı:**
 
 ```
-dist/securipdf-1.0.0-stirling-0.46.2-offline.tar.gz   (~4–8 GB)
+dist/securipdf-1.0.0-stirling-0.46.2-offline.tar.gz
+dist/securipdf-1.0.0-stirling-0.46.2-offline.tar.gz.sha256
 dist/securipdf-1.0.0-stirling-0.46.2-offline/
-  install.sh
+  install-offline.sh
+  images/securipdf-images.tar      (~4–8 GB)
+  offline/debs/                     (varsa)
+  offline/debs-pwsh/                (varsa)
+  docker/                           (compose, fix-access-url.sh, nginx)
+  installer/
+  config/ branding/ scripts/ docs/
   MANIFEST.json
   CHECKSUMS.sha256
-  images/securipdf-images.tar
-  docker/          # compose, nginx, keycloak tema
-  config/
-  branding/
-  scripts/
-  offline/debs/    # varsa
-  docs/
 ```
 
-### A.4 Pakete dahil image listesi
+### B.3 Paketteki image listesi
 
 | Image | Açıklama |
 |-------|----------|
-| `entera-pdf:<IMAGE_TAG>` | Stirling + branding (sizin build) |
+| `entera-pdf:<IMAGE_TAG>` | Stirling + branding |
 | `securipdf-platform:<IMAGE_TAG>` | Vault / Admin API |
 | `nginx:1.27-alpine` | Reverse proxy |
 | `postgres:16-alpine` | Keycloak DB |
 | `quay.io/keycloak/keycloak:26.0` | Kimlik sağlayıcı |
 | `quay.io/oauth2-proxy/oauth2-proxy:v7.7.1` | SSO kapısı |
 
-### A.5 Müşteriye teslim
+### B.4 Entera test VM (önerilir)
 
-Teslim paketi:
+Kapalı ağa göndermeden önce aynı paketi test VM'de kurun:
+
+```bash
+tar xzf dist/securipdf-*-offline.tar.gz
+cd securipdf-*-offline
+sudo bash scripts/ubuntu/install-prerequisites-offline.sh
+cd installer
+./install.sh
+```
+
+Kontrol listesi:
+
+- [ ] `OAUTH2_CLIENT_SECRET` `.env` içinde **dolu**
+- [ ] `fix-access-url.sh SUNUCU_IP` ile localhost yönlendirmesi yok
+- [ ] `pwsh --version` çalışıyor
+- [ ] `securipdf-local-admin` ile giriş OK
+- [ ] `docker compose ps` tüm servisler healthy
+
+### B.5 Müşteriye teslim
 
 - [ ] `securipdf-*-offline.tar.gz` + `.sha256`
-- [ ] `MANIFEST.json` (sürüm bilgisi)
-- [ ] `docs/AD-KEYCLOAK-SETUP.md` (AD ön hazırlık)
-- [ ] Müşteriye özel doldurulmuş `.env` şablonu (LDAP DN, hostname)
-- [ ] Kurulum özeti (1 sayfa): FQDN, portlar, break-glass parolası
-
-**Güvenli aktarım:** Şifreli arşiv, kurumsal SFTP, fiziksel medya. `.env` içindeki parolalar ayrı kanaldan iletilmeli.
+- [ ] `MANIFEST.json`
+- [ ] `docs/AD-KEYCLOAK-SETUP.md`
+- [ ] Müşteriye özel bilgi sayfası: sunucu IP/FQDN, portlar
+- [ ] **Break-glass parolası ayrı güvenli kanaldan** (CREDENTIALS dosyası veya installer çıktısı)
 
 ---
 
-## Bölüm B — Müşteri tarafı (kapalı ağ kurulumu)
+## Bölüm C — Müşteri: kapalı ağ kurulumu
 
-### B.1 Ön koşullar (kurulum öncesi)
+### C.1 Ön koşullar (müşteri IT)
 
-Müşteri IT ekibi tamamlamalı:
+- [ ] Ubuntu 22.04/24.04 LTS (build ile aynı major sürüm)
+- [ ] 8+ GB RAM, 100+ GB disk
+- [ ] AD: `svc-securipdf`, `SecuriPDF-Users`, `SecuriPDF-Admins`
+- [ ] Sunucu → AD LDAP (389/636)
+- [ ] Kullanıcılar → sunucu `8080` veya `443`
 
-- [ ] Ubuntu 22.04/24.04 LTS, 8+ GB RAM, 100+ GB disk
-- [ ] AD: `svc-securipdf` hesabı, `SecuriPDF-Users` / `SecuriPDF-Admins` grupları
-- [ ] DNS: `pdf.musteri.local` → sunucu IP
-- [ ] Firewall: kullanıcılar → 443 (veya 8080 test)
-- [ ] Sunucu → AD LDAP (389/636) erişimi
-
-### B.2 Paketi sunucuya kopyalayın
+### C.2 Paketi açma
 
 ```bash
-# Örnek: /opt altına
 sudo mkdir -p /opt/securipdf
-sudo tar xzf securipdf-1.0.0-stirling-0.46.2-offline.tar.gz -C /opt/securipdf
-cd /opt/securipdf/securipdf-1.0.0-stirling-0.46.2-offline
-sha256sum -c ../securipdf-1.0.0-stirling-0.46.2-offline.tar.gz.sha256
+cd /opt/securipdf
+sudo tar xzf /media/usb/securipdf-*-offline.tar.gz
+cd securipdf-*-offline
+sha256sum -c ../securipdf-*-offline.tar.gz.sha256
 ```
 
-### B.3 Docker kurulumu (ilk sefer)
-
-**Seçenek 1 — Offline .deb (pakette varsa):**
+### C.3 Docker + PowerShell (ilk sefer)
 
 ```bash
-sudo ./install.sh --prereqs
+sudo bash scripts/ubuntu/install-prerequisites-offline.sh
+pwsh --version
+docker compose version
+```
+
+`pwsh` yoksa: pakette `offline/debs-pwsh/` eksik — Entera'dan yeniden paket isteyin.
+
+Docker grubu:
+
+```bash
+sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-**Seçenek 2 — Docker önceden kurulu VM:** bu adımı atlayın.
+### C.4 Kurulum — yöntem 1: installer sihirbazı (önerilen)
 
-### B.4 Ortam dosyası
+```bash
+cd installer
+bash install.sh
+```
+
+Sihirbaz sorar:
+
+- Sunucu IP veya FQDN (ör. `192.168.6.175`) — **localhost yazmayın**
+- HTTP port (varsayılan `8080`)
+- Offline image arşivi otomatik bulunur
+
+Sihirbaz otomatik üretir:
+
+- `docker/.env` (secret'lar dahil — `OAUTH2_CLIENT_SECRET` boş kalmaz)
+- `installer/CREDENTIALS-*.txt`
+
+### C.5 Kurulum — yöntem 2: manuel CLI
 
 ```bash
 cp docker/.env.example docker/.env
 nano docker/.env
 ```
 
-Mutlaka müşteri ortamına göre ayarlayın:
+**Mutlaka doldurun:**
 
-- `LDAP_*`, `LDAP_BIND_PASSWORD`
-- `PUBLIC_FQDN`, `OAUTH2_*_URL`, `OAUTH2_REDIRECT_URL`
-- `KEYCLOAK_*`, `OAUTH2_CLIENT_SECRET`, `VAULT_MASTER_KEY`
-- `PUID` / `PGID` → `id -u` / `id -g`
-
-Kapalı ağda issuer URL’leri **iç hostname** kullanmalı; dış DNS çözümlemesi gerekmez.
-
-### B.5 Kurulum (önerilen — installer sihirbazı)
-
-```bash
-cd installer
-chmod +x install.sh lib/*.sh
-./install.sh
+```env
+KEYCLOAK_HOSTNAME=192.168.6.175
+PUBLIC_FQDN=192.168.6.175
+OAUTH2_CLIENT_SECRET=guclu-bir-secret-buraya
+BREAK_GLASS_PASSWORD=guclu-parola
+KEYCLOAK_ADMIN_PASSWORD=...
+KEYCLOAK_DB_PASSWORD=...
+OAUTH2_COOKIE_SECRET=32-karakter-hex
+VAULT_MASTER_KEY=...
 ```
 
-Sihirbaz birkaç soru sorar, `.env` üretir, stack’i başlatır. LDAP ve SMTP **Admin panelden** yapılır.
-
-Alternatif (manuel):
+URL senkronizasyonu:
 
 ```bash
-./install.sh --load-images --deploy
-./install.sh --verify
+cd docker
+bash fix-access-url.sh 192.168.6.175
 ```
 
-`--load-images`: `images/securipdf-images.tar` → `docker load`  
-`--deploy`: stack başlatma + Keycloak realm + LDAP federation  
-`--verify`: `test-stack.sh` + healthcheck
+Deploy:
 
-### B.6 Tarayıcı testi
+```bash
+cd /opt/securipdf/securipdf-*-offline
+bash install-offline.sh --load-images --deploy --verify
+```
 
-| URL | Beklenen |
-|-----|----------|
-| `http://SUNUCU:8080` | AD girişi → ana sayfa |
-| `http://SUNUCU:8080/admin` | Admin paneli |
-| `http://SUNUCU:8090` | Keycloak (yalnızca yönetim ağı) |
+### C.6 İlk giriş
+
+| Alan | Değer |
+|------|--------|
+| URL | `http://SUNUCU_IP:8080` |
+| Kullanıcı | `securipdf-local-admin` |
+| Parola | `installer/CREDENTIALS-*.txt` veya `.env` → `BREAK_GLASS_PASSWORD` |
+
+LDAP / SMTP: kurulum sonrası **Admin panel** → Yapılandırma.
 
 ---
 
-## Bölüm C — Prod (HTTPS) kapalı ağda
+## Bölüm D — Bilinen kurulum tuzakları (2026 güncellemesi)
 
-1. Kurumsal TLS sertifikasını `docker/nginx/ssl/` altına kopyalayın  
-   (self-signed için: `docker/generate-tls.sh` — openssl sunucuda çalışır, internet gerekmez)
-2. `docker/.env` içinde HTTPS URL’lerini güncelleyin
-3. Prod overlay ile başlatın:
+| Belirti | Neden | Çözüm |
+|---------|--------|--------|
+| `localhost:8090` yönlendirme | `.env` IP ile uyumsuz | `docker/fix-access-url.sh SUNUCU_IP` |
+| OAuth callback **500** / `unauthorized_client` | `OAUTH2_CLIENT_SECRET` boş | `.env` doldur + `bootstrap-keycloak-realm.ps1` |
+| `pwsh: command not found` | `debs-pwsh` pakette yok | Entera'da `download-offline-debs.sh` tekrar |
+| Bootstrap `TEMP is null` | Eski script | Güncel `main` + `ps1-common.ps1` |
+| `entera-nginx unhealthy` (HTTPS) | TLS yok | `generate-tls.sh` veya HTTP modu |
+| Script `command not found` | Çalıştırma izni yok | `bash script.sh` kullanın |
+
+Doğrulama komutları:
+
+```bash
+cd docker
+grep OAUTH2_CLIENT_SECRET .env
+docker exec securipdf-oauth2-proxy printenv OAUTH2_PROXY_LOGIN_URL
+docker exec securipdf-oauth2-proxy printenv OAUTH2_PROXY_CLIENT_SECRET
+docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.offline.yml ps
+```
+
+---
+
+## Bölüm E — Prod HTTPS (kapalı ağ)
+
+1. Kurumsal sertifikayı `docker/nginx/ssl/securipdf.crt` + `.key` olarak koyun  
+   (veya `docker/generate-tls.sh` — internet gerekmez)
+2. `fix-access-url.sh SUNUCU_FQDN --https`
+3. Prod overlay:
 
 ```bash
 cd docker
@@ -202,74 +325,38 @@ docker compose \
   up -d --no-build
 ```
 
-4. Keycloak client redirect URI’lerini HTTPS ile eşleştirin
-
 ---
 
-## Bölüm D — Güncelleme (kapalı ağ)
+## Bölüm F — Güncelleme
 
-1. Entera yeni `securipdf-*-offline.tar.gz` üretir
-2. Müşteriye medya ile iletilir
+1. Entera yeni `build-offline-bundle.sh` çalıştırır
+2. Müşteriye yeni `.tar.gz` iletilir
 3. Müşteri:
 
 ```bash
-./scripts/backup.sh                    # yedek al
-./install.sh --load-images               # yeni image'lar
+./scripts/backup.sh
+bash install-offline.sh --load-images
 cd docker
-docker compose -f docker-compose.yml -f docker-compose.auth.yml \
-  -f docker-compose.offline.yml up -d --no-build
-./test-stack.sh
+docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.offline.yml up -d --no-build
+pwsh -File bootstrap-keycloak-realm.ps1
 ```
-
-Rollback: önceki image arşivi saklanmalı (`docker load` + eski tag).
-
----
-
-## Bölüm E — Sık sorunlar
-
-| Sorun | Çözüm |
-|-------|--------|
-| `docker load` çok yavaş | Normal; 4–8 GB arşiv 10–30 dk sürebilir |
-| `pull` hatası | `docker-compose.offline.yml` kullanıldığından emin olun; `--no-build` |
-| Keycloak bootstrap hatası | `pwsh` kurulu mu? Offline `debs-pwsh` veya golden VM |
-| LDAP erişim yok | Sunucu → AD firewall; `LDAP_HOST` doğru mu |
-| Giriş 500 | AD kullanıcısında `mail` veya `UPN` dolu mu; `fix-keycloak-email.ps1` |
-
----
-
-## Bölüm F — Kontrol listesi
-
-**Entera (paket öncesi)**
-
-- [ ] `download-offline-debs.sh` (veya golden VM planı)
-- [ ] `build-offline-bundle.sh` başarılı
-- [ ] CHECKSUMS doğrulandı
-- [ ] Test VM’de offline kurulum denendi
-- [ ] Müşteri `.env` şablonu hazır
-
-**Müşteri (kurulum günü)**
-
-- [ ] AD hazır
-- [ ] Paket kopyalandı, checksum OK
-- [ ] Docker kurulu
-- [ ] `.env` dolduruldu
-- [ ] `install.sh --load-images --deploy` OK
-- [ ] `install.sh --verify` OK
-- [ ] AD kullanıcı girişi test edildi
-- [ ] İlk Vault yedeği alındı
 
 ---
 
 ## Hızlı komut özeti
 
 ```bash
-# === ENTERA (internet var) ===
-sudo ./scripts/ubuntu/download-offline-debs.sh
+# === ENTERA (internet var, Ubuntu 24.04 örnek) ===
+git clone https://github.com/okarayagmurl/SecuriPDF.git && cd SecuriPDF
+sudo bash scripts/ubuntu/download-offline-debs.sh
 ./scripts/build-offline-bundle.sh
 
 # === MÜŞTERİ (kapalı ağ) ===
 tar xzf securipdf-*-offline.tar.gz && cd securipdf-*-offline
-cp docker/.env.example docker/.env && nano docker/.env
-sudo ./install.sh --prereqs
-./install.sh --load-images --deploy --verify
+sudo bash scripts/ubuntu/install-prerequisites-offline.sh
+cd installer && bash install.sh
+# veya:
+# cp docker/.env.example docker/.env && nano docker/.env
+# cd docker && bash fix-access-url.sh 192.168.6.175
+# cd .. && bash install-offline.sh --load-images --deploy --verify
 ```

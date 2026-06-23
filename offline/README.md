@@ -1,10 +1,14 @@
 # Offline paket dosyalari (git'e eklenmez)
 
-Bu klasor `download-offline-debs.sh` ile doldurulur:
+Build makinesinde `download-offline-debs.sh` ile doldurulur:
 
-- `debs/` — Docker Engine .deb paketleri
-- `debs-pwsh/` — PowerShell (opsiyonel)
+| Klasör | İçerik |
+|--------|--------|
+| `debs/` | Docker Engine + Compose plugin (.deb) |
+| `debs-pwsh/` | PowerShell `pwsh` (.deb) — Keycloak bootstrap |
 
-`build-offline-bundle.sh` bu klasoru offline kurulum paketine dahil eder.
+`build-offline-bundle.sh` bu klasörleri offline kurulum paketine dahil eder.
 
-Bkz. [docs/OFFLINE-INSTALL.md](../docs/OFFLINE-INSTALL.md)
+**Önemli:** `.deb` dosyalarını müşteri Ubuntu sürümü ile **aynı major** sürümde indirin (22.04 → 22.04, 24.04 → 24.04).
+
+Detaylı adımlar: [docs/OFFLINE-INSTALL.md](../docs/OFFLINE-INSTALL.md) — Bölüm A
