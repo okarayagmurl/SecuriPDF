@@ -70,6 +70,14 @@ set_env OAUTH2_COOKIE_SECURE "${COOKIE_SECURE}"
 set_env OAUTH2_INSECURE_ISSUER "${INSECURE_ISSUER}"
 set_env PUBLIC_USE_HTTPS "$([[ "${HTTPS}" -eq 1 ]] && echo true || echo false)"
 
+# Bos OAUTH2_CLIENT_SECRET oauth2-proxy 500 hatasina yol acar (compose bos string'i default'un onune gecer)
+if ! grep -q '^OAUTH2_CLIENT_SECRET=.\+' "${ENV_FILE}"; then
+  local oauth_secret
+  oauth_secret="$(openssl rand -hex 16 2>/dev/null || head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  set_env OAUTH2_CLIENT_SECRET "${oauth_secret}"
+  echo "[fix-access-url] OAUTH2_CLIENT_SECRET uretildi (bootstrap Keycloak ile eslestirir)"
+fi
+
 echo "=== Erisim adresleri guncellendi ==="
 echo "  Uygulama:  ${APP_URL}"
 echo "  Keycloak:  ${KC_PUBLIC}"

@@ -104,6 +104,34 @@ cd docker
 .\bootstrap-keycloak-realm.ps1
 ```
 
+### Internal Server Error (500) — giris veya callback sonrasi
+
+**En sik neden:** `.env` icinde `OAUTH2_CLIENT_SECRET=` bos — oauth2-proxy ile Keycloak client secret uyusmuyor.
+
+```bash
+cd docker
+grep OAUTH2_CLIENT_SECRET .env
+docker logs securipdf-oauth2-proxy --tail 40
+```
+
+`invalid_client`, `unauthorized_client` veya `token exchange` gorurseniz:
+
+```bash
+# .env'e secret ekleyin (ornek; bootstrap ayni degeri Keycloak'a yazar)
+sed -i 's|^OAUTH2_CLIENT_SECRET=.*|OAUTH2_CLIENT_SECRET=SecuriPDF-OAuth2-Dev-Secret-2026|' .env
+docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --force-recreate oauth2-proxy
+pwsh -File bootstrap-keycloak-realm.ps1
+```
+
+Diger loglar:
+
+```bash
+docker logs entera-nginx --tail 30
+docker logs entera-pdf --tail 30
+docker logs securipdf-keycloak --tail 30
+docker compose -f docker-compose.yml -f docker-compose.auth.yml ps
+```
+
 ### Login loop veya 502
 
 1. `OAUTH2_CLIENT_SECRET` Keycloak client secret ile eslesmeli

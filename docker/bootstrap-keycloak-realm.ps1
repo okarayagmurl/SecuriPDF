@@ -30,7 +30,7 @@ $admin = if ($env:KEYCLOAK_ADMIN) { $env:KEYCLOAK_ADMIN } else { "admin" }
 $adminPass = if ($env:KEYCLOAK_ADMIN_PASSWORD) { $env:KEYCLOAK_ADMIN_PASSWORD } else { "ChangeMe-KcAdmin-2026" }
 $realm = "securipdf"
 $clientId = if ($env:OAUTH2_CLIENT_ID) { $env:OAUTH2_CLIENT_ID } else { "securipdf" }
-$clientSecret = if ($env:OAUTH2_CLIENT_SECRET) { $env:OAUTH2_CLIENT_SECRET } else { "SecuriPDF-OAuth2-Dev-Secret-2026" }
+$clientSecret = if (-not [string]::IsNullOrWhiteSpace($env:OAUTH2_CLIENT_SECRET)) { $env:OAUTH2_CLIENT_SECRET } else { "SecuriPDF-OAuth2-Dev-Secret-2026" }
 $redirectUrl = if ($env:OAUTH2_REDIRECT_URL) { $env:OAUTH2_REDIRECT_URL } else { "http://localhost:8080/oauth2/callback" }
 $ldapHost = if ($env:LDAP_HOST) { $env:LDAP_HOST } else { "192.168.6.10" }
 $ldapBase = if ($env:LDAP_BASE_DN) { $env:LDAP_BASE_DN } else { "dc=entera,dc=test" }
