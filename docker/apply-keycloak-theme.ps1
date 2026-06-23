@@ -2,6 +2,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot 'ps1-common.ps1')
+$SecuriPdfTemp = Get-SecuriPdfTempDir
 
 $envFile = Join-Path $PSScriptRoot ".env"
 if (Test-Path $envFile) {
@@ -43,7 +45,7 @@ docker exec securipdf-keycloak /opt/keycloak/bin/kcadm.sh config credentials `
 docker exec securipdf-keycloak /opt/keycloak/bin/kcadm.sh update "realms/$realm" `
   -s "loginTheme=$theme" -s "accountTheme=$theme" | Out-Null
 
-$i18nFile = Join-Path $env:TEMP "securipdf-realm-i18n.json"
+$i18nFile = Join-Path $SecuriPdfTemp "securipdf-realm-i18n.json"
 $i18nJson = @'
 {
   "internationalizationEnabled": true,

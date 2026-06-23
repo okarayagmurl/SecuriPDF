@@ -3,6 +3,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot 'ps1-common.ps1')
+$SecuriPdfTemp = Get-SecuriPdfTempDir
 
 function Invoke-Kcadm {
   param([string[]]$KcadmArgs)
@@ -72,7 +74,7 @@ function Ensure-RoleLdapMapper {
   }
 }
 "@
-  $file = Join-Path $env:TEMP "securipdf-$Name.json"
+  $file = Join-Path $SecuriPdfTemp "securipdf-$Name.json"
   [System.IO.File]::WriteAllText($file, $mapperJson)
 
   $existing = ""
@@ -208,7 +210,7 @@ $ldapJson = @"
 }
 "@
 
-$tmp = Join-Path $env:TEMP "securipdf-ldap-create.json"
+$tmp = Join-Path $SecuriPdfTemp "securipdf-ldap-create.json"
 [System.IO.File]::WriteAllText($tmp, $ldapJson)
 
 $existing = ""
@@ -268,7 +270,7 @@ $groupMapperJson = @"
   }
 }
 "@
-$gmFile = Join-Path $env:TEMP "securipdf-group-mapper.json"
+$gmFile = Join-Path $SecuriPdfTemp "securipdf-group-mapper.json"
 [System.IO.File]::WriteAllText($gmFile, $groupMapperJson)
 docker cp $gmFile "securipdf-keycloak:/tmp/group-mapper.json" | Out-Null
 
@@ -308,7 +310,7 @@ function Ensure-LdapEmailMappers {
     } else {
       @{ name = $Name; providerId = "user-attribute-ldap-mapper"; providerType = "org.keycloak.storage.ldap.mappers.LDAPStorageMapper"; parentId = $LdapId; config = @{ "ldap.attribute" = @($LdapAttribute); "user.model.attribute" = @($UserAttribute); "read.only" = @("true"); "always.read.value.from.ldap" = @("true"); "is.mandatory.in.ldap" = @("false") } }
     }
-    $file = Join-Path $env:TEMP "securipdf-ldap-$Name.json"
+    $file = Join-Path $SecuriPdfTemp "securipdf-ldap-$Name.json"
     ($body | ConvertTo-Json -Depth 6) | Set-Content -Path $file -Encoding UTF8
     docker cp $file "securipdf-keycloak:/tmp/ldap-email-mapper.json" | Out-Null
     if ($MapperId) {
@@ -342,7 +344,7 @@ function Ensure-LdapEmailMappers {
   try { $existingProto = Invoke-Kcadm @("get", "client-scopes/$scopeId/protocol-mappers/models", "-r", $Realm) | Out-String } catch { }
   if ($existingProto -notmatch "ldap-upn-email-fallback") {
     $protoJson = '{"name":"ldap-upn-email-fallback","protocol":"openid-connect","protocolMapper":"oidc-usermodel-attribute-mapper","config":{"user.attribute":"ldap_upn","claim.name":"email","jsonType.label":"String","id.token.claim":"true","access.token.claim":"true","userinfo.token.claim":"true","introspection.token.claim":"true"}}'
-    $protoFile = Join-Path $env:TEMP "securipdf-ldap-upn-proto.json"
+    $protoFile = Join-Path $SecuriPdfTemp "securipdf-ldap-upn-proto.json"
     [System.IO.File]::WriteAllText($protoFile, $protoJson)
     docker cp $protoFile "securipdf-keycloak:/tmp/ldap-upn-proto.json" | Out-Null
     Invoke-Kcadm @("create", "client-scopes/$scopeId/protocol-mappers/models", "-r", $Realm, "-f", "/tmp/ldap-upn-proto.json") | Out-Null

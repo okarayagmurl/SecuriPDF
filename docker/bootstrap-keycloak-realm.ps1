@@ -3,6 +3,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot 'ps1-common.ps1')
+$SecuriPdfTemp = Get-SecuriPdfTempDir
 
 function Invoke-Kcadm {
   param([string[]]$KcadmArgs)
@@ -109,7 +111,7 @@ if ($clients -notmatch '"id"\s*:\s*"([^"]+)"') {
   "protocol": "openid-connect"
 }
 "@
-  $clientFile = Join-Path $env:TEMP "securipdf-oauth-client.json"
+  $clientFile = Join-Path $SecuriPdfTemp "securipdf-oauth-client.json"
   [System.IO.File]::WriteAllText($clientFile, $clientJson)
   docker cp $clientFile "securipdf-keycloak:/tmp/oauth-client.json" | Out-Null
   try {
@@ -156,7 +158,7 @@ try {
     $existingMapper = Invoke-Kcadm @("get", "client-scopes/$scopeId/protocol-mappers/models", "-r", $realm) | Out-String
     if ($existingMapper -notmatch "groups-mapper") {
       $mapperJson = '{"name":"groups-mapper","protocol":"openid-connect","protocolMapper":"oidc-group-membership-mapper","config":{"claim.name":"groups","full.path":"false","id.token.claim":"true","access.token.claim":"true","userinfo.token.claim":"true"}}'
-      $mapperFile = Join-Path $env:TEMP "securipdf-groups-mapper.json"
+      $mapperFile = Join-Path $SecuriPdfTemp "securipdf-groups-mapper.json"
       [System.IO.File]::WriteAllText($mapperFile, $mapperJson)
       docker cp $mapperFile "securipdf-keycloak:/tmp/groups-mapper.json" | Out-Null
       Invoke-Kcadm @("create", "client-scopes/$scopeId/protocol-mappers/models", "-r", $realm, "-f", "/tmp/groups-mapper.json") | Out-Null
@@ -217,4 +219,4 @@ if ($bg -match '"id"\s*:\s*"([^"]+)"') {
 & "$PSScriptRoot\apply-keycloak-theme.ps1"
 
 Write-Host ""
-Write-Host "Bootstrap tamam. Giris: http://localhost:$(if ($env:HTTP_PORT) { $env:HTTP_PORT } else { '8080' })"
+Write-Host "Bootstrap tamam. Giris: $(Get-SecuriPdfAppUrl)"

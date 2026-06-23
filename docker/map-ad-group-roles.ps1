@@ -3,6 +3,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot 'ps1-common.ps1')
+$SecuriPdfTemp = Get-SecuriPdfTempDir
 
 function Invoke-Kcadm {
   param([string[]]$KcadmArgs)
@@ -53,7 +55,7 @@ function Map-GroupToRole($groupName, $roleName) {
   $groupId = $Matches[1]
   $roleId = Get-RoleId $roleName
   $payload = "[{ `"id`": `"$roleId`", `"name`": `"$roleName`" }]"
-  $payloadFile = Join-Path $env:TEMP "securipdf-role-map-$groupName.json"
+  $payloadFile = Join-Path $SecuriPdfTemp "securipdf-role-map-$groupName.json"
   [System.IO.File]::WriteAllText($payloadFile, $payload)
   docker cp $payloadFile "securipdf-keycloak:/tmp/role-map.json" | Out-Null
   try {
