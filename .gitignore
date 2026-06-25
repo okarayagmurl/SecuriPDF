@@ -33,3 +33,7 @@ dist/
 offline/debs/
 offline/debs-pwsh/
 installer/CREDENTIALS-*.txt
+
+# Yerel test dosyalari
+one.pdf
+test-split.pdf

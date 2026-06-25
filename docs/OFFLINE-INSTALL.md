@@ -133,9 +133,9 @@ Süre: ilk build 15–30 dk (Stirling fat image).
 **Çıktı:**
 
 ```
-dist/securipdf-1.0.0-stirling-0.46.2-offline.tar.gz
-dist/securipdf-1.0.0-stirling-0.46.2-offline.tar.gz.sha256
-dist/securipdf-1.0.0-stirling-0.46.2-offline/
+dist/securipdf-1.1.0-stirling-2.13.1-offline.tar.gz
+dist/securipdf-1.1.0-stirling-2.13.1-offline.tar.gz.sha256
+dist/securipdf-1.1.0-stirling-2.13.1-offline/
   install-offline.sh
   images/securipdf-images.tar      (~4–8 GB)
   offline/debs/                     (varsa)

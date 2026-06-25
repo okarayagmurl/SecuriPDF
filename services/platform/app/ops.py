@@ -13,7 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .config import Settings
-from .database import CertificateRecord, DocumentRecord, SignatureRecord, UserQuotaRecord
+from .database import CertificateRecord, DocumentRecord, JobRecord, SignatureRecord, UserQuotaRecord
 from .maintenance import purge_soft_deleted
 from .audit import read_audit, write_audit
 from .settings_store import SettingsStore
@@ -334,6 +334,83 @@ def get_prod_readiness(settings: Settings, db: Session) -> dict[str, Any]:
             "Tam stack yedegi (Keycloak Postgres, Stirling volume) icin sunucuda "
             "scripts/backup.sh veya docker/backup-keycloak.ps1 calistirin."
         ),
+    }
+
+
+def get_admin_dashboard(settings: Settings, db: Session) -> dict[str, Any]:
+    from .license import LicenseService
+
+    health = get_system_health(settings, db)
+    setup = get_setup_checklist(settings, db)
+    readiness = get_prod_readiness(settings, db)
+    license_status = LicenseService(settings).status()
+
+    status_counts = dict(
+        db.query(JobRecord.status, func.count(JobRecord.id)).group_by(JobRecord.status).all()
+    )
+    tool_rows = (
+        db.query(JobRecord.tool_id, func.count(JobRecord.id))
+        .group_by(JobRecord.tool_id)
+        .order_by(func.count(JobRecord.id).desc())
+        .limit(8)
+        .all()
+    )
+    active_jobs = (
+        db.query(JobRecord)
+        .filter(JobRecord.status.in_(("queued", "running")))
+        .order_by(JobRecord.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    profile_count = 0
+    assignment_count = 0
+    try:
+        from .user_tool_profiles import list_tool_access_profiles, list_user_assignments
+
+        profile_count = len(list_tool_access_profiles(settings))
+        assignment_count = len(list_user_assignments(settings))
+    except Exception:
+        pass
+
+    return {
+        "health": health,
+        "setup": {
+            "complete": setup.get("complete"),
+            "progress": setup.get("progress"),
+            "wizardCompleted": setup.get("wizardCompleted"),
+        },
+        "readiness": {
+            "ready": readiness.get("ready"),
+            "criticalFailures": readiness.get("criticalFailures"),
+            "warningFailures": readiness.get("warningFailures"),
+        },
+        "license": {
+            "package": license_status.get("package"),
+            "packageLabel": license_status.get("packageLabel"),
+            "valid": license_status.get("valid"),
+            "expired": license_status.get("expired"),
+            "expiresAt": license_status.get("expiresAt"),
+            "enabledToolCount": license_status.get("enabledToolCount"),
+        },
+        "jobs": {
+            "byStatus": status_counts,
+            "topTools": [{"toolId": row[0], "count": int(row[1])} for row in tool_rows],
+            "active": [
+                {
+                    "id": j.id,
+                    "userId": j.user_id,
+                    "toolId": j.tool_id,
+                    "status": j.status,
+                    "progress": j.progress,
+                    "createdAt": j.created_at.isoformat() if j.created_at else None,
+                }
+                for j in active_jobs
+            ],
+        },
+        "accessProfiles": {
+            "profileCount": profile_count,
+            "assignmentCount": assignment_count,
+        },
     }
 
 

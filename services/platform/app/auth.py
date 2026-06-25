@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import secrets
+import uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request
@@ -194,5 +195,10 @@ def decrypt_bytes(settings: Settings, payload: bytes) -> bytes:
     return _decrypt_bytes(settings.master_key, payload)
 
 
+def new_guid() -> str:
+    return str(uuid.uuid4())
+
+
 def new_id(prefix: str) -> str:
-    return f"{prefix}_{secrets.token_hex(4)}"
+    """Yeni kayitlar standart GUID ile olusturulur (prefix geriye uyumluluk icin yoksayilir)."""
+    return new_guid()

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecuriPDF</title>
+  <link rel="icon" type="image/svg+xml" href="/app/static/favicon.svg">
+  <link rel="stylesheet" href="/app/static/app.css?v=37">
+</head>
+<body class="app-layout">
+  <svg xmlns="http://www.w3.org/2000/svg" class="nav-sprite" aria-hidden="true" focusable="false">
+    <symbol id="nav-icon-folder" viewBox="0 0 24 24">
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
+    </symbol>
+    <symbol id="nav-icon-archive" viewBox="0 0 24 24">
+      <rect width="20" height="5" x="2" y="3" rx="1"/>
+      <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/>
+      <path d="M10 12h4"/>
+    </symbol>
+    <symbol id="nav-icon-tools" viewBox="0 0 24 24">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+    </symbol>
+    <symbol id="nav-icon-star" viewBox="0 0 24 24">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </symbol>
+    <symbol id="nav-icon-jobs" viewBox="0 0 24 24">
+      <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+      <path d="M12 11h4"/>
+      <path d="M12 16h4"/>
+      <path d="M8 11h2"/>
+      <path d="M8 16h2"/>
+    </symbol>
+    <symbol id="nav-icon-user" viewBox="0 0 24 24">
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </symbol>
+    <symbol id="nav-icon-admin" viewBox="0 0 24 24">
+      <rect width="7" height="9" x="3" y="3" rx="1"/>
+      <rect width="7" height="5" x="14" y="3" rx="1"/>
+      <rect width="7" height="9" x="14" y="12" rx="1"/>
+      <rect width="7" height="5" x="3" y="16" rx="1"/>
+    </symbol>
+  </svg>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <a href="#/belgeler" class="sidebar-logo-link" aria-label="Ana sayfa">
+        <span class="sidebar-logo-wrap">
+          <img id="sidebarLogo" class="sidebar-logo" src="/app/static/platform-logo.svg" alt="SecuriPDF" decoding="async">
+        </span>
+      </a>
+    </div>
+    <nav class="sidebar-nav" aria-label="Ana menü">
+      <div class="nav-group">
+        <a href="#/belgeler" class="nav-item" data-route="belgeler">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-folder"/></svg></span>
+          <span class="nav-label">Belgeler</span>
+        </a>
+        <a href="#/arsiv" class="nav-item" data-route="arsiv">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-archive"/></svg></span>
+          <span class="nav-label">Arşiv</span>
+        </a>
+        <a href="#/araclar" class="nav-item" data-route="araclar">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-tools"/></svg></span>
+          <span class="nav-label">Araçlar</span>
+        </a>
+        <a href="#/favoriler" class="nav-item" data-route="favoriler">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-star"/></svg></span>
+          <span class="nav-label">Favoriler</span>
+        </a>
+      </div>
+      <div class="nav-divider" role="presentation"></div>
+      <div class="nav-group">
+        <a href="#/isler" class="nav-item" data-route="isler">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-jobs"/></svg></span>
+          <span class="nav-label">İşlerim</span>
+        </a>
+        <a href="#/profil" class="nav-item" data-route="profil">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-user"/></svg></span>
+          <span class="nav-label">Profil</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer" id="sidebarAdminWrap" hidden>
+      <a href="/admin/" class="nav-item sidebar-admin-link" id="sidebarAdminLink">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#nav-icon-admin"/></svg></span>
+        <span class="nav-label">Yönetim paneli</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="app-body">
+    <header class="topbar">
+      <p class="topbar-tagline" id="headerTagline">Kurumsal PDF işleme platformu</p>
+      <div class="topbar-right">
+        <div class="customer-logo-wrap" id="customerLogoWrap" hidden>
+          <img id="headerCustomerLogo" class="header-logo customer" alt="Müşteri logosu" width="26" height="26">
+        </div>
+        <div class="user-menu" id="userMenu">
+          <button type="button" class="user-menu-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
+            <span class="user-avatar" id="userAvatar">?</span>
+            <span class="user-name" id="userDisplayName">…</span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="user-dropdown" id="userDropdown" hidden>
+            <div class="user-dropdown-meta">
+              <strong id="userEmail">…</strong>
+            </div>
+            <a href="#/profil" class="dropdown-link">Profil ayarları</a>
+            <button type="button" class="dropdown-link danger" id="btnLogout">Çıkış yap</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main id="appMain" class="content">
+      <!-- Belgeler / Arşiv -->
+      <section id="viewFiles" class="view">
+        <div class="page-header">
+          <div>
+            <h2 id="filesTitle">Belgelerim</h2>
+            <p id="filesSubtitle" class="hint">Klasör yapınızı oluşturun ve belgelerinizi yönetin.</p>
+          </div>
+          <div class="page-actions">
+            <label class="btn btn-primary file-upload-label">
+              Yükle
+              <input type="file" id="fileUploadInput" accept=".pdf,application/pdf" hidden>
+            </label>
+            <button type="button" class="btn btn-secondary" id="btnNewFolder">Yeni klasör</button>
+          </div>
+        </div>
+        <div class="quota-bar" id="quotaBar" hidden>
+          <div class="quota-fill" id="quotaFill"></div>
+          <span id="quotaText" class="quota-text"></span>
+        </div>
+        <div class="files-layout">
+          <aside class="folder-panel">
+            <button type="button" class="folder-root active" id="folderRoot" data-folder-id="">Tümü</button>
+            <ul id="folderTree" class="folder-tree"></ul>
+          </aside>
+          <div class="files-main">
+            <div class="files-toolbar">
+              <label class="doc-search-wrap">
+                <span class="sr-only">Belge ara</span>
+                <input type="search" id="docSearchInput" class="doc-search-input" placeholder="Belge adı veya GUID ile ara…" autocomplete="off">
+              </label>
+              <div id="bulkActionBar" class="bulk-action-bar" hidden>
+                <span id="bulkSelectedCount" class="bulk-count">0 seçili</span>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnBulkClear">Seçimi temizle</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnBulkArchive" hidden>Arşivle</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnBulkRestore" hidden>Geri al</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnBulkPin" hidden>Sabitle</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnBulkUnpin" hidden>Sabitlemeyi kaldır</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnBulkDelete">Sil</button>
+              </div>
+            </div>
+            <div id="docActionPanel" class="doc-action-panel" hidden>
+              <div class="progress-wrap">
+                <div class="progress-bar" id="docActionProgressBar" style="width:0%"></div>
+              </div>
+              <p id="docActionProgressText" class="hint"></p>
+            </div>
+            <div class="doc-list-header" id="docListHeader" aria-hidden="true"></div>
+            <div class="doc-list-wrap">
+              <div id="docList" class="doc-list">
+                <p class="empty-cell">Yükleniyor…</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Araçlar -->
+      <section id="viewTools" class="view">
+        <div class="tools-page-main">
+          <div class="page-header tools-page-intro">
+            <div>
+              <h2>PDF araçları</h2>
+              <p class="hint">Bir araca tıklayın; form üstte açılır. İşlem sonrası indirme ve belgelere kaydetme seçeneklerini işaretleyin.</p>
+            </div>
+          </div>
+          <div id="toolWorkspace" class="tool-workspace card" hidden>
+            <div class="tool-workspace-head">
+              <h2 id="toolTitle">Araç</h2>
+              <p id="toolDesc" class="hint"></p>
+            </div>
+            <form id="toolForm" class="tool-form"></form>
+            <div id="toolProgressWrap" class="progress-wrap" hidden>
+              <div class="progress-bar" id="toolProgressBar" style="width:0%"></div>
+            </div>
+            <div id="toolStatus" class="status" hidden></div>
+          </div>
+          <div id="toolsCategoryNav" class="tools-category-nav" hidden></div>
+          <div id="toolsGrid" class="tools-catalog"></div>
+        </div>
+      </section>
+
+      <!-- Favoriler -->
+      <section id="viewFavorites" class="view">
+        <div class="page-header">
+          <div>
+            <h2>Favori araçlarım</h2>
+            <p class="hint">Sık kullandığınız araçlara hızlı erişim.</p>
+          </div>
+        </div>
+        <div id="favoritesGrid" class="tool-grid"></div>
+      </section>
+
+      <!-- İşler -->
+      <section id="viewJobs" class="view">
+        <div class="page-header">
+          <div>
+            <h2>İşlerim</h2>
+            <p class="hint">Tüm PDF işlemleri merkezi kuyrukta sırayla işlenir. İlerleme burada görünür.</p>
+          </div>
+          <button type="button" class="btn btn-secondary" id="btnRefreshJobs">Yenile</button>
+        </div>
+        <div id="activeJobPanel" class="card job-active" hidden>
+          <h3 id="activeJobTitle">İşleniyor…</h3>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="activeJobProgress" style="width:0%"></div>
+          </div>
+          <p id="activeJobStatus" class="hint"></p>
+        </div>
+        <div class="table-wrap">
+          <table class="doc-table" id="jobsTable">
+            <thead>
+              <tr>
+                <th>Araç</th>
+                <th>Durum</th>
+                <th>İlerleme</th>
+                <th>Oluşturuldu</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="jobsTableBody">
+              <tr><td colspan="5" class="empty-cell">Yükleniyor…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Profil -->
+      <section id="viewProfile" class="view">
+        <div class="page-header">
+          <div>
+            <h2>Profil</h2>
+            <p class="hint">Görünen ad ve tercihleriniz.</p>
+          </div>
+        </div>
+        <form id="profileForm" class="card profile-card">
+          <label>Görünen ad <input type="text" id="profileDisplayName" autocomplete="name"></label>
+          <label>E-posta <input type="email" id="profileEmail" disabled></label>
+          <label>Kullanıcı kimliği <input type="text" id="profileUserId" disabled></label>
+          <label>Dil
+            <select id="profileLocale">
+              <option value="tr-TR">Türkçe</option>
+              <option value="en-GB">English</option>
+            </select>
+          </label>
+          <div class="profile-quota" id="profileQuota"></div>
+          <div class="profile-license" id="profileLicense" hidden>
+            <div class="profile-license-head">
+              <p class="profile-license-title">Lisans paketi</p>
+              <span class="profile-license-status" id="profileLicenseStatus" hidden></span>
+            </div>
+            <p class="profile-license-line"><span class="profile-license-label">Paket</span> <strong id="profileLicensePackage">—</strong></p>
+            <p class="profile-license-line"><span class="profile-license-label">Araçlar</span> <span id="profileLicenseTools">—</span></p>
+            <p class="profile-license-line"><span class="profile-license-label">Geçerlilik</span> <span id="profileLicenseExpiry">—</span></p>
+          </div>
+          <button type="submit" class="btn btn-primary">Kaydet</button>
+          <p id="profileStatus" class="status" hidden></p>
+        </form>
+      </section>
+
+    </main>
+
+    <footer class="app-footer">
+      <span>© <span id="footerAppName">SecuriPDF</span> — Kurumsal PDF Platformu</span>
+    </footer>
+  </div>
+
+  <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+  <div id="docModal" class="modal-overlay" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="activityDocTitle">
+      <div class="modal-header">
+        <div>
+          <h3 id="activityDocTitle">Belge geçmişi</h3>
+          <p id="activityDocGuid" class="hint mono"></p>
+        </div>
+        <button type="button" class="icon-btn" id="btnCloseActivity" title="Kapat">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="hint modal-intro">Bu belgeye yapılan işlemler (yükleme, e-posta, arşiv vb.)</p>
+        <ul id="activityTimeline" class="activity-timeline"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app/static/convert-tools.js?v=1"></script>
+  <script src="/app/static/split-tools.js?v=1"></script>
+  <script src="/app/static/app.js?v=55"></script>
+</body>
+</html>

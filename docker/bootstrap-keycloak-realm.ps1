@@ -32,6 +32,8 @@ $realm = "securipdf"
 $clientId = if ($env:OAUTH2_CLIENT_ID) { $env:OAUTH2_CLIENT_ID } else { "securipdf" }
 $clientSecret = if (-not [string]::IsNullOrWhiteSpace($env:OAUTH2_CLIENT_SECRET)) { $env:OAUTH2_CLIENT_SECRET } else { "SecuriPDF-OAuth2-Dev-Secret-2026" }
 $redirectUrl = if ($env:OAUTH2_REDIRECT_URL) { $env:OAUTH2_REDIRECT_URL } else { "http://localhost:8080/oauth2/callback" }
+$appBase = ($redirectUrl -replace '/oauth2/callback.*','')
+$postLogoutUris = "$appBase/*"
 $ldapHost = if ($env:LDAP_HOST) { $env:LDAP_HOST } else { "192.168.6.10" }
 $ldapBase = if ($env:LDAP_BASE_DN) { $env:LDAP_BASE_DN } else { "dc=entera,dc=test" }
 $ldapUsersDn = if ($env:LDAP_USERS_DN) { $env:LDAP_USERS_DN } else { "CN=Users,$ldapBase" }
@@ -43,8 +45,13 @@ Write-Host "Keycloak realm bootstrap: $realm"
 
 $ready = $false
 for ($i = 0; $i -lt 24; $i++) {
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "SilentlyContinue"
   docker exec securipdf-keycloak sh -c "timeout 2 sh -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'" 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+  $probeOk = $LASTEXITCODE -eq 0
+  $ErrorActionPreference = $prev
+  if ($probeOk) { $ready = $true; break }
+  if ($i -eq 0) { Write-Host "Keycloak baslatiliyor, bekleniyor..." }
   Start-Sleep -Seconds 5
 }
 if (-not $ready) { throw "Keycloak hazir degil" }
@@ -104,7 +111,11 @@ if ($clients -notmatch '"id"\s*:\s*"([^"]+)"') {
   "clientAuthenticatorType": "client-secret",
   "secret": "$clientSecret",
   "redirectUris": ["$redirectUrl"],
-  "webOrigins": ["$(($redirectUrl -replace '/oauth2/callback.*',''))"],
+  "webOrigins": ["$appBase"],
+  "attributes": {
+    "post.logout.redirect.uris": "$postLogoutUris"
+  },
+  "frontchannelLogout": true,
   "publicClient": false,
   "standardFlowEnabled": true,
   "directAccessGrantsEnabled": true,
@@ -128,7 +139,12 @@ if ($clients -notmatch '"id"\s*:\s*"([^"]+)"') {
 if ($clients -match '"id"\s*:\s*"([^"]+)"') {
   $cid = $Matches[1]
   Invoke-Kcadm @("update", "clients/$cid", "-r", $realm, "-s", "secret=$clientSecret") | Out-Null
-  Write-Host "OAuth client guncellendi: $clientId"
+  Invoke-Kcadm @(
+    "update", "clients/$cid", "-r", $realm,
+    "-s", "attributes.post.logout.redirect.uris=$postLogoutUris",
+    "-s", "frontchannelLogout=true"
+  ) | Out-Null
+  Write-Host "OAuth client guncellendi: $clientId (post-logout: $postLogoutUris)"
 
   $audMapper = "audience-$clientId"
   $audMapperFile = Join-Path $PSScriptRoot "keycloak-audience-mapper.json"

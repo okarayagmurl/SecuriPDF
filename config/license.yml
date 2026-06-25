@@ -1,30 +1,84 @@
-# SecuriPDF License Service (Faz 6)
 product: SecuriPDF
 package: enterprise
-version: "1.0"
-
-limits:
-  max_users: 500
-  max_concurrent_sessions: 50
-
-# tools.yml ile uyumlu — lisans paketinde açık araçlar
+version: '1.0'
+apply_package_limits: true
+limits: {}
 enabled_tools:
-  - merge-pdfs
-  - split-pages
-  - compress-pdf
-  - ocr-pdf
-  - pdf-to-word
-  - file-to-pdf
-  - img-to-pdf
-  - rotate-pdf
-  - add-watermark
-  - text-editor-pdf
-  - view-pdf
-  - add-password
-  - remove-password
-  - sign
-  - cert-sign
-
-# Lisans dosyası imzası (prod'da kurumsal anahtar ile değiştirilir)
+- add-attachments
+- add-image
+- add-page-numbers
+- add-password
+- add-stamp
+- add-watermark
+- auto-redact
+- auto-rename
+- auto-split-pdf
+- booklet-imposition
+- cbr-to-pdf
+- cbz-to-pdf
+- cert-sign
+- change-permissions
+- compare
+- compress-pdf
+- convert
+- crop
+- ebook-to-pdf
+- edit-table-of-contents
+- eml-to-pdf
+- extract-attachments
+- extract-image-scans
+- extract-images
+- extract-pages
+- file-to-pdf
+- flatten
+- get-info-on-pdf
+- html-to-pdf
+- img-to-pdf
+- markdown-to-pdf
+- merge-pdfs
+- multi-page-layout
+- ocr-pdf
+- overlay-pdf
+- pdf-to-cbr
+- pdf-to-cbz
+- pdf-to-csv
+- pdf-to-epub
+- pdf-to-html
+- pdf-to-img
+- pdf-to-markdown
+- pdf-to-pdfa
+- pdf-to-presentation
+- pdf-to-single-page
+- pdf-to-text
+- pdf-to-vector
+- pdf-to-word
+- pdf-to-xlsx
+- pdf-to-xml
+- rearrange-pages
+- remove-blanks
+- remove-cert-sign
+- remove-image-pdf
+- remove-pages
+- remove-password
+- repair
+- replace-invert-pdf
+- rotate-pdf
+- sanitize-pdf
+- scale-pages
+- scanner-effect
+- sign
+- split-by-size-or-count
+- split-for-poster-print
+- split-pages
+- split-pdf-by-chapters
+- split-pdf-by-sections
+- text-editor-pdf
+- unlock-pdf-forms
+- update-metadata
+- url-to-pdf
+- validate-signature
+- vector-to-pdf
+- verify-pdf
+- view-pdf
 license_key: SECURIPDF-DEV-ENTERPRISE-2026
-expires_at: "2027-12-31T23:59:59Z"
+expires_at: '2027-12-31T23:59:59Z'

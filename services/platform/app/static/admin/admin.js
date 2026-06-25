@@ -23,6 +23,455 @@
     return isNaN(n) ? null : n;
   }
 
+  var pendingPlatformLogo = null;
+  var pendingCustomerLogo = null;
+
+  var licenseCatalog = { tools: [] };
+  var accessProfiles = [];
+  var userAssignments = {};
+  var selectedAccessProfileId = null;
+  var accessProfileEditing = false;
+  var selectedPackageId = null;
+
+  function renderToolPicker(container, tools, selectedSet, opts) {
+    opts = opts || {};
+    var onlyLicensed = opts.onlyLicensed === true;
+    var readOnly = !!opts.readOnly;
+    var compact = !!opts.compact;
+    if (typeof container === 'string') container = document.getElementById(container);
+    if (!container) return;
+    container.className = 'tool-picker' + (compact ? ' compact' : '');
+    var byCat = {};
+    (tools || []).forEach(function (t) {
+      if (onlyLicensed && !t.licensed) return;
+      var cat = t.categoryLabel || t.category || 'Diğer';
+      if (!byCat[cat]) byCat[cat] = [];
+      byCat[cat].push(t);
+    });
+    container.innerHTML = '';
+    Object.keys(byCat).sort().forEach(function (cat) {
+      var group = document.createElement('div');
+      group.className = 'tool-picker-group';
+      var heading = document.createElement('h4');
+      heading.textContent = cat;
+      group.appendChild(heading);
+      byCat[cat].forEach(function (t) {
+        var label = document.createElement('label');
+        label.className = 'tool-check' + (readOnly ? ' disabled' : '');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.setAttribute('data-tool-id', t.id);
+        cb.checked = selectedSet.has(t.id);
+        if (readOnly) cb.disabled = true;
+        label.appendChild(cb);
+        var span = document.createElement('span');
+        span.innerHTML = (t.title || t.id) + ' <code>' + t.id + '</code>';
+        label.appendChild(span);
+        group.appendChild(label);
+      });
+      container.appendChild(group);
+    });
+  }
+
+  function getSelectedFromPicker(containerId) {
+    var root = document.getElementById(containerId);
+    if (!root) return [];
+    var ids = [];
+    root.querySelectorAll('input[data-tool-id]:checked').forEach(function (cb) {
+      ids.push(cb.getAttribute('data-tool-id'));
+    });
+    return ids;
+  }
+
+  function setPickerSelection(containerId, ids) {
+    var set = new Set(ids || []);
+    var root = document.getElementById(containerId);
+    if (!root) return;
+    root.querySelectorAll('input[data-tool-id]').forEach(function (cb) {
+      cb.checked = set.has(cb.getAttribute('data-tool-id'));
+    });
+  }
+
+  function fillLicenseFields(lic) {
+    lic = lic || {};
+    var keyEl = document.getElementById('licenseKey');
+    if (!keyEl) return;
+    keyEl.value = lic.license_key || '';
+    document.getElementById('licenseExpires').value = lic.expires_at || '';
+    var limits = lic.limits || {};
+    document.getElementById('licenseMaxUsers').value = limits.max_users != null ? limits.max_users : '';
+    document.getElementById('licenseMaxSessions').value = limits.max_concurrent_sessions != null ? limits.max_concurrent_sessions : '';
+    var applyEl = document.getElementById('licenseApplyPackageLimits');
+    if (applyEl) applyEl.checked = lic.apply_package_limits !== false;
+    if (lic.package) selectedPackageId = lic.package;
+  }
+
+  function updateLicenseSummary(status) {
+    if (!status) return;
+    var pkgEl = document.getElementById('licenseSummaryPackage');
+    if (!pkgEl) return;
+    pkgEl.textContent = status.packageLabel || status.package || '—';
+    var descEl = document.getElementById('licenseSummaryDesc');
+    if (descEl) descEl.textContent = status.packageDescription || 'Paket seçin veya güncelleyin.';
+    var toolsEl = document.getElementById('licenseSummaryTools');
+    if (toolsEl) toolsEl.textContent = status.enabledToolCount != null ? status.enabledToolCount : (status.enabledTools || []).length;
+    var expEl = document.getElementById('licenseSummaryExpiry');
+    if (expEl) {
+      var exp = status.expiresAt || status.expires_at;
+      expEl.textContent = exp ? ('Bitiş: ' + formatDate(exp)) : 'Süresiz';
+    }
+    var validEl = document.getElementById('licenseSummaryValid');
+    if (validEl) {
+      if (status.valid) validEl.textContent = 'Geçerli';
+      else if (status.expired) validEl.textContent = 'Süresi dolmuş';
+      else validEl.textContent = 'Kontrol edin';
+    }
+  }
+
+  function renderPackageCards(packages, currentId) {
+    var el = document.getElementById('packageCards');
+    if (!el) return;
+    if (currentId) selectedPackageId = currentId;
+    el.innerHTML = '';
+    (packages || []).forEach(function (p) {
+      var card = document.createElement('div');
+      var selected = !!(p.selected || p.id === selectedPackageId);
+      card.className = 'package-card' + (selected ? ' selected' : '');
+      card.setAttribute('data-package', p.id);
+      var meta = '<span>' + (p.toolCount || 0) + ' araç</span>';
+      if (p.limits && p.limits.max_users) meta += '<span>' + p.limits.max_users + ' kullanıcı</span>';
+      if (p.limits && p.limits.max_concurrent_sessions) meta += '<span>' + p.limits.max_concurrent_sessions + ' oturum</span>';
+      card.innerHTML =
+        (selected ? '<span class="package-card-badge">Seçili</span>' : '') +
+        '<h3>' + (p.label || p.id) + '</h3>' +
+        '<p>' + (p.description || '') + '</p>' +
+        '<div class="package-card-meta">' + meta + '</div>';
+      card.addEventListener('click', function () { applyPackage(p.id, p.label || p.id); });
+      el.appendChild(card);
+    });
+  }
+
+  async function applyPackage(packageId, label) {
+    if (!confirm('"' + (label || packageId) + '" paketi uygulansın mı? Araç listesi ve limitler güncellenecek.')) return;
+    try {
+      var result = await api('/license/apply-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: packageId })
+      });
+      selectedPackageId = packageId;
+      show('licenseResult', result);
+      await loadLicensePanel();
+    } catch (e) { alert(e.message); }
+  }
+
+  function renderLicenseToolPicker(tools, enabledSet) {
+    renderToolPicker(
+      document.getElementById('licenseToolPicker'),
+      tools,
+      enabledSet instanceof Set ? enabledSet : new Set(enabledSet || []),
+      { onlyLicensed: false }
+    );
+  }
+
+  async function loadLicensePanel() {
+    try {
+      var results = await Promise.all([
+        api('/license/packages'),
+        api('/tool-catalog'),
+        api('/settings'),
+        api('/license')
+      ]);
+      var pkgData = results[0];
+      licenseCatalog = results[1];
+      var settings = results[2];
+      var status = results[3];
+      fillLicenseFields((settings && settings.license) || {});
+      updateLicenseSummary(status || (pkgData && pkgData.current) || {});
+      renderPackageCards(pkgData.packages || [], (status && status.package) || selectedPackageId);
+      var enabled = (settings.license && settings.license.enabled_tools) || status.enabledTools || [];
+      renderLicenseToolPicker(licenseCatalog.tools || [], new Set(enabled));
+      await loadAccessProfiles();
+    } catch (e) {
+      var pre = document.getElementById('licenseResult');
+      if (pre) pre.textContent = e.message;
+    }
+  }
+
+  async function ensureLicenseCatalog() {
+    if (licenseCatalog.tools && licenseCatalog.tools.length) return;
+    try {
+      licenseCatalog = await api('/tool-catalog');
+    } catch (e) { licenseCatalog = { tools: [] }; }
+  }
+
+  async function loadAccessProfiles() {
+    await ensureLicenseCatalog();
+    try {
+      var data = await api('/tool-access-profiles');
+      accessProfiles = data.profiles || [];
+    } catch (e) {
+      accessProfiles = [];
+    }
+    renderAccessProfileCards();
+    fillAccessProfileSelects();
+  }
+
+  async function loadUserAssignments() {
+    try {
+      var data = await api('/users/tool-profile-assignments');
+      userAssignments = data.byUser || {};
+    } catch (e) {
+      userAssignments = {};
+    }
+    renderAssignmentsList();
+    fillAccessProfileSelects();
+  }
+
+  function fillAccessProfileSelects() {
+    var html = '<option value="">— Lisans paketi (tam erişim) —</option>';
+    accessProfiles.forEach(function (p) {
+      html += '<option value="' + p.id + '">' + (p.label || p.id) + ' (' + (p.toolCount || 0) + ' araç)</option>';
+    });
+    document.querySelectorAll('.user-profile-select').forEach(function (sel) {
+      var current = sel.value;
+      sel.innerHTML = html;
+      if (current) sel.value = current;
+    });
+    var assignSel = document.getElementById('assignProfileId');
+    if (assignSel) {
+      var keep = assignSel.value;
+      assignSel.innerHTML = html;
+      if (keep) assignSel.value = keep;
+    }
+  }
+
+  function renderAccessProfileCards() {
+    var el = document.getElementById('accessProfileCards');
+    if (!el) return;
+    el.innerHTML = '';
+    if (!accessProfiles.length) {
+      el.innerHTML = '<p class="hint package-loading">Henüz profil yok. «Yeni profil» ile oluşturun.</p>';
+      return;
+    }
+    accessProfiles.forEach(function (p) {
+      var card = document.createElement('div');
+      var selected = p.id === selectedAccessProfileId;
+      card.className = 'package-card' + (selected ? ' selected' : '');
+      card.setAttribute('data-profile-id', p.id);
+      var meta = '<span>' + (p.toolCount || 0) + ' araç</span>';
+      if (p.userCount) meta += '<span>' + p.userCount + ' kullanıcı</span>';
+      card.innerHTML =
+        (selected ? '<span class="package-card-badge">Seçili</span>' : '') +
+        '<h3>' + (p.label || p.id) + '</h3>' +
+        '<p>' + (p.description || p.id) + '</p>' +
+        '<div class="package-card-meta">' + meta + '</div>';
+      card.addEventListener('click', function () { openAccessProfileEditor(p.id); });
+      el.appendChild(card);
+    });
+  }
+
+  function licensedToolsForPicker() {
+    var tools = (licenseCatalog.tools || []).filter(function (t) { return t.licensed; });
+    if (tools.length) return tools;
+    return (licenseCatalog.tools || []).map(function (t) {
+      return Object.assign({}, t, { licensed: true });
+    });
+  }
+
+  function openAccessProfileEditor(profileId, isNew) {
+    accessProfileEditing = !isNew;
+    selectedAccessProfileId = profileId || null;
+    renderAccessProfileCards();
+    var editor = document.getElementById('accessProfileEditor');
+    if (!editor) return;
+    editor.hidden = false;
+    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    var idEl = document.getElementById('accessProfileId');
+    var labelEl = document.getElementById('accessProfileLabel');
+    var descEl = document.getElementById('accessProfileDesc');
+    var metaEl = document.getElementById('accessProfileMeta');
+    var titleEl = document.getElementById('accessProfileEditorTitle');
+    var delBtn = document.getElementById('btnDeleteAccessProfile');
+
+    if (isNew) {
+      titleEl.textContent = 'Yeni profil';
+      idEl.value = '';
+      idEl.disabled = false;
+      labelEl.value = '';
+      descEl.value = '';
+      metaEl.textContent = '';
+      if (delBtn) delBtn.hidden = true;
+      renderToolPicker(document.getElementById('accessProfileToolPicker'), licensedToolsForPicker(), new Set(), { onlyLicensed: true });
+      return;
+    }
+
+    var prof = accessProfiles.find(function (p) { return p.id === profileId; });
+    if (!prof) return;
+    titleEl.textContent = 'Profil düzenle — ' + (prof.label || prof.id);
+    idEl.value = prof.id;
+    idEl.disabled = true;
+    labelEl.value = prof.label || '';
+    descEl.value = prof.description || '';
+    metaEl.textContent = (prof.userCount || 0) + ' kullanıcı bu profile atanmış.';
+    if (delBtn) delBtn.hidden = false;
+    renderToolPicker(
+      document.getElementById('accessProfileToolPicker'),
+      licensedToolsForPicker(),
+      new Set(prof.allowed_tools || []),
+      { onlyLicensed: true }
+    );
+  }
+
+  function closeAccessProfileEditor() {
+    var editor = document.getElementById('accessProfileEditor');
+    if (editor) editor.hidden = true;
+    selectedAccessProfileId = null;
+    renderAccessProfileCards();
+  }
+
+  async function saveAccessProfile() {
+    var idRaw = val('accessProfileId').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    var label = val('accessProfileLabel');
+    if (!idRaw || !label) return alert('Profil ID ve görünen ad zorunlu');
+    var body = {
+      label: label,
+      description: val('accessProfileDesc') || undefined,
+      allowed_tools: getSelectedFromPicker('accessProfileToolPicker')
+    };
+    try {
+      if (accessProfileEditing && selectedAccessProfileId) {
+        await api('/tool-access-profiles/' + encodeURIComponent(selectedAccessProfileId), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      } else {
+        body.id = idRaw;
+        await api('/tool-access-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        selectedAccessProfileId = idRaw;
+      }
+      document.getElementById('accessProfileResult').textContent = 'Profil kaydedildi.';
+      await loadAccessProfiles();
+      openAccessProfileEditor(selectedAccessProfileId, false);
+    } catch (e) {
+      document.getElementById('accessProfileResult').textContent = e.message;
+    }
+  }
+
+  async function deleteAccessProfile() {
+    if (!selectedAccessProfileId) return;
+    if (!confirm('Profil silinsin mi: ' + selectedAccessProfileId + '?')) return;
+    try {
+      await api('/tool-access-profiles/' + encodeURIComponent(selectedAccessProfileId), { method: 'DELETE' });
+      closeAccessProfileEditor();
+      await loadAccessProfiles();
+      await loadUserAssignments();
+    } catch (e) { alert(e.message); }
+  }
+
+  function findUserAssignment(username) {
+    if (!username) return null;
+    var norm = String(username).trim().toLowerCase();
+    if (userAssignments[norm]) return userAssignments[norm];
+    return Object.keys(userAssignments).reduce(function (found, key) {
+      if (found) return found;
+      return key.trim().toLowerCase() === norm ? userAssignments[key] : null;
+    }, null);
+  }
+
+  function accessProfileLabel(profileId) {
+    if (!profileId) return null;
+    var p = accessProfiles.find(function (x) { return x.id === profileId; });
+    return p ? (p.label || p.id) : profileId;
+  }
+
+  function renderProfileBadge(username) {
+    var pid = findUserAssignment(username);
+    if (!pid) {
+      return '<span class="profile-badge inherit" title="Lisans paketindeki tüm araçlar">Tam erişim</span>';
+    }
+    var label = accessProfileLabel(pid) || pid;
+    return '<span class="profile-badge restrict" title="' + label + '">' + label + '</span>';
+  }
+
+  function renderProfileSelect(username) {
+    var pid = findUserAssignment(username) || '';
+    var html = '<select class="user-profile-select" data-user="' + username + '">';
+    html += '<option value=""' + (!pid ? ' selected' : '') + '>Tam erişim</option>';
+    accessProfiles.forEach(function (p) {
+      html += '<option value="' + p.id + '"' + (pid === p.id ? ' selected' : '') + '>' + (p.label || p.id) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  function renderAssignmentsList() {
+    var host = document.getElementById('userAssignmentsList');
+    if (!host) return;
+    var entries = Object.keys(userAssignments).sort();
+    if (!entries.length) {
+      host.innerHTML = '<p class="hint">Henüz kullanıcıya profil atanmadı.</p>';
+      return;
+    }
+    host.innerHTML = entries.map(function (uid) {
+      var pid = userAssignments[uid];
+      return '<div class="profile-list-item">' +
+        '<div><strong>' + uid + '</strong><span class="hint">' + (accessProfileLabel(pid) || pid) + '</span></div>' +
+        '<button type="button" class="secondary btn-assign-edit" data-user="' + uid + '">Düzenle</button></div>';
+    }).join('');
+    host.querySelectorAll('.btn-assign-edit').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var user = btn.getAttribute('data-user');
+        document.getElementById('assignProfileUser').value = user;
+        document.getElementById('assignProfileId').value = findUserAssignment(user) || '';
+        document.getElementById('assignProfileUser').scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  }
+
+  async function saveUserAssignment(username, profileId) {
+    await api('/users/' + encodeURIComponent(username) + '/tool-profile-assignment', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId || null })
+    });
+    await loadUserAssignments();
+    await loadUsers();
+  }
+
+  function openUserAssignment(username) {
+    if (!username) return;
+    switchTab('users');
+    document.getElementById('assignProfileUser').value = username;
+    document.getElementById('assignProfileId').value = findUserAssignment(username) || '';
+    document.getElementById('assignProfileResult').textContent = '';
+    document.getElementById('assignProfileUser').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function setLogoPreview(elId, b64) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!b64) { el.innerHTML = ''; return; }
+    const raw = String(b64);
+    const src = raw.startsWith('data:') ? raw : 'data:image/png;base64,' + (raw.includes(',') ? raw.split(',')[1] : raw);
+    el.innerHTML = '<img src="' + src + '" alt="logo">';
+  }
+
+  function fileToB64(file) {
+    return new Promise(function (resolve, reject) {
+      const r = new FileReader();
+      r.onload = function () { resolve(r.result); };
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
   // Sekmeler
   document.querySelectorAll('#adminTabs .tab').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -46,6 +495,329 @@
   function formatDate(iso) {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleString('tr-TR'); } catch (e) { return iso; }
+  }
+
+  function esc(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function jobStatusBadge(status) {
+    var labels = {
+      queued: 'Kuyrukta',
+      running: 'İşleniyor',
+      completed: 'Tamamlandı',
+      failed: 'Hata'
+    };
+    var label = labels[status] || status || '—';
+    return '<span class="job-badge job-' + esc(status) + '">' + esc(label) + '</span>';
+  }
+
+  function formatAuditDetail(detail) {
+    if (!detail || !Object.keys(detail).length) return '—';
+    var s = JSON.stringify(detail);
+    if (s.length > 96) s = s.slice(0, 93) + '…';
+    return '<code class="detail-snippet">' + esc(s) + '</code>';
+  }
+
+  var auditPage = 1;
+  var auditTotal = 0;
+  var auditPageSize = 50;
+  var jobsPage = 1;
+  var jobsTotal = 0;
+  var jobsPageSize = 50;
+
+  function renderDashboard(data) {
+    var health = data.health || {};
+    var vault = health.vault || {};
+    var disk = health.disk || {};
+    var backups = health.backups || {};
+    var lic = data.license || {};
+    var jobs = data.jobs || {};
+    var byStatus = jobs.byStatus || {};
+    var setup = data.setup || {};
+    var readiness = data.readiness || {};
+    var profiles = data.accessProfiles || {};
+    var progress = setup.progress || {};
+
+    var grid = document.getElementById('dashStatGrid');
+    if (grid) {
+      grid.innerHTML =
+        '<div class="dash-stat"><span class="dash-stat-label">Lisans</span><strong>' + esc(lic.packageLabel || lic.package || '—') + '</strong><span class="dash-stat-meta">' + (lic.valid ? 'Geçerli' : 'Süresi dolmuş') + ' · ' + (lic.enabledToolCount || 0) + ' araç</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Belgeler</span><strong>' + (vault.documents || 0) + '</strong><span class="dash-stat-meta">' + formatBytes(vault.totalUsedBytes) + ' kullanımda</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Disk boş</span><strong>%' + (disk.freePercent || 0) + '</strong><span class="dash-stat-meta">' + formatBytes(disk.freeBytes) + ' boş</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Yedekler</span><strong>' + (backups.count || 0) + '</strong><span class="dash-stat-meta">Son: ' + formatDate(backups.latestAt) + '</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Aktif iş</span><strong>' + ((byStatus.queued || 0) + (byStatus.running || 0)) + '</strong><span class="dash-stat-meta">Tamamlanan: ' + (byStatus.completed || 0) + '</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Profiller</span><strong>' + (profiles.profileCount || 0) + '</strong><span class="dash-stat-meta">' + (profiles.assignmentCount || 0) + ' kullanıcı ataması</span></div>';
+    }
+
+    var setupSummary = document.getElementById('dashSetupSummary');
+    if (setupSummary) {
+      var setupOk = !!setup.complete;
+      setupSummary.className = 'readiness-summary ' + (setupOk ? 'ready-ok' : 'ready-fail');
+      setupSummary.textContent = setupOk
+        ? 'Kurulum tamamlandı'
+        : 'Kurulum: ' + (progress.done || 0) + ' / ' + (progress.total || 0) + ' adım';
+    }
+
+    var setupList = document.getElementById('dashSetupList');
+    if (setupList) {
+      setupList.innerHTML = '';
+      (data.setupChecks || []).forEach(function (c) {
+        var li = document.createElement('li');
+        li.className = 'readiness-item ' + (c.ok ? 'ok' : 'fail');
+        li.innerHTML = '<span class="readiness-icon">' + (c.ok ? '✓' : '○') + '</span><span>' + esc(c.label) + '</span>';
+        setupList.appendChild(li);
+      });
+    }
+
+    var readSummary = document.getElementById('dashReadinessSummary');
+    if (readSummary) {
+      var prodOk = !!readiness.ready;
+      readSummary.className = 'readiness-summary ' + (prodOk ? 'ready-ok' : 'ready-fail');
+      readSummary.textContent = prodOk
+        ? 'Prod hazırlık: kritik kontroller geçti'
+        : 'Prod hazırlık: ' + (readiness.criticalFailures || 0) + ' kritik, ' + (readiness.warningFailures || 0) + ' uyarı';
+    }
+
+    var readHint = document.getElementById('dashReadinessHint');
+    if (readHint) {
+      readHint.textContent = prodOk
+        ? 'Ayrıntılar için Operasyon sekmesindeki hazırlık listesine bakın.'
+        : 'Operasyon sekmesinden eksik maddeleri tamamlayın.';
+    }
+
+    var jobsBody = document.getElementById('dashActiveJobsBody');
+    if (jobsBody) {
+      var active = jobs.active || [];
+      if (!active.length) {
+        jobsBody.innerHTML = '<tr><td colspan="6" class="muted-cell">Aktif iş yok.</td></tr>';
+      } else {
+        jobsBody.innerHTML = active.map(function (j) {
+          return '<tr>' +
+            '<td><code>' + esc(j.id) + '</code></td>' +
+            '<td>' + esc(j.userId) + '</td>' +
+            '<td>' + esc(j.toolId) + '</td>' +
+            '<td>' + jobStatusBadge(j.status) + '</td>' +
+            '<td>' + (j.progress != null ? j.progress + '%' : '—') + '</td>' +
+            '<td>' + formatDate(j.createdAt) + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+    }
+
+    var topTools = document.getElementById('dashTopTools');
+    if (topTools) {
+      var tools = jobs.topTools || [];
+      if (!tools.length) {
+        topTools.innerHTML = '<li class="hint">Henüz iş kaydı yok.</li>';
+      } else {
+        topTools.innerHTML = tools.map(function (t) {
+          return '<li><code>' + esc(t.toolId) + '</code><span>' + t.count + ' iş</span></li>';
+        }).join('');
+      }
+    }
+  }
+
+  async function loadDashboard() {
+    try {
+      var data = await api('/ops/dashboard');
+      var setupData = await api('/ops/setup-checklist');
+      data.setupChecks = (setupData.checks || []).filter(function (c) { return !c.ok; }).slice(0, 6);
+      if (!data.setupChecks.length && setupData.checks) {
+        data.setupChecks = setupData.checks.slice(0, 4);
+      }
+      renderDashboard(data);
+    } catch (e) {
+      var grid = document.getElementById('dashStatGrid');
+      if (grid) grid.innerHTML = '<p class="hint">' + esc(e.message) + '</p>';
+    }
+  }
+
+  function updatePager(prefix, page, total, pageSize) {
+    var pager = document.getElementById(prefix + 'Pager');
+    var info = document.getElementById(prefix + 'PageInfo');
+    var pages = Math.max(1, Math.ceil(total / pageSize));
+    if (!pager || !info) return;
+    if (total <= pageSize) {
+      pager.hidden = true;
+      return;
+    }
+    pager.hidden = false;
+    info.textContent = 'Sayfa ' + page + ' / ' + pages + ' (' + total + ' kayıt)';
+    var prev = document.getElementById(prefix + 'Prev');
+    var next = document.getElementById(prefix + 'Next');
+    if (prev) prev.disabled = page <= 1;
+    if (next) next.disabled = page >= pages;
+  }
+
+  function renderAuditTable(data) {
+    auditTotal = data.total || 0;
+    var tbody = document.getElementById('auditTableBody');
+    var summary = document.getElementById('auditSummary');
+    if (!tbody) return;
+    var items = data.items || [];
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted-cell">Kayıt bulunamadı.</td></tr>';
+    } else {
+      tbody.innerHTML = items.map(function (row) {
+        return '<tr>' +
+          '<td class="nowrap">' + formatDate(row.timestamp) + '</td>' +
+          '<td>' + esc(row.userId) + '</td>' +
+          '<td><code>' + esc(row.action) + '</code></td>' +
+          '<td><code>' + esc(row.resource) + '</code></td>' +
+          '<td>' + formatAuditDetail(row.detail) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (summary) summary.textContent = items.length + ' kayıt gösteriliyor (toplam ' + auditTotal + ')';
+    updatePager('audit', auditPage, auditTotal, auditPageSize);
+  }
+
+  async function loadAudit(page) {
+    auditPage = page || 1;
+    var qs = new URLSearchParams();
+    if (val('auditUserId')) qs.set('userId', val('auditUserId'));
+    if (val('auditAction')) qs.set('action', val('auditAction'));
+    if (val('auditActionPrefix')) qs.set('actionPrefix', val('auditActionPrefix'));
+    if (val('auditFrom')) qs.set('from', val('auditFrom'));
+    if (val('auditTo')) qs.set('to', val('auditTo'));
+    qs.set('page', String(auditPage));
+    qs.set('size', String(auditPageSize));
+    try {
+      renderAuditTable(await api('/audit?' + qs.toString()));
+    } catch (e) { alert(e.message); }
+  }
+
+  function buildAuditExportQuery() {
+    var qs = new URLSearchParams();
+    if (val('auditUserId')) qs.set('userId', val('auditUserId'));
+    if (val('auditAction')) qs.set('action', val('auditAction'));
+    if (val('auditActionPrefix')) qs.set('actionPrefix', val('auditActionPrefix'));
+    if (val('auditFrom')) qs.set('from', val('auditFrom'));
+    if (val('auditTo')) qs.set('to', val('auditTo'));
+    return qs;
+  }
+
+  async function exportAuditCsv() {
+    try {
+      var res = await fetch(API + '/audit/export?' + buildAuditExportQuery().toString(), { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('CSV indirilemedi (' + res.status + ')');
+      var blob = await res.blob();
+      var a = document.createElement('a');
+      var url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = 'securipdf-audit.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    } catch (e) { alert(e.message); }
+  }
+
+  var quotaPage = 1;
+  var quotaTotal = 0;
+  var quotaPageSize = 50;
+
+  function renderQuotaUsageBar(pct) {
+    var level = pct >= 90 ? 'danger' : (pct >= 75 ? 'warn' : '');
+    var width = Math.min(100, Math.max(0, pct));
+    return '<div class="quota-usage-cell"><div class="quota-usage-bar ' + level + '"><span style="width:' + width + '%"></span></div><span class="quota-pct">' + pct + '%</span></div>';
+  }
+
+  function renderQuotaTable(data) {
+    quotaTotal = data.total || 0;
+    var tbody = document.getElementById('quotaTableBody');
+    var summary = document.getElementById('quotaListSummary');
+    var defaultHint = document.getElementById('quotaDefaultHint');
+    if (defaultHint && data.defaultMaxBytes) defaultHint.textContent = formatBytes(data.defaultMaxBytes);
+    if (!tbody) return;
+    var items = data.items || [];
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted-cell">Kayıt yok. Kullanıcı belge yükledikçe listede görünür.</td></tr>';
+    } else {
+      tbody.innerHTML = items.map(function (row) {
+        return '<tr>' +
+          '<td><button type="button" class="linkish quota-user-pick" data-user="' + esc(row.userId) + '">' + esc(row.userId) + '</button></td>' +
+          '<td>' + formatBytes(row.usedBytes) + '</td>' +
+          '<td>' + formatBytes(row.maxBytes) + '</td>' +
+          '<td>' + renderQuotaUsageBar(row.usagePercent || 0) + '</td>' +
+          '<td><button type="button" class="secondary quota-edit-btn" data-user="' + esc(row.userId) + '" data-max="' + row.maxBytes + '">Düzenle</button></td>' +
+          '</tr>';
+      }).join('');
+      tbody.querySelectorAll('.quota-user-pick, .quota-edit-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var user = btn.getAttribute('data-user');
+          document.getElementById('quotaUserId').value = user;
+          if (btn.classList.contains('quota-edit-btn')) {
+            document.getElementById('quotaMaxBytes').value = btn.getAttribute('data-max') || '';
+            document.getElementById('quotaMaxMb').value = '';
+          }
+          document.getElementById('quotaUserId').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+    }
+    if (summary) summary.textContent = items.length + ' kayıt (toplam ' + quotaTotal + ')';
+    updatePager('quota', quotaPage, quotaTotal, quotaPageSize);
+  }
+
+  async function loadQuotaList(page) {
+    quotaPage = page || 1;
+    var qs = new URLSearchParams();
+    if (val('quotaSearch')) qs.set('search', val('quotaSearch'));
+    qs.set('page', String(quotaPage));
+    qs.set('size', String(quotaPageSize));
+    try {
+      renderQuotaTable(await api('/quotas?' + qs.toString()));
+    } catch (e) {
+      var tbody = document.getElementById('quotaTableBody');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="muted-cell">' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  function renderJobsTable(data) {
+    jobsTotal = data.total || 0;
+    var tbody = document.getElementById('jobsTableBody');
+    var summary = document.getElementById('jobsSummary');
+    if (!tbody) return;
+    var items = data.items || [];
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="muted-cell">Kayıt bulunamadı.</td></tr>';
+    } else {
+      tbody.innerHTML = items.map(function (j) {
+        return '<tr>' +
+          '<td><code>' + esc(j.id) + '</code></td>' +
+          '<td>' + esc(j.userId) + '</td>' +
+          '<td>' + esc(j.toolId) + '</td>' +
+          '<td>' + jobStatusBadge(j.status) + '</td>' +
+          '<td>' + (j.progress != null ? j.progress + '%' : '—') + '</td>' +
+          '<td class="nowrap">' + formatDate(j.createdAt) + '</td>' +
+          '<td class="nowrap">' + formatDate(j.completedAt) + '</td>' +
+          '<td>' + esc(j.errorCode || '—') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (summary) {
+      summary.textContent = items.length + ' kayıt gösteriliyor (toplam ' + jobsTotal + '). ' + (data.privacyNote || '');
+    }
+    updatePager('jobs', jobsPage, jobsTotal, jobsPageSize);
+  }
+
+  async function loadJobs(page) {
+    jobsPage = page || 1;
+    var qs = new URLSearchParams();
+    if (val('jobsUserId')) qs.set('userId', val('jobsUserId'));
+    if (val('jobsStatus')) qs.set('status', val('jobsStatus'));
+    if (val('jobsToolId')) qs.set('toolId', val('jobsToolId'));
+    qs.set('page', String(jobsPage));
+    qs.set('size', String(jobsPageSize));
+    try {
+      renderJobsTable(await api('/jobs?' + qs.toString()));
+    } catch (e) { alert(e.message); }
   }
 
   function fillDeployment(data) {
@@ -365,17 +1137,19 @@
     const vault = data.vault || {};
     const quotas = vault.quotas || {};
     const retention = vault.retention || {};
+    const roots = vault.storage_roots || {};
     document.getElementById('vaultDefaultQuota').value = quotas.default_max_bytes_per_user || '';
     document.getElementById('vaultMaxFile').value = quotas.max_file_bytes || '';
     document.getElementById('vaultSoftDelete').value = retention.soft_delete_days || '';
+    document.getElementById('vaultDocumentsTtlValue').value = retention.documents_ttl_value || '';
+    document.getElementById('vaultDocumentsTtlUnit').value = retention.documents_ttl_unit || 'days';
+    document.getElementById('vaultDocumentsPath').value = roots.documents || '';
+    document.getElementById('vaultArchivePath').value = roots.archive || '';
+    const ui = vault.ui || {};
+    document.getElementById('vaultDefaultList').value = ui.default_document_list || 'all';
 
     const lic = data.license || {};
-    document.getElementById('licenseKey').value = lic.license_key || '';
-    document.getElementById('licenseExpires').value = lic.expires_at || '';
-    const limits = lic.limits || {};
-    document.getElementById('licenseMaxUsers').value = limits.max_users || '';
-    document.getElementById('licenseMaxSessions').value = limits.max_concurrent_sessions || '';
-    document.getElementById('licenseTools').value = (lic.enabled_tools || []).join(',');
+    fillLicenseFields(lic);
 
     const brand = data.branding || {};
     document.getElementById('brandAppName').value = brand.app_name || '';
@@ -383,6 +1157,12 @@
     document.getElementById('brandDescription').value = brand.home_description || '';
     document.getElementById('brandLocale').value = brand.default_locale || '';
     document.getElementById('brandLangs').value = brand.langs || '';
+    document.getElementById('brandPrimaryColor').value = brand.primary_color || '#1d4ed8';
+    document.getElementById('brandAccentColor').value = brand.accent_color || '#0f766e';
+    pendingPlatformLogo = brand.platform_logo_b64 || null;
+    pendingCustomerLogo = brand.customer_logo_b64 || null;
+    setLogoPreview('brandPlatformPreview', pendingPlatformLogo);
+    setLogoPreview('brandCustomerPreview', pendingCustomerLogo);
 
     const sys = data.system || {};
     document.getElementById('sysMaxFileMb').value = sys.max_filesize_mb || '';
@@ -460,9 +1240,19 @@
     const dq = num('vaultDefaultQuota');
     const mf = num('vaultMaxFile');
     const sd = num('vaultSoftDelete');
+    const ttlVal = num('vaultDocumentsTtlValue');
+    const ttlUnit = val('vaultDocumentsTtlUnit');
+    const dp = val('vaultDocumentsPath');
+    const ap = val('vaultArchivePath');
+    const dl = val('vaultDefaultList');
     if (dq) body.default_max_bytes_per_user = dq;
     if (mf) body.max_file_bytes = mf;
     if (sd) body.soft_delete_days = sd;
+    if (ttlVal) body.documents_ttl_value = ttlVal;
+    if (ttlUnit) body.documents_ttl_unit = ttlUnit;
+    if (dp) body.documents_path = dp;
+    if (ap) body.archive_path = ap;
+    if (dl) body.default_document_list = dl;
     try {
       const data = await api('/settings/vault', {
         method: 'PUT',
@@ -474,16 +1264,19 @@
   });
 
   document.getElementById('btnSaveLicense').addEventListener('click', async () => {
-    const toolsRaw = val('licenseTools');
+    const limits = {};
+    const maxUsers = num('licenseMaxUsers');
+    const maxSessions = num('licenseMaxSessions');
+    if (maxUsers != null) limits.max_users = maxUsers;
+    if (maxSessions != null) limits.max_concurrent_sessions = maxSessions;
     const body = {
       license_key: val('licenseKey') || undefined,
       expires_at: val('licenseExpires') || undefined,
-      limits: {
-        max_users: num('licenseMaxUsers'),
-        max_concurrent_sessions: num('licenseMaxSessions')
-      },
-      enabled_tools: toolsRaw ? toolsRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined
+      apply_package_limits: document.getElementById('licenseApplyPackageLimits').checked,
+      enabled_tools: getSelectedFromPicker('licenseToolPicker')
     };
+    if (Object.keys(limits).length) body.limits = limits;
+    if (selectedPackageId) body.package = selectedPackageId;
     try {
       const data = await api('/settings/license', {
         method: 'PUT',
@@ -491,11 +1284,76 @@
         body: JSON.stringify(body)
       });
       show('licenseResult', data.license);
+      await loadLicensePanel();
     } catch (e) { alert(e.message); }
   });
 
   document.getElementById('btnLoadLicenseStatus').addEventListener('click', async () => {
-    try { show('licenseResult', await api('/license')); } catch (e) { alert(e.message); }
+    try {
+      var status = await api('/license');
+      show('licenseResult', status);
+      updateLicenseSummary(status);
+    } catch (e) { alert(e.message); }
+  });
+
+  var btnLicenseSelectAll = document.getElementById('btnLicenseSelectAll');
+  if (btnLicenseSelectAll) {
+    btnLicenseSelectAll.addEventListener('click', function () {
+      var root = document.getElementById('licenseToolPicker');
+      if (!root) return;
+      root.querySelectorAll('input[data-tool-id]').forEach(function (cb) { cb.checked = true; });
+    });
+  }
+  var btnLicenseSelectNone = document.getElementById('btnLicenseSelectNone');
+  if (btnLicenseSelectNone) {
+    btnLicenseSelectNone.addEventListener('click', function () {
+      var root = document.getElementById('licenseToolPicker');
+      if (!root) return;
+      root.querySelectorAll('input[data-tool-id]').forEach(function (cb) { cb.checked = false; });
+    });
+  }
+  var btnRefreshLicenseCatalog = document.getElementById('btnRefreshLicenseCatalog');
+  if (btnRefreshLicenseCatalog) {
+    btnRefreshLicenseCatalog.addEventListener('click', function () {
+      loadLicensePanel().catch(function (e) { alert(e.message); });
+    });
+  }
+
+  document.querySelector('[data-tab="license"]').addEventListener('click', function () {
+    loadLicensePanel().catch(function () { /* sessiz */ });
+  });
+
+  document.getElementById('btnNewAccessProfile').addEventListener('click', function () {
+    openAccessProfileEditor(null, true);
+  });
+  document.getElementById('btnRefreshAccessProfiles').addEventListener('click', function () {
+    loadAccessProfiles().catch(function (e) { alert(e.message); });
+  });
+  document.getElementById('btnSaveAccessProfile').addEventListener('click', function () {
+    saveAccessProfile().catch(function (e) { alert(e.message); });
+  });
+  document.getElementById('btnCancelAccessProfile').addEventListener('click', closeAccessProfileEditor);
+  document.getElementById('btnDeleteAccessProfile').addEventListener('click', function () {
+    deleteAccessProfile().catch(function (e) { alert(e.message); });
+  });
+  document.getElementById('btnAccessProfileSelectAll').addEventListener('click', function () {
+    var root = document.getElementById('accessProfileToolPicker');
+    if (!root) return;
+    root.querySelectorAll('input[data-tool-id]').forEach(function (cb) { cb.checked = true; });
+  });
+  document.getElementById('btnAccessProfileSelectNone').addEventListener('click', function () {
+    var root = document.getElementById('accessProfileToolPicker');
+    if (!root) return;
+    root.querySelectorAll('input[data-tool-id]').forEach(function (cb) { cb.checked = false; });
+  });
+
+  document.getElementById('btnSaveUserAssignment').addEventListener('click', async function () {
+    var user = val('assignProfileUser');
+    if (!user) return alert('Kullanıcı adı girin');
+    try {
+      await saveUserAssignment(user, val('assignProfileId') || null);
+      document.getElementById('assignProfileResult').textContent = 'Atama kaydedildi.';
+    } catch (e) { document.getElementById('assignProfileResult').textContent = e.message; }
   });
 
   document.getElementById('btnSaveBranding').addEventListener('click', async () => {
@@ -504,16 +1362,42 @@
       navbar_name: val('brandNavbar') || undefined,
       home_description: val('brandDescription') || undefined,
       default_locale: val('brandLocale') || undefined,
-      langs: val('brandLangs') || undefined
+      langs: val('brandLangs') || undefined,
+      primary_color: document.getElementById('brandPrimaryColor').value || undefined,
+      accent_color: document.getElementById('brandAccentColor').value || undefined
     };
+    if (pendingPlatformLogo) body.platform_logo_b64 = pendingPlatformLogo;
+    if (pendingCustomerLogo) body.customer_logo_b64 = pendingCustomerLogo;
     try {
       const data = await api('/settings/branding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      show('brandingResult', data.branding);
+      var out = data.branding || data;
+      if (data.keycloakLoginLogo) out = { branding: out, keycloakLoginLogo: data.keycloakLoginLogo };
+      show('brandingResult', out);
     } catch (e) { alert(e.message); }
+  });
+
+  document.getElementById('btnSyncKeycloakLogo').addEventListener('click', async function () {
+    try {
+      show('brandingResult', await api('/settings/branding/sync-keycloak', { method: 'POST' }));
+    } catch (e) { alert(e.message); }
+  });
+
+  document.getElementById('brandPlatformLogo').addEventListener('change', async function () {
+    const f = this.files && this.files[0];
+    if (!f) return;
+    pendingPlatformLogo = await fileToB64(f);
+    setLogoPreview('brandPlatformPreview', pendingPlatformLogo);
+  });
+
+  document.getElementById('brandCustomerLogo').addEventListener('change', async function () {
+    const f = this.files && this.files[0];
+    if (!f) return;
+    pendingCustomerLogo = await fileToB64(f);
+    setLogoPreview('brandCustomerPreview', pendingCustomerLogo);
   });
 
   document.getElementById('btnSaveSystem').addEventListener('click', async () => {
@@ -645,6 +1529,18 @@
     } catch (e) { alert(e.message); }
   });
 
+  document.getElementById('btnExportAudit').addEventListener('click', exportAuditCsv);
+
+  document.getElementById('btnLoadQuotaList').addEventListener('click', function () { loadQuotaList(1); });
+  document.getElementById('quotaPrev').addEventListener('click', function () {
+    if (quotaPage > 1) loadQuotaList(quotaPage - 1);
+  });
+  document.getElementById('quotaNext').addEventListener('click', function () {
+    var pages = Math.ceil(quotaTotal / quotaPageSize);
+    if (quotaPage < pages) loadQuotaList(quotaPage + 1);
+  });
+  document.querySelector('[data-tab="quota"]').addEventListener('click', function () { loadQuotaList(1); });
+
   document.getElementById('btnLoadQuota').addEventListener('click', async () => {
     const userId = val('quotaUserId');
     if (!userId) return alert('Kullanici ID girin');
@@ -657,7 +1553,9 @@
 
   document.getElementById('btnSaveQuota').addEventListener('click', async () => {
     const userId = val('quotaUserId');
-    const maxBytes = num('quotaMaxBytes');
+    var maxBytes = num('quotaMaxBytes');
+    var maxMb = num('quotaMaxMb');
+    if (maxMb && !maxBytes) maxBytes = maxMb * 1024 * 1024;
     if (!userId || !maxBytes) return alert('Kullanici ve kota girin');
     try {
       show('quotaResult', await api('/users/' + encodeURIComponent(userId) + '/quota', {
@@ -665,6 +1563,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ maxBytes: maxBytes })
       }));
+      await loadQuotaList(quotaPage);
     } catch (e) { alert(e.message); }
   });
 
@@ -689,13 +1588,30 @@
     } catch (e) { alert(e.message); }
   });
 
-  document.getElementById('btnLoadAudit').addEventListener('click', async () => {
-    const qs = new URLSearchParams();
-    if (val('auditUserId')) qs.set('userId', val('auditUserId'));
-    if (val('auditAction')) qs.set('action', val('auditAction'));
-    if (val('auditFrom')) qs.set('from', val('auditFrom'));
-    if (val('auditTo')) qs.set('to', val('auditTo'));
-    try { show('auditResult', await api('/audit?' + qs.toString())); } catch (e) { alert(e.message); }
+  document.getElementById('btnExportAudit').addEventListener('click', exportAuditCsv);
+
+  document.getElementById('btnLoadAudit').addEventListener('click', function () { loadAudit(1); });
+  document.getElementById('auditPrev').addEventListener('click', function () {
+    if (auditPage > 1) loadAudit(auditPage - 1);
+  });
+  document.getElementById('auditNext').addEventListener('click', function () {
+    var pages = Math.ceil(auditTotal / auditPageSize);
+    if (auditPage < pages) loadAudit(auditPage + 1);
+  });
+
+  document.getElementById('btnLoadJobs').addEventListener('click', function () { loadJobs(1); });
+  document.getElementById('jobsPrev').addEventListener('click', function () {
+    if (jobsPage > 1) loadJobs(jobsPage - 1);
+  });
+  document.getElementById('jobsNext').addEventListener('click', function () {
+    var pages = Math.ceil(jobsTotal / jobsPageSize);
+    if (jobsPage < pages) loadJobs(jobsPage + 1);
+  });
+
+  document.querySelector('[data-tab="dashboard"]').addEventListener('click', loadDashboard);
+  document.getElementById('btnRefreshDashboard').addEventListener('click', loadDashboard);
+  document.querySelector('[data-tab="audit"]').addEventListener('click', function () {
+    if (auditTotal === 0) loadAudit(1);
   });
 
   function renderStatusBadge(u) {
@@ -717,6 +1633,7 @@
         '<td>' + (u.email || '—') + '</td>' +
         '<td>' + roles + '</td>' +
         '<td>' + (u.source || '—') + '</td>' +
+        '<td class="profile-cell">' + renderProfileSelect(u.username || '') + '</td>' +
         '<td>' + renderStatusBadge(u) + '</td>';
       tbody.appendChild(tr);
     });
@@ -728,11 +1645,18 @@
         document.getElementById('quotaUserId').value = username;
       });
     });
+    tbody.querySelectorAll('.user-profile-select').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var username = sel.getAttribute('data-user');
+        saveUserAssignment(username, sel.value || null).catch(function (e) { alert(e.message); });
+      });
+    });
     const summary = document.getElementById('usersSummary');
     summary.textContent = (data.items || []).length + ' kayit gosteriliyor (toplam ~' + (data.total || 0) + ')';
   }
 
   async function loadUsers() {
+    await Promise.all([loadAccessProfiles(), loadUserAssignments()]);
     const qs = new URLSearchParams();
     const search = val('userSearch');
     if (search) qs.set('search', search);
@@ -800,7 +1724,9 @@
   });
 
   document.querySelector('[data-tab="users"]').addEventListener('click', function () {
-    loadUsers().catch(function () { /* ilk acilista sessiz */ });
+    Promise.all([loadAccessProfiles(), loadUserAssignments()]).then(function () {
+      return loadUsers();
+    }).catch(function () { /* ilk acilista sessiz */ });
   });
 
   document.getElementById('btnRefreshSetup').addEventListener('click', loadSetupChecklist);
@@ -822,4 +1748,5 @@
 
   loadSettings();
   loadSetupChecklist();
+  loadDashboard();
 })();

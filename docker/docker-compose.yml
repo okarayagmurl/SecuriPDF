@@ -6,9 +6,9 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        STIRLING_VERSION: ${STIRLING_VERSION:-0.46.2}
+        STIRLING_VERSION: ${STIRLING_VERSION:-2.13.1}
         STIRLING_IMAGE: ${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}
-    image: entera-pdf:${IMAGE_TAG:-1.0.0-stirling-0.46.2}
+    image: entera-pdf:${IMAGE_TAG:-1.1.0-stirling-2.13.1}
     container_name: entera-pdf
     restart: unless-stopped
     expose:
@@ -38,7 +38,8 @@ services:
       UI_DEFAULTHIDEUNAVAILABLETOOLS: "true"
       DISABLE_ADDITIONAL_FEATURES: "false"
     volumes:
-      - entera_data:/usr/share/tessdata
+      # Tesseract bu yolu kullanir (/usr/share/tessdata degil)
+      - entera_data:/usr/share/tesseract-ocr/5/tessdata
       - entera_config:/configs
       - entera_logs:/logs
       - entera_pipeline:/pipeline

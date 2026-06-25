@@ -1,0 +1,1676 @@
+# SecuriPDF kullanici arayuzu
+# Stirling endpoint ID'leri tools.yml ile uyumlu olmali.
+# Kategoriler: recommended | convert | pages | security | signing | extract | remove | advanced
+# Generic input tipleri: file | text | number | select | checkbox (+ ozel: compress, split, ...)
+
+product: SecuriPDF
+phase: 6
+
+tools:
+  - id: merge-pdfs
+    title: PDF Birleştir
+    description: Birden fazla PDF dosyasını tek belgede birleştirin.
+    category: recommended
+    icon: merge
+    apiPath: /api/v1/general/merge-pdfs
+    inputs:
+      - name: fileInput
+        label: PDF dosyaları
+        type: file
+        multiple: true
+        accept: .pdf,application/pdf
+        required: true
+
+  - id: split-pages
+    title: PDF Böl
+    description: PDF'i sayfa numaraları, bölümler, boyut veya baskı parçalarına göre ayırın.
+    category: recommended
+    icon: split
+    dynamicApiPath: true
+    apiPath: /api/v1/general/split-pages
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: splitSettings
+        type: split
+
+  - id: compare
+    title: Karşılaştır
+    description: İki PDF belgesindeki metin farklarını yan yana HTML raporu olarak gösterir.
+    category: recommended
+    icon: compare
+    apiPath: /api/v1/misc/compare
+    inputs:
+      - name: fileInput1
+        label: Belge 1 (PDF)
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Belgeler
+        showSelection: true
+      - name: fileInput2
+        label: Belge 2 (PDF)
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        showSelection: true
+      - name: compareSettings
+        type: compare
+
+  - id: compress-pdf
+    title: Sıkıştır
+    description: PDF boyutunu küçültün, paylaşımı kolaylaştırın.
+    category: recommended
+    icon: compress
+    apiPath: /api/v1/misc/compress-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: compressSettings
+        type: compress
+        defaultLevel: 5
+
+  - id: pdf-to-word
+    title: PDF → Word
+    description: PDF belgesini Word (DOCX) veya ODT formatına dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/word
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: outputFormat
+        label: Çıktı formatı
+        type: select
+        default: docx
+        options:
+          - value: docx
+            label: DOCX (Microsoft Word)
+          - value: odt
+            label: ODT (LibreOffice)
+
+  - id: file-to-pdf
+    title: Word / Office → PDF
+    description: Word, Excel, PowerPoint ve diğer Office belgelerini PDF'e dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/file/pdf
+    inputs:
+      - name: fileInput
+        label: Office belgesi seç
+        type: file
+        accept: .doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.odp,.rtf,.txt
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: convert
+    title: Dönüştür
+    description: PDF, Office, görsel, e-posta ve e-kitap formatları arasında gelişmiş dönüşüm.
+    category: convert
+    icon: convert
+    dynamicApiPath: true
+    apiPath: /api/v1/convert/file/pdf
+    inputs:
+      - name: fileInput
+        label: Dosya seç
+        type: file
+        multiple: true
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: convertSettings
+        type: convert
+
+  - id: ocr-pdf
+    title: OCR / Tarama
+    description: Taranmış PDF'te metni aranabilir ve seçilebilir hale getirin.
+    category: recommended
+    icon: ocr
+    apiPath: /api/v1/misc/ocr-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: ocrSettings
+        type: ocr
+
+  - id: add-watermark
+    title: Filigran
+    description: PDF belgenize metin veya görsel filigran ekleyin.
+    category: security
+    icon: watermark
+    apiPath: /api/v1/security/add-watermark
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: watermarkSettings
+        type: watermark
+
+  - id: add-stamp
+    title: Damga
+    description: PDF sayfalarına metin veya görsel damga ekleyin.
+    category: security
+    icon: stamp
+    apiPath: /api/v1/misc/add-stamp
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: stampSettings
+        type: stamp
+
+  - id: add-password
+    title: Parola Ekle
+    description: PDF'e açma parolası ve izin kısıtlamaları ekleyin.
+    category: security
+    icon: lock
+    apiPath: /api/v1/security/add-password
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: passwordSettings
+        type: password
+
+  - id: auto-redact
+    title: Otomatik Karartma
+    description: Belgeyi önizleyin, TCKN/telefon/e-posta gibi desenleri seçin ve platformda sansürleyin.
+    category: security
+    icon: redact
+    apiPath: /api/v1/security/auto-redact
+    inputs:
+      - name: fileInput
+        label: PDF dosyası seç
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: redactSettings
+        type: redact-patterns
+
+  - id: rotate-pdf
+    title: Döndür
+    description: PDF sayfalarını 90° adımlarla döndürün.
+    category: pages
+    icon: rotate
+    apiPath: /api/v1/general/rotate-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+      - name: angle
+        label: Döndürme yönü
+        type: rotation
+        default: "90"
+        options:
+          - value: "90"
+            label: "90°"
+          - value: "180"
+            label: "180°"
+          - value: "270"
+            label: "270°"
+
+  - id: remove-pages
+    title: Sayfa Sil
+    description: Belirttiğiniz sayfaları PDF'ten kaldırır; kalan sayfalar tek belgede kalır.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/remove-pages
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: pageNumbers
+        label: Silinecek sayfalar
+        type: text
+        required: true
+        placeholder: "örn. 2,5,8-10"
+        hint: "Sayfa seçim sözdizimi: virgülle ayrılmış numaralar ve aralıklar (1,3,5-9)."
+
+  - id: extract-pages
+    title: Sayfa Çıkar
+    description: Yalnızca seçtiğiniz sayfaları yeni bir PDF olarak çıkarır.
+    category: extract
+    icon: extract
+    apiPath: /api/v1/general/rearrange-pages
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: pageNumbers
+        label: Çıkarılacak sayfalar
+        type: text
+        required: true
+        placeholder: "örn. 1-5, 10, 15-20"
+        hint: "Çıkarılacak sayfaları virgül veya aralık olarak girin."
+
+  - id: rearrange-pages
+    title: Sayfaları Yeniden Sırala
+    description: Sayfa sırasını değiştirin veya hazır düzenleme modlarından birini uygulayın.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/rearrange-pages
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: customMode
+        label: Sıralama modu
+        type: select
+        default: CUSTOM
+        options:
+          - value: CUSTOM
+            label: Özel sıra (aşağıdaki alan)
+          - value: REVERSE_ORDER
+            label: Ters çevir
+          - value: DUPLEX_SORT
+            label: Dubleks tarama sırası
+          - value: BOOKLET_SORT
+            label: Kitapçık baskısı
+          - value: ODD_EVEN_SPLIT
+            label: Tek / çift ayır
+          - value: ODD_EVEN_MERGE
+            label: Tek / çift birleştir
+          - value: REMOVE_FIRST
+            label: İlk sayfayı kaldır
+          - value: REMOVE_LAST
+            label: Son sayfayı kaldır
+      - name: pageNumbers
+        label: Yeni sayfa sırası
+        type: text
+        default: all
+        placeholder: "örn. 3,1,2,5,4"
+        hint: "CUSTOM modunda yeni sırayı girin; diğer modlarda genelde all yeterlidir."
+
+  - id: scale-pages
+    title: Sayfa Ölçekle
+    description: Sayfa boyutunu veya içerik ölçeğini ayarlayın (A4, Letter vb.).
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/scale-pages
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: pageSize
+        label: Hedef sayfa boyutu
+        type: select
+        default: A4
+        options:
+          - value: KEEP
+            label: Mevcut boyutu koru
+          - value: A4
+            label: A4
+          - value: LETTER
+            label: Letter
+          - value: LEGAL
+            label: Legal
+          - value: A3
+            label: A3
+          - value: A5
+            label: A5
+      - name: scaleFactor
+        label: İçerik ölçeği
+        type: number
+        default: 1
+        min: 0.1
+        max: 5
+        step: 0.05
+        hint: "1 = orijinal boyut; 0.9 küçültür, 1.1 büyütür."
+
+  - id: add-page-numbers
+    title: Sayfa Numarası Ekle
+    description: Sayfalara numara ekleyin; konum, başlangıç numarası ve yazı boyutunu ayarlayın.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/misc/add-page-numbers
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: position
+        label: Konum
+        type: select
+        default: "8"
+        options:
+          - value: "1"
+            label: Üst sol
+          - value: "2"
+            label: Üst orta
+          - value: "3"
+            label: Üst sağ
+          - value: "7"
+            label: Alt sol
+          - value: "8"
+            label: Alt orta
+          - value: "9"
+            label: Alt sağ
+      - name: startingNumber
+        label: Başlangıç numarası
+        type: number
+        default: 1
+        min: 1
+      - name: fontSize
+        label: Yazı boyutu
+        type: number
+        default: 12
+        min: 6
+        max: 72
+      - name: pagesToNumber
+        label: Numaralandırılacak sayfalar
+        type: text
+        default: all
+        placeholder: all veya 1,3,5-9
+
+  - id: flatten
+    title: Düzleştir
+    description: Form alanları ve etkileşimli öğeleri statik sayfa içeriğine dönüştürür.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/flatten
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: flattenOnlyForms
+        label: Yalnızca formları düzleştir
+        type: checkbox
+        default: false
+        checkboxLabel: Yalnızca form alanlarını düzleştir (tüm sayfayı görsele çevirme)
+
+  - id: repair
+    title: Onar
+    description: Bozuk veya açılmayan PDF dosyalarını onarmayı dener.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/repair
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: remove-blanks
+    title: Boş Sayfaları Kaldır
+    description: Tarama veya birleştirme sonrası kalan boş sayfaları temizler.
+    category: remove
+    icon: tool
+    apiPath: /api/v1/misc/remove-blanks
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: threshold
+        label: Beyazlık eşiği (0–255)
+        type: number
+        default: 10
+        min: 0
+        max: 255
+        hint: "Pikselin beyaz sayılması için gereken minimum değer."
+      - name: whitePercent
+        label: Beyaz yüzde (%)
+        type: number
+        default: 99.9
+        min: 50
+        max: 100
+        step: 0.1
+        hint: "Sayfanın bu kadar yüzdesi beyazsa boş kabul edilir."
+
+  - id: sanitize-pdf
+    title: PDF Temizle
+    description: JavaScript, gömülü dosya, meta veri ve bağlantı gibi riskli öğeleri kaldırır.
+    category: security
+    icon: lock
+    apiPath: /api/v1/security/sanitize-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: removeJavaScript
+        label: JavaScript kaldır
+        type: checkbox
+        default: true
+        checkboxLabel: JavaScript işlemlerini kaldır
+      - name: removeEmbeddedFiles
+        label: Gömülü dosyalar
+        type: checkbox
+        default: true
+        checkboxLabel: Gömülü dosyaları kaldır
+      - name: removeXMPMetadata
+        label: XMP meta verisi
+        type: checkbox
+        default: false
+        checkboxLabel: XMP meta verisini kaldır
+      - name: removeMetadata
+        label: Belge bilgisi
+        type: checkbox
+        default: false
+        checkboxLabel: Belge bilgisi meta verisini kaldır
+      - name: removeLinks
+        label: Bağlantılar
+        type: checkbox
+        default: false
+        checkboxLabel: Bağlantıları kaldır
+      - name: removeFonts
+        label: Fontlar
+        type: checkbox
+        default: false
+        checkboxLabel: Fontları kaldır
+
+  - id: remove-password
+    title: Parola Kaldır
+    description: Bilinen parola ile korumalı PDF'in şifresini kaldırır.
+    category: security
+    icon: lock
+    apiPath: /api/v1/security/remove-password
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: password
+        label: Mevcut parola
+        type: text
+        required: true
+
+  - id: pdf-to-img
+    title: PDF → Görsel
+    description: PDF sayfalarını PNG, JPEG veya diğer görsel formatlara dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/img
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: imageFormat
+        label: Görsel formatı
+        type: select
+        default: png
+        options:
+          - value: png
+            label: PNG
+          - value: jpeg
+            label: JPEG
+          - value: webp
+            label: WebP
+          - value: tiff
+            label: TIFF
+      - name: dpi
+        label: Çözünürlük (DPI)
+        type: number
+        default: 300
+        min: 72
+        max: 600
+      - name: colorType
+        label: Renk modu
+        type: select
+        default: color
+        options:
+          - value: color
+            label: Renkli
+          - value: grayscale
+            label: Gri ton
+          - value: blackwhite
+            label: Siyah-beyaz
+      - name: singleOrMultiple
+        label: Çıktı yapısı
+        type: select
+        default: multiple
+        options:
+          - value: multiple
+            label: Her sayfa ayrı dosya (ZIP)
+          - value: single
+            label: Tek dosya
+
+  - id: img-to-pdf
+    title: Görsel → PDF
+    description: JPG, PNG ve diğer görselleri PDF belgesine dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/img/pdf
+    inputs:
+      - name: fileInput
+        label: Görsel dosyaları
+        type: file
+        multiple: true
+        accept: .jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp,image/*
+        required: true
+        sectionTitle: Dosyalar
+      - name: fitOption
+        label: Sayfaya sığdırma
+        type: select
+        default: maintainAspectRatio
+        options:
+          - value: maintainAspectRatio
+            label: En-boy oranını koru
+          - value: fitDocumentToPage
+            label: Belgeyi sayfaya sığdır
+          - value: fillPage
+            label: Sayfayı doldur
+      - name: autoRotate
+        label: Otomatik döndür
+        type: checkbox
+        default: true
+        checkboxLabel: EXIF yönelimine göre döndür
+
+  - id: pdf-to-presentation
+    title: PDF → Sunum
+    description: PDF'i PowerPoint (PPTX) veya ODP sunum formatına dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/presentation
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: outputFormat
+        label: Çıktı formatı
+        type: select
+        default: pptx
+        options:
+          - value: pptx
+            label: PPTX
+          - value: odp
+            label: ODP
+
+  - id: pdf-to-text
+    title: PDF → Metin
+    description: PDF içeriğini düz metin veya RTF olarak çıkarın.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/text
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: outputFormat
+        label: Çıktı formatı
+        type: select
+        default: txt
+        options:
+          - value: txt
+            label: TXT (düz metin)
+          - value: rtf
+            label: RTF
+
+  - id: pdf-to-html
+    title: PDF → HTML
+    description: PDF belgesini HTML web sayfasına dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/html
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: pdf-to-pdfa
+    title: PDF → PDF/A
+    description: Arşivleme için PDF/A uyumlu formata dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/pdfa
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: outputFormat
+        label: PDF/A seviyesi
+        type: select
+        default: pdfa-2b
+        options:
+          - value: pdfa-1b
+            label: PDF/A-1b
+          - value: pdfa-2b
+            label: PDF/A-2b
+          - value: pdfa-3b
+            label: PDF/A-3b
+
+  - id: html-to-pdf
+    title: HTML → PDF
+    description: HTML dosyasını veya ZIP (HTML+CSS paketi) PDF'e dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/html/pdf
+    inputs:
+      - name: fileInput
+        label: HTML veya ZIP dosyası
+        type: file
+        accept: .html,.htm,.zip,text/html
+        required: true
+        sectionTitle: Dosyalar
+      - name: zoom
+        label: Yakınlaştırma
+        type: number
+        default: 1
+        min: 0.1
+        max: 3
+        step: 0.1
+
+  - id: markdown-to-pdf
+    title: Markdown → PDF
+    description: Markdown (.md) belgesini PDF formatına dönüştürün.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/markdown/pdf
+    inputs:
+      - name: fileInput
+        label: Markdown dosyası
+        type: file
+        accept: .md,.markdown,text/markdown
+        required: true
+        sectionTitle: Dosyalar
+
+  - id: crop
+    title: Kırp
+    description: PDF sayfalarını belirtilen koordinatlara göre kırpar.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/crop
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: x
+        label: Sol (X)
+        type: number
+        default: 0
+        min: 0
+      - name: y
+        label: Üst (Y)
+        type: number
+        default: 0
+        min: 0
+      - name: width
+        label: Genişlik
+        type: number
+        required: true
+        min: 1
+      - name: height
+        label: Yükseklik
+        type: number
+        required: true
+        min: 1
+
+  - id: multi-page-layout
+    title: Çoklu Sayfa Düzeni
+    description: Birden fazla sayfayı tek sayfada birleştirir (2-up, 4-up vb.).
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/multi-page-layout
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: pagesPerSheet
+        label: Sayfa / yaprak
+        type: select
+        default: "4"
+        options:
+          - value: "2"
+            label: 2-up (1×2)
+          - value: "4"
+            label: 4-up (2×2)
+          - value: "9"
+            label: 9-up (3×3)
+          - value: "16"
+            label: 16-up (4×4)
+      - name: addBorder
+        label: Kenarlık
+        type: checkbox
+        default: false
+        checkboxLabel: Sayfalar arası kenarlık ekle
+
+  - id: overlay-pdf
+    title: PDF Katmanlama
+    description: Bir PDF'i diğerinin üzerine veya altına yerleştirir.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/overlay-pdfs
+    inputs:
+      - name: fileInput
+        label: Ana PDF
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Belgeler
+        showSelection: true
+      - name: overlayFiles
+        label: Katman PDF(ler)
+        type: file
+        accept: .pdf,application/pdf
+        multiple: true
+        required: true
+      - name: overlayMode
+        label: Katman modu
+        type: select
+        default: SequentialOverlay
+        options:
+          - value: SequentialOverlay
+            label: Sıralı
+          - value: InterleavedOverlay
+            label: Dönüşümlü
+          - value: FixedRepeatOverlay
+            label: Sabit tekrar
+      - name: overlayPosition
+        label: Konum
+        type: select
+        default: "0"
+        options:
+          - value: "0"
+            label: Ön plan (üstte)
+          - value: "1"
+            label: Arka plan (altta)
+
+  - id: pdf-to-single-page
+    title: Tek Uzun Sayfa
+    description: Tüm sayfaları dikey olarak birleştirip tek uzun PDF sayfası oluşturur.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/pdf-to-single-page
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: extract-images
+    title: Görselleri Çıkar
+    description: PDF içindeki gömülü görselleri ZIP arşivi olarak indirir.
+    category: extract
+    icon: extract
+    apiPath: /api/v1/misc/extract-images
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: format
+        label: Görsel formatı
+        type: select
+        default: png
+        options:
+          - value: png
+            label: PNG
+          - value: jpeg
+            label: JPEG
+          - value: gif
+            label: GIF
+      - name: allowDuplicates
+        label: Yinelenen görseller
+        type: checkbox
+        default: false
+        checkboxLabel: Yinelenen görselleri de kaydet
+
+  - id: get-info-on-pdf
+    title: PDF Bilgisi
+    description: Belge meta verisi, sayfa sayısı ve güvenlik özelliklerini JSON raporu olarak gösterir.
+    category: review
+    icon: tool
+    apiPath: /api/v1/security/get-info-on-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: remove-cert-sign
+    title: Sertifika İmzasını Kaldır
+    description: PDF üzerindeki dijital sertifika imzasını kaldırır.
+    category: signing
+    icon: lock
+    apiPath: /api/v1/security/remove-cert-sign
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: cert-sign
+    title: Sertifika ile İmzala
+    description: PDF belgesini PKCS#12 (.p12/.pfx) veya PEM sertifikası ile dijital olarak imzalar.
+    category: signing
+    icon: lock
+    apiPath: /api/v1/security/cert-sign
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: certSignSettings
+        type: cert-sign
+
+  - id: validate-signature
+    title: İmza Doğrula
+    description: PDF üzerindeki dijital imzayı doğrular ve sonucu JSON raporu olarak döner.
+    category: verification
+    icon: lock
+    apiPath: /api/v1/security/validate-signature
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: update-metadata
+    title: Meta Veri Düzenle
+    description: PDF belge bilgilerini (başlık, yazar, konu vb.) günceller veya siler.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/update-metadata
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: deleteAll
+        label: Tüm meta veriyi sil
+        type: checkbox
+        default: false
+        checkboxLabel: Mevcut tüm meta veriyi sil
+      - name: title
+        label: Başlık
+        type: text
+        placeholder: Belge başlığı
+      - name: author
+        label: Yazar
+        type: text
+      - name: subject
+        label: Konu
+        type: text
+      - name: keywords
+        label: Anahtar kelimeler
+        type: text
+
+  - id: remove-image-pdf
+    title: Görselleri Kaldır
+    description: PDF içindeki gömülü görselleri kaldırarak dosya boyutunu küçültür.
+    category: remove
+    icon: tool
+    apiPath: /api/v1/general/remove-image-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: pdf-to-xml
+    title: PDF → XML
+    description: PDF yapısını XML formatında dışa aktarır.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/xml
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: pdf-to-csv
+    title: PDF → CSV
+    description: PDF tablolarını CSV dosyasına dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/csv
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: pageNumbers
+        label: Sayfa aralığı
+        type: text
+        default: all
+        placeholder: all veya 1,3,5-9
+
+  - id: pdf-to-xlsx
+    title: PDF → Excel
+    description: PDF tablolarını Excel (XLSX) dosyasına dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/xlsx
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: pageNumbers
+        label: Sayfa aralığı
+        type: text
+        default: all
+
+  - id: pdf-to-markdown
+    title: PDF → Markdown
+    description: PDF içeriğini Markdown (.md) formatına dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/markdown
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: eml-to-pdf
+    title: E-posta → PDF
+    description: EML e-posta dosyasını PDF belgesine dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/eml/pdf
+    inputs:
+      - name: fileInput
+        label: EML dosyası
+        type: file
+        accept: .eml,.msg,message/rfc822
+        required: true
+        sectionTitle: Dosyalar
+      - name: includeAttachments
+        label: Ekler
+        type: checkbox
+        default: true
+        checkboxLabel: E-posta eklerini dahil et
+
+  - id: scanner-effect
+    title: Tarayıcı Efekti
+    description: PDF'e taranmış belge görünümü uygular (hafif eğim, gürültü, solukluk).
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/scanner-effect
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: quality
+        label: Kalite ön ayarı
+        type: select
+        default: medium
+        options:
+          - value: low
+            label: Düşük (hızlı)
+          - value: medium
+            label: Orta
+          - value: high
+            label: Yüksek
+      - name: yellowish
+        label: Sararmış kağıt
+        type: checkbox
+        default: true
+        checkboxLabel: Hafif sarı kağıt tonu uygula
+
+  - id: pdf-to-epub
+    title: PDF → EPUB
+    description: PDF belgesini e-kitap (EPUB veya AZW3) formatına dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/epub
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: outputFormat
+        label: Çıktı formatı
+        type: select
+        default: EPUB
+        options:
+          - value: EPUB
+            label: EPUB
+          - value: AZW3
+            label: AZW3 (Kindle)
+      - name: targetDevice
+        label: Hedef cihaz
+        type: select
+        default: TABLET_PHONE_IMAGES
+        options:
+          - value: TABLET_PHONE_IMAGES
+            label: Tablet / telefon (görselli)
+          - value: KINDLE_EINK_TEXT
+            label: Kindle e-mürekkep (metin odaklı)
+      - name: detectChapters
+        label: Bölüm algılama
+        type: checkbox
+        default: true
+        checkboxLabel: PDF başlıklarından bölüm oluştur
+
+  - id: pdf-to-cbz
+    title: PDF → CBZ
+    description: PDF sayfalarını çizgi roman arşivi (CBZ) olarak dışa aktarır.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/cbz
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: dpi
+        label: Görsel çözünürlüğü (DPI)
+        type: number
+        default: 150
+        min: 72
+        max: 600
+
+  - id: pdf-to-cbr
+    title: PDF → CBR
+    description: PDF sayfalarını CBR çizgi roman arşivi olarak dışa aktarır.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/cbr
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: dpi
+        label: Görsel çözünürlüğü (DPI)
+        type: number
+        default: 150
+        min: 72
+        max: 600
+
+  - id: cbz-to-pdf
+    title: CBZ → PDF
+    description: CBZ çizgi roman arşivini PDF belgesine dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/cbz/pdf
+    inputs:
+      - name: fileInput
+        label: CBZ dosyası
+        type: file
+        accept: .cbz,application/x-cbz,application/zip
+        required: true
+        sectionTitle: Dosyalar
+      - name: optimizeForEbook
+        label: e-Kitap optimizasyonu
+        type: checkbox
+        default: false
+        checkboxLabel: e-Kitap okuyucular için optimize et
+
+  - id: cbr-to-pdf
+    title: CBR → PDF
+    description: CBR çizgi roman arşivini PDF belgesine dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/cbr/pdf
+    inputs:
+      - name: fileInput
+        label: CBR dosyası
+        type: file
+        accept: .cbr,application/x-cbr
+        required: true
+        sectionTitle: Dosyalar
+      - name: optimizeForEbook
+        label: e-Kitap optimizasyonu
+        type: checkbox
+        default: false
+        checkboxLabel: e-Kitap okuyucular için optimize et
+
+  - id: url-to-pdf
+    title: URL → PDF
+    description: Web sayfasını URL üzerinden PDF belgesine dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/url/pdf
+    inputs:
+      - name: urlInput
+        label: Web adresi (URL)
+        type: text
+        required: true
+        placeholder: "https://ornek.com/sayfa"
+        hint: "Tam URL girin (http:// veya https://)."
+
+  - id: booklet-imposition
+    title: Kitapçık Baskısı
+    description: PDF sayfalarını kitapçık / broşür baskısı düzenine getirir.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/booklet-imposition
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: spineLocation
+        label: Cilt konumu
+        type: select
+        default: LEFT
+        options:
+          - value: LEFT
+            label: Sol
+          - value: RIGHT
+            label: Sağ
+      - name: addGutter
+        label: Orta boşluk (cilt payı)
+        type: checkbox
+        default: true
+        checkboxLabel: Cilt payı ekle
+      - name: gutterSize
+        label: Cilt payı (pt)
+        type: number
+        default: 12
+        min: 0
+        max: 72
+      - name: doubleSided
+        label: Çift taraflı baskı
+        type: checkbox
+        default: true
+        checkboxLabel: Çift taraflı baskı düzeni uygula
+      - name: addBorder
+        label: Kenarlık
+        type: checkbox
+        default: false
+        checkboxLabel: Sayfalar arası kenarlık ekle
+
+  - id: add-image
+    title: Görsel Ekle
+    description: PDF sayfasına belirtilen konuma görsel yerleştirir.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/misc/add-image
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Belgeler
+        showSelection: true
+      - name: imageFile
+        label: Eklenecek görsel
+        type: file
+        accept: .jpg,.jpeg,.png,.gif,.bmp,.webp,image/*
+        required: true
+      - name: x
+        label: X konumu (pt)
+        type: number
+        default: 0
+        min: 0
+      - name: y
+        label: Y konumu (pt)
+        type: number
+        default: 0
+        min: 0
+      - name: everyPage
+        label: Tüm sayfalar
+        type: checkbox
+        default: false
+        checkboxLabel: Görseli her sayfaya ekle
+
+  - id: auto-rename
+    title: Otomatik Yeniden Adlandır
+    description: PDF meta verisindeki başlığa göre dosya adını önerir ve belgeyi günceller.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/auto-rename
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: useFirstTextAsFallback
+        label: Yedek ad kaynağı
+        type: checkbox
+        default: false
+        checkboxLabel: Başlık yoksa ilk metin satırını kullan
+
+  - id: replace-invert-pdf
+    title: Renk Değiştir / Ters Çevir
+    description: PDF renklerini ters çevirir veya yüksek kontrastlı renk kombinasyonu uygular.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/replace-invert-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: replaceAndInvertOption
+        label: İşlem modu
+        type: select
+        default: HIGH_CONTRAST_COLOR
+        options:
+          - value: HIGH_CONTRAST_COLOR
+            label: Yüksek kontrast renk
+          - value: CUSTOM_COLOR
+            label: Özel renk
+          - value: FULL_INVERSION
+            label: Tam renk ters çevirme
+          - value: COLOR_SPACE_CONVERSION
+            label: Renk uzayı dönüşümü
+      - name: highContrastColorCombination
+        label: Kontrast kombinasyonu
+        type: select
+        default: WHITE_TEXT_ON_BLACK
+        options:
+          - value: WHITE_TEXT_ON_BLACK
+            label: Beyaz metin / siyah zemin
+          - value: BLACK_TEXT_ON_WHITE
+            label: Siyah metin / beyaz zemin
+          - value: YELLOW_TEXT_ON_BLACK
+            label: Sarı metin / siyah zemin
+          - value: GREEN_TEXT_ON_BLACK
+            label: Yeşil metin / siyah zemin
+      - name: backGroundColor
+        label: Arka plan rengi (hex)
+        type: text
+        placeholder: "#000000"
+      - name: textColor
+        label: Metin rengi (hex)
+        type: text
+        placeholder: "#FFFFFF"
+
+  - id: change-permissions
+    title: İzinleri Değiştir
+    description: Korumalı PDF'in yazdırma, kopyalama ve düzenleme izinlerini günceller.
+    category: security
+    icon: lock
+    apiPath: /api/v1/security/change-permissions
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: permissionSettings
+        type: change-permissions
+
+  - id: unlock-pdf-forms
+    title: Form Kilidini Aç
+    description: PDF form alanlarının düzenleme kısıtlamasını kaldırır.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/unlock-pdf-forms
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: extract-attachments
+    title: Ekleri Çıkar
+    description: PDF'e gömülü dosya eklerini ZIP arşivi olarak indirir.
+    category: extract
+    icon: extract
+    apiPath: /api/v1/misc/extract-attachments
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: add-attachments
+    title: Ek Dosya Ekle
+    description: PDF belgesine bir veya daha fazla dosya eki gömer.
+    category: advanced
+    icon: tool
+    apiPath: /api/v1/misc/add-attachments
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Belgeler
+        showSelection: true
+      - name: attachments
+        label: Eklenecek dosyalar
+        type: file
+        multiple: true
+        required: true
+      - name: convertToPdfA3b
+        label: PDF/A-3b
+        type: checkbox
+        default: false
+        checkboxLabel: Ekleri PDF/A-3b uyumlu formata dönüştür
+
+  - id: extract-image-scans
+    title: Tarama Görseli Çıkar
+    description: PDF sayfalarından taranmış görsel bölgelerini otomatik algılar ve çıkarır.
+    category: extract
+    icon: extract
+    apiPath: /api/v1/misc/extract-image-scans
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: angleThreshold
+        label: Eğim eşiği (°)
+        type: number
+        default: 5
+        min: 0
+        max: 45
+      - name: tolerance
+        label: Tolerans
+        type: number
+        default: 20
+        min: 1
+        max: 100
+      - name: minArea
+        label: Minimum alan (px²)
+        type: number
+        default: 8000
+        min: 100
+
+  - id: vector-to-pdf
+    title: Vektör → PDF
+    description: EPS, PS, PCL veya XPS vektör dosyasını PDF'e dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/vector/pdf
+    inputs:
+      - name: fileInput
+        label: Vektör dosyası
+        type: file
+        accept: .eps,.ps,.pcl,.xps
+        required: true
+        sectionTitle: Dosyalar
+      - name: outputFormat
+        label: Kaynak formatı
+        type: select
+        default: eps
+        options:
+          - value: eps
+            label: EPS
+          - value: ps
+            label: PostScript (PS)
+          - value: pcl
+            label: PCL
+          - value: xps
+            label: XPS
+
+  - id: pdf-to-vector
+    title: PDF → Vektör
+    description: PDF sayfalarını EPS, PS, PCL veya XPS vektör formatına dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/pdf/vector
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: outputFormat
+        label: Çıktı formatı
+        type: select
+        default: eps
+        options:
+          - value: eps
+            label: EPS
+          - value: ps
+            label: PostScript (PS)
+          - value: pcl
+            label: PCL
+          - value: xps
+            label: XPS
+      - name: prepress
+        label: Baskı ön işleme
+        type: checkbox
+        default: false
+        checkboxLabel: Baskı ön işleme (prepress) modu
+
+  - id: ebook-to-pdf
+    title: e-Kitap → PDF
+    description: EPUB, MOBI, AZW3 veya FB2 e-kitap dosyasını PDF'e dönüştürür.
+    category: convert
+    icon: convert
+    apiPath: /api/v1/convert/ebook/pdf
+    inputs:
+      - name: fileInput
+        label: e-Kitap dosyası
+        type: file
+        accept: .epub,.mobi,.azw3,.fb2
+        required: true
+        sectionTitle: Dosyalar
+      - name: optimizeForEbook
+        label: e-Kitap optimizasyonu
+        type: checkbox
+        default: false
+        checkboxLabel: e-Kitap okuma düzeni için optimize et
+      - name: includeTableOfContents
+        label: İçindekiler
+        type: checkbox
+        default: false
+        checkboxLabel: İçindekiler tablosu ekle
+      - name: includePageNumbers
+        label: Sayfa numaraları
+        type: checkbox
+        default: false
+        checkboxLabel: Sayfa numaraları ekle
+
+  - id: verify-pdf
+    title: PDF Doğrula
+    description: PDF bütünlüğünü ve güvenlik durumunu JSON raporu olarak kontrol eder.
+    category: verification
+    icon: lock
+    apiPath: /api/v1/security/verify-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
+  - id: edit-table-of-contents
+    title: İçindekiler Düzenle
+    description: PDF yer imi / içindekiler yapısını JSON verisi ile günceller.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/general/edit-table-of-contents
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: bookmarkData
+        label: Yer imi JSON
+        type: textarea
+        required: true
+        placeholder: '[{"title":"Bölüm 1","page":1,"children":[]}]'
+        hint: "Stirling bookmarkData JSON dizisi. Mevcut yapıyı PDF Bilgisi aracından alabilirsiniz."
+      - name: replaceExisting
+        label: Mevcut yer imlerini değiştir
+        type: checkbox
+        default: true
+        checkboxLabel: Var olan içindekileri sil ve yenisiyle değiştir
+
+  - id: auto-split-pdf
+    title: Otomatik Ayır (Ayraç)
+    description: Sayfa ayraç çizgisi veya boşluk algılayarak PDF'i otomatik parçalara böler.
+    category: recommended
+    icon: split
+    apiPath: /api/v1/misc/auto-split-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+      - name: duplexMode
+        label: Dubleks tarama
+        type: checkbox
+        default: false
+        checkboxLabel: Dubleks taranmış belge modu

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html th:lang="${#locale.language}" th:dir="#{language.direction}" th:data-language="${#locale.toString()}"
   xmlns:th="https://www.thymeleaf.org">
 
@@ -41,6 +41,9 @@
                       </div>
                       <div class="newfeature"
                         th:insert="~{fragments/navbarEntry :: navbarEntry('text-editor-pdf', 'edit_note', 'home.textEditor.title', 'home.textEditor.desc', 'textEditor.tags', 'edit')}">
+                      </div>
+                      <div class="newfeature"
+                        th:insert="~{fragments/navbarEntry :: navbarEntry('ocr-pdf', 'quick_reference_all', 'home.ocr.title', 'home.ocr.desc', 'ocr.tags', 'advance')}">
                       </div>
                       <div class="newfeature"
                         th:insert="~{fragments/navbarEntry :: navbarEntry('compress-pdf', 'zoom_in_map', 'home.compressPdfs.title', 'home.compressPdfs.desc', 'compressPDFs.tags', 'advance')}">

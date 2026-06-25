@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TOOLS_FILE = ROOT / "config" / "tools.yml"
 SETTINGS_FILE = ROOT / "config" / "settings.yml"
 CUSTOM_SETTINGS_FILE = ROOT / "config" / "custom_settings.yml"
+LICENSE_FILE = ROOT / "config" / "license.yml"
+LICENSE_PACKAGES_FILE = ROOT / "config" / "license-packages.yml"
 ENV_FILE = ROOT / "docker" / ".env"
 
 ALL_ENDPOINTS = [
@@ -29,10 +31,12 @@ ALL_ENDPOINTS = [
     "pdf-to-epub", "pdf-to-html", "pdf-to-img", "pdf-to-json", "pdf-to-markdown",
     "pdf-to-pdfa", "pdf-to-presentation", "pdf-to-rtf", "pdf-to-single-page",
     "pdf-to-text", "pdf-to-vector", "pdf-to-video", "pdf-to-word", "pdf-to-xml",
+    "pdf-to-xlsx", "ebook-to-pdf", "extract-attachments",
     "pipeline", "rearrange-pages", "redact", "remove-annotations", "remove-blanks",
     "remove-cert-sign", "remove-image-pdf", "remove-pages", "remove-password", "repair",
     "rotate-pdf", "sanitize-pdf", "scale-pages", "sign", "split-by-size-or-count",
-    "split-pages", "split-pdf-by-chapters", "split-pdf-by-sections", "text-editor-pdf",
+    "split-pages", "split-pdf-by-chapters", "split-pdf-by-sections", "split-for-poster-print",
+    "text-editor-pdf",
     "unlock-pdf-forms", "update-metadata", "url-to-pdf", "validate-signature",
     "verify-pdf", "view-pdf", "show-javascript", "fields", "fill", "modify-fields",
     "delete-fields", "cbz-to-pdf", "json-to-pdf", "vector-to-pdf", "pdf-to-cbz",
@@ -80,6 +84,31 @@ def update_custom_settings(to_remove: list[str], hide_unavailable: bool) -> None
     print(f"Güncellendi: {CUSTOM_SETTINGS_FILE}")
 
 
+def sync_license_enabled_tools(enabled: list[str]) -> None:
+    """license.yml enabled_tools listesini paket kurallarına göre günceller."""
+    if yaml is None or not LICENSE_FILE.exists():
+        return
+    lic = yaml.safe_load(LICENSE_FILE.read_text(encoding="utf-8")) or {}
+    package = str(lic.get("package") or "enterprise").strip()
+    packages: dict = {}
+    if LICENSE_PACKAGES_FILE.exists():
+        packages = (yaml.safe_load(LICENSE_PACKAGES_FILE.read_text(encoding="utf-8")) or {}).get("packages") or {}
+
+    enabled_set = set(enabled)
+    if package == "enterprise":
+        lic_tools = sorted(enabled_set)
+    else:
+        pkg_tools = packages.get(package, {}).get("enabled_tools") or []
+        lic_tools = sorted(set(pkg_tools) & enabled_set)
+
+    lic["enabled_tools"] = lic_tools
+    LICENSE_FILE.write_text(
+        yaml.safe_dump(lic, allow_unicode=True, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
+    print(f"Güncellendi: {LICENSE_FILE} (paket: {package}, {len(lic_tools)} araç)")
+
+
 def main() -> int:
     if not TOOLS_FILE.exists():
         print(f"Hata: {TOOLS_FILE} bulunamadı.", file=sys.stderr)
@@ -111,6 +140,7 @@ def main() -> int:
 
     SETTINGS_FILE.write_text(content, encoding="utf-8")
     update_custom_settings(to_remove, hide_unavailable)
+    sync_license_enabled_tools(enabled)
 
     # Docker env: ENDPOINTS_TOREMOVE (yedek; asil kaynak custom_settings.yml)
     endpoints_csv = ",".join(to_remove)

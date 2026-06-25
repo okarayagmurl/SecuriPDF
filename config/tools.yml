@@ -11,27 +11,92 @@ enabled:
   # Birleştirme ve bölme
   - merge-pdfs
   - split-pages
+  - split-by-size-or-count
+  - split-pdf-by-chapters
+  - split-pdf-by-sections
+  - auto-split-pdf
+  - split-for-poster-print
+  - compare
 
   # Sıkıştırma ve OCR
   - compress-pdf
   - ocr-pdf
 
   # Dönüşüm
-  - pdf-to-word          # PDF → Word (LibreOffice)
-  - file-to-pdf          # Word/Office → PDF (LibreOffice)
-  - img-to-pdf           # Görsel → PDF
+  - pdf-to-word
+  - file-to-pdf
+  - convert
+  - img-to-pdf
+  - pdf-to-img
+  - pdf-to-presentation
+  - pdf-to-text
+  - pdf-to-html
+  - pdf-to-xml
+  - pdf-to-csv
+  - pdf-to-xlsx
+  - pdf-to-markdown
+  - pdf-to-pdfa
+  - pdf-to-epub
+  - pdf-to-cbz
+  - pdf-to-cbr
+  - html-to-pdf
+  - markdown-to-pdf
+  - eml-to-pdf
+  - cbz-to-pdf
+  - cbr-to-pdf
 
   # Düzenleme
   - rotate-pdf
+  - remove-pages
+  - extract-pages
+  - rearrange-pages
+  - scale-pages
+  - add-page-numbers
   - add-watermark
-  - text-editor-pdf   # PDF metin düzenleyici
-  - view-pdf           # PDF görüntüleyici (navbar linki için gerekli)
+  - add-stamp
+  - text-editor-pdf   # PDF metin düzenleyici (Stirling 2.1+)
+  - view-pdf           # PDF görüntüleyici
 
   # Güvenlik
   - add-password
   - remove-password
+  - sanitize-pdf
+  - auto-redact
   - sign                 # Çizim/metin imza
   - cert-sign            # Sertifika imzası
+
+  # Bakım / optimizasyon
+  - flatten
+  - repair
+  - remove-blanks
+  - extract-images
+  - get-info-on-pdf
+
+  # Gelişmiş sayfa
+  - crop
+  - multi-page-layout
+  - overlay-pdf
+  - pdf-to-single-page
+  - remove-cert-sign
+  - update-metadata
+  - validate-signature
+  - remove-image-pdf
+  - scanner-effect
+  - add-image
+  - auto-rename
+  - booklet-imposition
+  - change-permissions
+  - replace-invert-pdf
+  - url-to-pdf
+  - unlock-pdf-forms
+  - extract-attachments
+  - add-attachments
+  - extract-image-scans
+  - vector-to-pdf
+  - pdf-to-vector
+  - ebook-to-pdf
+  - verify-pdf
+  - edit-table-of-contents
 
 # UI davranışı
 ui:

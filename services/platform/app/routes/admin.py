@@ -1,19 +1,41 @@
 from __future__ import annotations
 
+import csv
+import io
+import json
 import socket
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..audit import read_audit, write_audit
 from ..auth import AuthUser, get_current_user, require_admin
 from ..config import Settings, get_settings
-from ..database import UserQuotaRecord, get_db
+from ..database import JobRecord, UserQuotaRecord, get_db
+from ..keycloak_branding import sync_keycloak_login_logo
 from ..keycloak_ldap import KeycloakLdapApplier
 from ..maintenance import load_tools_config, save_tools_override
 from ..license import LicenseService
+from ..user_tool_profiles import (
+    create_tool_access_profile,
+    delete_tool_access_profile,
+    get_tool_access_profile,
+    get_user_tool_assignment,
+    get_user_tool_profile,
+    list_tool_access_profiles,
+    list_user_assignments,
+    list_user_tool_profiles,
+    load_license_packages,
+    resolve_package_tool_ids,
+    save_user_tool_profile,
+    set_user_assignment,
+    update_tool_access_profile,
+)
+from ..tools_catalog import _load_ui_catalog
+from ..routes.app_routes import CATEGORY_LABELS, CATEGORY_ORDER
 from ..ops import (
     acknowledge_setup_step,
     create_backup,
@@ -21,6 +43,7 @@ from ..ops import (
     get_backup_archive_path,
     get_prod_readiness,
     get_setup_checklist,
+    get_admin_dashboard,
     get_system_health,
     list_backups,
     restore_backup,
@@ -65,13 +88,48 @@ class VaultSettingsUpdate(BaseModel):
     default_max_bytes_per_user: int | None = None
     max_file_bytes: int | None = None
     soft_delete_days: int | None = None
+    documents_ttl_value: int | None = Field(None, ge=1)
+    documents_ttl_unit: str | None = Field(None, pattern="^(hours|days)$")
+    archive_path: str | None = None
+    documents_path: str | None = None
+    default_document_list: str | None = Field(None, pattern="^(all|root_only)$")
 
 
 class LicenseSettingsUpdate(BaseModel):
+    package: str | None = None
     expires_at: str | None = None
     license_key: str | None = None
+    apply_package_limits: bool | None = None
     limits: dict[str, int] | None = None
     enabled_tools: list[str] | None = None
+
+
+class PackageApplyRequest(BaseModel):
+    package: str = Field(min_length=1)
+
+
+class UserToolProfileUpdate(BaseModel):
+    mode: str | None = None
+    profile_id: str | None = None
+    allowed_tools: list[str] | None = None
+    note: str | None = None
+
+
+class ToolAccessProfileCreate(BaseModel):
+    id: str = Field(min_length=2, max_length=48, pattern=r"^[a-z][a-z0-9_-]*$")
+    label: str = Field(min_length=1, max_length=120)
+    description: str | None = None
+    allowed_tools: list[str] = Field(min_length=1)
+
+
+class ToolAccessProfileUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+    allowed_tools: list[str] | None = None
+
+
+class UserProfileAssignmentUpdate(BaseModel):
+    profile_id: str | None = None
 
 
 class ComplianceSettingsUpdate(BaseModel):
@@ -87,6 +145,10 @@ class BrandingSettingsUpdate(BaseModel):
     default_locale: str | None = None
     langs: str | None = None
     logo_style: str | None = None
+    primary_color: str | None = None
+    accent_color: str | None = None
+    platform_logo_b64: str | None = None
+    customer_logo_b64: str | None = None
 
 
 class SystemSettingsUpdate(BaseModel):
@@ -184,10 +246,51 @@ def admin_set_quota(
     return {"userId": user_id, "maxBytes": row.max_bytes, "usedBytes": row.used_bytes}
 
 
+@router.get("/quotas")
+def admin_list_quotas(
+    search: str | None = None,
+    page: int = 1,
+    size: int = 50,
+    db: Session = Depends(get_db),
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    query = db.query(UserQuotaRecord)
+    if search and search.strip():
+        query = query.filter(UserQuotaRecord.user_id.ilike(f"%{search.strip()}%"))
+    total = query.count()
+    rows = (
+        query.order_by(UserQuotaRecord.used_bytes.desc())
+        .offset((page - 1) * size)
+        .limit(size)
+        .all()
+    )
+    items = []
+    for row in rows:
+        pct = round((row.used_bytes / row.max_bytes) * 100, 1) if row.max_bytes else 0.0
+        items.append(
+            {
+                "userId": row.user_id,
+                "maxBytes": row.max_bytes,
+                "usedBytes": row.used_bytes,
+                "usagePercent": pct,
+            }
+        )
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "defaultMaxBytes": settings.default_quota_bytes,
+    }
+
+
 @router.get("/audit")
 def admin_audit(
     userId: str | None = None,
     action: str | None = None,
+    actionPrefix: str | None = None,
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
     page: int = 1,
@@ -196,7 +299,111 @@ def admin_audit(
     settings: Settings = Depends(get_settings),
 ):
     require_admin(user)
-    return read_audit(settings, user_id=userId, action=action, from_ts=from_, to_ts=to, page=page, size=size)
+    return read_audit(
+        settings,
+        user_id=userId,
+        action=action,
+        action_prefix=actionPrefix,
+        from_ts=from_,
+        to_ts=to,
+        page=page,
+        size=size,
+    )
+
+
+@router.get("/audit/export")
+def admin_audit_export(
+    userId: str | None = None,
+    action: str | None = None,
+    actionPrefix: str | None = None,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    result = read_audit(
+        settings,
+        user_id=userId,
+        action=action,
+        action_prefix=actionPrefix,
+        from_ts=from_,
+        to_ts=to,
+        page=1,
+        size=50000,
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["timestamp", "userId", "action", "resource", "detail"])
+    for row in result.get("items") or []:
+        writer.writerow(
+            [
+                row.get("timestamp"),
+                row.get("userId"),
+                row.get("action"),
+                row.get("resource"),
+                json.dumps(row.get("detail") or {}, ensure_ascii=False),
+            ]
+        )
+    content = "\ufeff" + buf.getvalue()
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="securipdf-audit.csv"'},
+    )
+
+
+@router.get("/jobs")
+def admin_jobs(
+    userId: str | None = None,
+    status: str | None = None,
+    toolId: str | None = None,
+    page: int = 1,
+    size: int = 50,
+    db: Session = Depends(get_db),
+    user: AuthUser = Depends(get_current_user),
+):
+    """KVKK: belge adi yok — yalnizca is tipi, ref kimlikleri ve durum."""
+    require_admin(user)
+    query = db.query(JobRecord)
+    if userId:
+        query = query.filter(JobRecord.user_id == userId)
+    if status:
+        query = query.filter(JobRecord.status == status)
+    if toolId:
+        query = query.filter(JobRecord.tool_id == toolId)
+    total = query.count()
+    rows = query.order_by(JobRecord.created_at.desc()).offset((page - 1) * size).limit(size).all()
+
+    def _refs(raw: str | None) -> list[str]:
+        try:
+            data = json.loads(raw or "[]")
+            return data if isinstance(data, list) else []
+        except json.JSONDecodeError:
+            return []
+
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "userId": r.user_id,
+                "toolId": r.tool_id,
+                "operation": r.operation,
+                "status": r.status,
+                "progress": r.progress,
+                "inputRefs": _refs(r.input_refs),
+                "outputRef": r.output_ref,
+                "errorCode": r.error_code,
+                "createdAt": r.created_at.isoformat() if r.created_at else None,
+                "completedAt": r.completed_at.isoformat() if r.completed_at else None,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "size": size,
+        "privacyNote": "Belge adlari loglanmaz; ref kimlikleri ile geriye donuk eslestirme yapilir.",
+    }
 
 
 @router.get("/ldap/test")
@@ -325,7 +532,25 @@ def admin_update_branding(
         raise HTTPException(status_code=400, detail="Guncellenecek alan yok")
     result = SettingsStore(settings).update_section("branding", payload, user.user_id)
     write_audit(settings, user.user_id, "admin.settings.branding", "branding", {"fields": list(payload.keys())})
+    kc_sync = None
+    if "platform_logo_b64" in payload or "customer_logo_b64" in payload:
+        kc_sync = sync_keycloak_login_logo(settings)
+    if isinstance(result, dict):
+        result = {**result, "keycloakLoginLogo": kc_sync}
+    else:
+        result = {"settings": result, "keycloakLoginLogo": kc_sync}
     return result
+
+
+@router.post("/settings/branding/sync-keycloak")
+def admin_sync_keycloak_branding(
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    kc_sync = sync_keycloak_login_logo(settings)
+    write_audit(settings, user.user_id, "admin.settings.branding.keycloak_sync", "branding", kc_sync or {})
+    return kc_sync
 
 
 @router.put("/settings/system")
@@ -405,6 +630,16 @@ def admin_reset_email_templates(
     store._save_override(data)
     write_audit(settings, user.user_id, "admin.settings.email_templates.reset", "email_templates", {})
     return store.public_view()
+
+
+@router.get("/ops/dashboard")
+def admin_ops_dashboard(
+    db: Session = Depends(get_db),
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    return get_admin_dashboard(settings, db)
 
 
 @router.get("/ops/health")
@@ -614,3 +849,246 @@ def admin_update_tools(
 def admin_license(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
     require_admin(user)
     return LicenseService(settings).status()
+
+
+@router.get("/license/packages")
+def admin_license_packages(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    data = load_license_packages(settings)
+    current = LicenseService(settings).status()
+    packages = []
+    for key, spec in (data.get("packages") or {}).items():
+        tool_ids = resolve_package_tool_ids(settings, key)
+        packages.append(
+            {
+                "id": key,
+                "label": spec.get("label", key),
+                "description": spec.get("description", ""),
+                "limits": spec.get("limits", {}),
+                "toolCount": len(tool_ids),
+                "selected": key == current.get("package"),
+            }
+        )
+    return {"packages": packages, "current": current}
+
+
+@router.post("/license/apply-package")
+def admin_apply_license_package(
+    body: PackageApplyRequest,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    packages = (load_license_packages(settings).get("packages") or {})
+    if body.package not in packages:
+        raise HTTPException(status_code=400, detail=f"Bilinmeyen paket: {body.package}")
+    tool_ids = resolve_package_tool_ids(settings, body.package)
+    payload: dict = {
+        "package": body.package,
+        "enabled_tools": tool_ids,
+        "apply_package_limits": True,
+    }
+    pkg_limits = packages[body.package].get("limits")
+    if pkg_limits:
+        payload["limits"] = pkg_limits
+    result = SettingsStore(settings).update_section("license", payload, user.user_id)
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.license.apply_package",
+        body.package,
+        {"toolCount": len(tool_ids)},
+    )
+    return {"ok": True, "license": result.get("license"), "status": LicenseService(settings).status()}
+
+
+@router.get("/tool-catalog")
+def admin_tool_catalog(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    catalog = _load_ui_catalog()
+    licensed = set(LicenseService(settings).enabled_tools())
+    items = []
+    for item in catalog.get("tools") or []:
+        tid = str(item.get("id", "")).strip()
+        if not tid:
+            continue
+        cat = item.get("category", "other")
+        items.append(
+            {
+                "id": tid,
+                "title": item.get("title", tid),
+                "category": cat,
+                "categoryLabel": CATEGORY_LABELS.get(cat, cat),
+                "licensed": tid in licensed,
+            }
+        )
+    return {
+        "tools": items,
+        "licensedCount": len([t for t in items if t["licensed"]]),
+        "totalCount": len(items),
+    }
+
+
+@router.get("/tool-access-profiles")
+def admin_list_access_profiles(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    return {"profiles": list_tool_access_profiles(settings)}
+
+
+@router.post("/tool-access-profiles")
+def admin_create_access_profile(
+    body: ToolAccessProfileCreate,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    created = create_tool_access_profile(
+        settings,
+        body.id,
+        label=body.label,
+        description=body.description,
+        allowed_tools=body.allowed_tools,
+    )
+    write_audit(settings, user.user_id, "admin.tool_access_profile.create", body.id, {"toolCount": created["toolCount"]})
+    return {"ok": True, "profile": created}
+
+
+@router.get("/tool-access-profiles/{profile_id}")
+def admin_get_access_profile(
+    profile_id: str,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    return {"profile": get_tool_access_profile(settings, profile_id)}
+
+
+@router.put("/tool-access-profiles/{profile_id}")
+def admin_update_access_profile(
+    profile_id: str,
+    body: ToolAccessProfileUpdate,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    payload = body.model_dump(exclude_none=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="Guncellenecek alan yok")
+    updated = update_tool_access_profile(
+        settings,
+        profile_id,
+        label=payload.get("label"),
+        description=payload.get("description"),
+        allowed_tools=payload.get("allowed_tools"),
+    )
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.tool_access_profile.update",
+        profile_id,
+        {"toolCount": updated["toolCount"]},
+    )
+    return {"ok": True, "profile": updated}
+
+
+@router.delete("/tool-access-profiles/{profile_id}")
+def admin_delete_access_profile(
+    profile_id: str,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    result = delete_tool_access_profile(settings, profile_id)
+    write_audit(settings, user.user_id, "admin.tool_access_profile.delete", profile_id, result)
+    return result
+
+
+@router.get("/users/tool-profile-assignments")
+def admin_list_assignments(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    assignments = list_user_assignments(settings)
+    profiles = {p["id"]: p for p in list_tool_access_profiles(settings)}
+    items = []
+    for uid, pid in sorted(assignments.items()):
+        prof = profiles.get(pid) or {}
+        items.append(
+            {
+                "userId": uid,
+                "profileId": pid,
+                "profileLabel": prof.get("label", pid),
+            }
+        )
+    return {"assignments": items, "byUser": assignments}
+
+
+@router.put("/users/{user_id}/tool-profile-assignment")
+def admin_set_assignment(
+    user_id: str,
+    body: UserProfileAssignmentUpdate,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    saved = set_user_assignment(settings, user_id, body.profile_id)
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.user.profile_assignment",
+        user_id,
+        {"profileId": saved.get("profileId")},
+    )
+    return {"ok": True, **saved}
+
+
+@router.get("/users/tool-profiles")
+def admin_list_tool_profiles(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    return {"profiles": list_user_tool_profiles(settings)}
+
+
+@router.get("/users/{user_id}/tool-profile")
+def admin_get_user_tool_profile(
+    user_id: str,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    data = get_user_tool_assignment(settings, user_id)
+    return {
+        "profile": get_user_tool_profile(settings, user_id),
+        "licensedTools": data["licensedTools"],
+        "effectiveTools": data["effectiveTools"],
+        "profileId": data.get("profileId"),
+        "accessProfile": data.get("profile"),
+    }
+
+
+@router.put("/users/{user_id}/tool-profile")
+def admin_save_user_tool_profile(
+    user_id: str,
+    body: UserToolProfileUpdate,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    if body.profile_id is not None:
+        saved = set_user_assignment(settings, user_id, body.profile_id or None)
+    elif body.mode:
+        save_user_tool_profile(
+            settings,
+            user_id,
+            mode=body.mode,
+            allowed_tools=body.allowed_tools,
+            note=body.note,
+        )
+        saved = get_user_tool_assignment(settings, user_id)
+    else:
+        raise HTTPException(status_code=400, detail="profile_id veya mode gerekli")
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.user.tool_profile",
+        user_id,
+        {"profileId": saved.get("profileId")},
+    )
+    return {"ok": True, "profile": get_user_tool_profile(settings, user_id), "assignment": saved}

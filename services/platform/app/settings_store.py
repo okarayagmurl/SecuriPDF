@@ -107,11 +107,24 @@ class SettingsStore:
         base = _load_yaml(self.vault_config_path)
         quotas = deepcopy(base.get("quotas", {}))
         retention = deepcopy(base.get("retention", {}))
+        storage_roots = deepcopy(base.get("storage_roots", {}))
         override = self._override().get("vault", {})
         quotas.update({k: v for k, v in override.items() if k in ("default_max_bytes_per_user", "max_file_bytes")})
         if "soft_delete_days" in override:
             retention["soft_delete_days"] = override["soft_delete_days"]
-        return {"quotas": quotas, "retention": retention}
+        if "documents_ttl_value" in override:
+            retention["documents_ttl_value"] = override["documents_ttl_value"]
+        if "documents_ttl_unit" in override:
+            retention["documents_ttl_unit"] = override["documents_ttl_unit"]
+        if "archive_path" in override:
+            storage_roots["archive"] = override["archive_path"]
+        if "documents_path" in override:
+            storage_roots["documents"] = override["documents_path"]
+        ui_base = deepcopy(base.get("ui", {}))
+        ui = {
+            "default_document_list": override.get("default_document_list", ui_base.get("default_document_list", "all")),
+        }
+        return {"quotas": quotas, "retention": retention, "storage_roots": storage_roots, "ui": ui}
 
     def merged_license(self) -> dict[str, Any]:
         base = _load_yaml(self.license_config_path)
@@ -132,6 +145,10 @@ class SettingsStore:
             "default_locale": os.getenv("SYSTEM_DEFAULTLOCALE", "tr-TR"),
             "langs": os.getenv("LANGS", "tr_TR,en_GB"),
             "logo_style": os.getenv("UI_LOGOSTYLE", "classic"),
+            "primary_color": "#1d4ed8",
+            "accent_color": "#0f766e",
+            "customer_logo_b64": "",
+            "platform_logo_b64": "",
         }
         override = self._override().get("branding", {})
         return _deep_merge(defaults, override)

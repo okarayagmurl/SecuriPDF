@@ -6,14 +6,37 @@
 entera-pdf:<ENTERA_VERSION>-stirling-<STIRLING_VERSION>
 ```
 
-Örnek: `entera-pdf:1.0.0-stirling-0.46.2`
+Örnek: `entera-pdf:1.1.0-stirling-2.13.1`
+
+## Stirling 0.46 → 2.x (V1 → V2)
+
+Büyük sürüm atlaması. Önce yedek alın, staging'de deneyin.
+
+| Alan | V1 (0.46.x) | V2 (2.13.x) |
+|------|-------------|-------------|
+| Image tag | `0.46.2-fat` | `2.13.1-fat` |
+| Ana sayfa şablonu | `branding/templates/` | React (şablon override yok) |
+| Logo / CSS | `branding/static/` | Aynı |
+| `ui.appName` | settings.yml | Kaldırıldı → `appNameNavbar` |
+| Metin düzenleyici | Yok | `text-editor-pdf` |
+
+**V1 config volume:** Eski `entera_config` (H2 veritabanı) ile V2 bazen `InitialSecuritySetup` hatası verir. Yükseltmeden önce yedek alın; gerekirse volume sıfırlayın:
+
+```bash
+cd docker
+docker compose stop entera-pdf
+docker volume rm entera-pdf_entera_config   # veya yedekten geri yükleme
+docker compose up -d entera-pdf
+```
+
+Resmi rehber: https://docs.stirlingpdf.com/Migration/Breaking-Changes/
 
 ## Otomatik Güncelleme
 
 ```bash
 # 1. Yeni Stirling sürümünü .env'de güncelleyin
-#    STIRLING_VERSION=0.47.0
-#    IMAGE_TAG=1.1.0-stirling-0.47.0
+#    STIRLING_VERSION=2.14.0
+#    IMAGE_TAG=1.2.0-stirling-2.14.0
 
 # 2. VERSION dosyasını güncelleyin
 echo "1.1.0-stirling-0.47.0" > VERSION

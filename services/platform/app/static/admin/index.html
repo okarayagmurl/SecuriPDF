@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecuriPDF Admin</title>
-  <link rel="stylesheet" href="/admin/static/admin.css?v=8">
+  <link rel="stylesheet" href="/admin/static/admin.css?v=14">
 </head>
 <body>
   <div id="setupBanner" class="setup-banner hidden" role="status">
@@ -15,20 +15,70 @@
     <button type="button" id="btnSetupBannerDismiss" class="secondary">Listeyi goster</button>
   </div>
   <header class="admin-header">
-    <h1>SecuriPDF Admin</h1>
-    <p class="subtitle">Yapılandırma · Kullanıcılar · Kota · Operasyon · Araçlar · Audit</p>
+    <div class="admin-header-top">
+      <div>
+        <h1>SecuriPDF Admin</h1>
+        <p class="subtitle">Genel bakış · Yapılandırma · Lisans · Kullanıcılar · Kota · Operasyon · Audit</p>
+      </div>
+      <a href="/app/" class="admin-app-link">← Uygulamaya dön</a>
+    </div>
     <nav class="admin-tabs" id="adminTabs">
-      <button type="button" class="tab active" data-tab="settings">Yapılandırma</button>
+      <button type="button" class="tab active" data-tab="dashboard">Genel bakış</button>
+      <button type="button" class="tab" data-tab="settings">Yapılandırma</button>
+      <button type="button" class="tab" data-tab="license">Lisans & Araçlar</button>
       <button type="button" class="tab" data-tab="users">Kullanıcılar</button>
       <button type="button" class="tab" data-tab="quota">Kota</button>
       <button type="button" class="tab" data-tab="ops">Operasyon</button>
-      <button type="button" class="tab" data-tab="tools">Araçlar</button>
       <button type="button" class="tab" data-tab="audit">Audit</button>
     </nav>
   </header>
   <main class="admin-grid">
 
-    <div id="panel-settings" class="tab-panel active">
+    <div id="panel-dashboard" class="tab-panel active">
+      <section class="card full">
+        <div class="dash-header-row">
+          <h2>Genel bakış</h2>
+          <button type="button" id="btnRefreshDashboard" class="secondary">Yenile</button>
+        </div>
+        <div id="dashStatGrid" class="dash-stat-grid"></div>
+      </section>
+      <section class="card">
+        <h2>Kurulum durumu</h2>
+        <div id="dashSetupSummary" class="readiness-summary"></div>
+        <ul id="dashSetupList" class="readiness-list compact"></ul>
+      </section>
+      <section class="card">
+        <h2>Prod hazırlık</h2>
+        <div id="dashReadinessSummary" class="readiness-summary"></div>
+        <p id="dashReadinessHint" class="hint"></p>
+      </section>
+      <section class="card full">
+        <h2>Aktif işler</h2>
+        <div class="table-wrap">
+          <table class="admin-table" id="dashActiveJobsTable">
+            <thead>
+              <tr>
+                <th>İş</th>
+                <th>Kullanıcı</th>
+                <th>Araç</th>
+                <th>Durum</th>
+                <th>İlerleme</th>
+                <th>Oluşturulma</th>
+              </tr>
+            </thead>
+            <tbody id="dashActiveJobsBody">
+              <tr><td colspan="6" class="muted-cell">Yükleniyor…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="card">
+        <h2>En çok kullanılan araçlar</h2>
+        <ul id="dashTopTools" class="dash-tool-list"></ul>
+      </section>
+    </div>
+
+    <div id="panel-settings" class="tab-panel">
       <section class="card full setup-card" id="setupChecklistCard">
         <h2>Kurulum tamamlama</h2>
         <p class="hint">Installer sonrasi bu adimlari sirayla tamamlayin. Otomatik maddeler islem yaptikca yesile doner.</p>
@@ -63,20 +113,27 @@
         <label>Varsayılan kota (bayt) <input id="vaultDefaultQuota" type="number"></label>
         <label>Maks. dosya (bayt) <input id="vaultMaxFile" type="number"></label>
         <label>Soft-delete (gün) <input id="vaultSoftDelete" type="number"></label>
+        <label>Belgeler saklama süresi
+          <span class="inline-fields">
+            <input id="vaultDocumentsTtlValue" type="number" min="1" placeholder="7">
+            <select id="vaultDocumentsTtlUnit">
+              <option value="days">Gün</option>
+              <option value="hours">Saat</option>
+            </select>
+          </span>
+        </label>
+        <p class="hint">Süre dolunca sabitlenmemiş belgeler otomatik arşive taşınır. Sabitlenen (pin) belgeler arşivlenmez.</p>
+        <label>Belgeler depo klasörü (göreli) <input id="vaultDocumentsPath" type="text" placeholder="documents"></label>
+        <label>Arşiv depo klasörü (göreli) <input id="vaultArchivePath" type="text" placeholder="archive"></label>
+        <label>Varsayılan belge listesi
+          <select id="vaultDefaultList">
+            <option value="all">Tüm belgeler (önerilen)</option>
+            <option value="root_only">Yalnızca klasörsüz kök belgeler</option>
+          </select>
+        </label>
+        <p class="hint">Depo yolları <code>/vault-data</code> altında oluşturulur. Liste modu girişte «Tümü» seçiliyken geçerlidir.</p>
         <button id="btnSaveVault">Kaydet</button>
         <pre id="vaultResult"></pre>
-      </section>
-
-      <section class="card">
-        <h2>Lisans</h2>
-        <label>Lisans anahtarı <input id="licenseKey" type="text"></label>
-        <label>Bitiş (ISO) <input id="licenseExpires" type="text" placeholder="2027-12-31T23:59:59Z"></label>
-        <label>Maks. kullanıcı <input id="licenseMaxUsers" type="number"></label>
-        <label>Maks. eşzamanlı oturum <input id="licenseMaxSessions" type="number"></label>
-        <label>Açık araçlar (virgülle) <input id="licenseTools" type="text"></label>
-        <button id="btnSaveLicense">Kaydet</button>
-        <button id="btnLoadLicenseStatus" class="secondary">Durum</button>
-        <pre id="licenseResult"></pre>
       </section>
 
       <section class="card">
@@ -145,13 +202,23 @@
 
       <section class="card">
         <h2>Branding / UI</h2>
-        <p class="hint">Stirling container yeniden başlatılınca etkin olur (.env ile senkron önerilir).</p>
+        <p class="hint">Platform ve müşteri logoları kullanıcı arayüzünde görünür. Renkler anında uygulanır.</p>
         <label>Uygulama adı <input id="brandAppName" type="text"></label>
         <label>Navbar adı <input id="brandNavbar" type="text"></label>
         <label>Açıklama <input id="brandDescription" type="text"></label>
+        <label>Birincil renk <input id="brandPrimaryColor" type="color"></label>
+        <label>Vurgu rengi <input id="brandAccentColor" type="color"></label>
         <label>Varsayılan dil <input id="brandLocale" type="text" placeholder="tr-TR"></label>
         <label>Diller <input id="brandLangs" type="text" placeholder="tr_TR,en_GB"></label>
-        <button id="btnSaveBranding">Kaydet</button>
+        <label>Platform logosu (PNG/SVG) <input id="brandPlatformLogo" type="file" accept="image/*"></label>
+        <div id="brandPlatformPreview" class="logo-preview"></div>
+        <label>Müşteri logosu (PNG/SVG) <input id="brandCustomerLogo" type="file" accept="image/*"></label>
+        <div id="brandCustomerPreview" class="logo-preview"></div>
+        <div class="row-actions">
+          <button id="btnSaveBranding">Kaydet</button>
+          <button type="button" id="btnSyncKeycloakLogo" class="secondary">Login logosunu senkronize et</button>
+        </div>
+        <p class="hint">Kayıt sonrası logo Keycloak giriş ekranına (<code>logo.svg</code>) otomatik yazılır.</p>
         <pre id="brandingResult"></pre>
       </section>
 
@@ -174,7 +241,121 @@
       </section>
     </div>
 
+    <div id="panel-license" class="tab-panel">
+      <section class="card full license-summary-card">
+        <div class="license-summary-grid">
+          <div>
+            <p class="license-kicker">Aktif lisans</p>
+            <h2 id="licenseSummaryPackage">—</h2>
+            <p id="licenseSummaryDesc" class="hint">Paket seçin veya güncelleyin.</p>
+          </div>
+          <div class="license-summary-stats">
+            <div class="stat-pill"><span id="licenseSummaryTools">0</span> araç</div>
+            <div class="stat-pill" id="licenseSummaryExpiry">—</div>
+            <div class="stat-pill" id="licenseSummaryValid">—</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Lisans paketi</h2>
+        <p class="hint">Paket değişince araç listesi ve limitler güncellenir. Kurumsal paket Stirling whitelist ile senkron kalır.</p>
+        <div id="packageCards" class="package-grid">
+          <p class="hint package-loading">Paketler yükleniyor…</p>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Lisanslı araçlar</h2>
+        <p class="hint">Kullanıcı arayüzünde görünen araçlar. Yalnızca lisanslı ve UI tanımlı araçlar listelenir.</p>
+        <div class="row-actions">
+          <button type="button" id="btnLicenseSelectAll" class="secondary">Tümünü seç</button>
+          <button type="button" id="btnLicenseSelectNone" class="secondary">Temizle</button>
+          <button type="button" id="btnRefreshLicenseCatalog" class="secondary">Yenile</button>
+        </div>
+        <div id="licenseToolPicker" class="tool-picker"></div>
+      </section>
+
+      <section class="card full">
+        <h2>Araç erişim profilleri</h2>
+        <p class="hint">Profiller kullanıcılara atanır. <strong>Profilde tanımlı olmayan araçlar</strong> — lisans paketine sonradan eklense bile — o profildeki kullanıcılarda görünmez. Örnek: <em>Muhasebe</em> profilinde OCR yok; <em>Tarama</em> profilinde OCR var.</p>
+        <div class="row-actions">
+          <button type="button" id="btnNewAccessProfile" class="secondary">Yeni profil</button>
+          <button type="button" id="btnRefreshAccessProfiles" class="secondary">Yenile</button>
+        </div>
+        <div id="accessProfileCards" class="package-grid">
+          <p class="hint package-loading">Profiller yükleniyor…</p>
+        </div>
+      </section>
+
+      <section class="card full access-profile-editor" id="accessProfileEditor" hidden>
+        <h3 class="subsection" id="accessProfileEditorTitle">Profil düzenle</h3>
+        <div class="form-grid">
+          <label>Profil ID <input id="accessProfileId" type="text" placeholder="muhasebe" pattern="[a-z][a-z0-9_-]*" autocomplete="off"></label>
+          <label>Görünen ad <input id="accessProfileLabel" type="text" placeholder="Muhasebe"></label>
+        </div>
+        <label>Açıklama <input id="accessProfileDesc" type="text" placeholder="OCR ve gelişmiş araçlar kapalı"></label>
+        <p class="hint">Bu profildeki araçlar kullanıcıya görünür. İşaretsiz araçlar (ör. yeni eklenen OCR) otomatik kapalı kalır.</p>
+        <div class="row-actions">
+          <button type="button" id="btnAccessProfileSelectAll" class="secondary">Tüm lisanslıları seç</button>
+          <button type="button" id="btnAccessProfileSelectNone" class="secondary">Temizle</button>
+        </div>
+        <div id="accessProfileToolPicker" class="tool-picker compact"></div>
+        <div class="row-actions">
+          <button type="button" id="btnSaveAccessProfile">Profili kaydet</button>
+          <button type="button" class="secondary" id="btnCancelAccessProfile">İptal</button>
+          <button type="button" class="danger" id="btnDeleteAccessProfile">Profili sil</button>
+        </div>
+        <p id="accessProfileMeta" class="hint"></p>
+        <pre id="accessProfileResult" class="modal-result"></pre>
+      </section>
+
+      <div class="license-details-row full">
+      <section class="card">
+        <h2>Lisans detayları</h2>
+        <label>Lisans anahtarı <input id="licenseKey" type="text"></label>
+        <label>Bitiş (ISO) <input id="licenseExpires" type="text" placeholder="2027-12-31T23:59:59Z"></label>
+        <label>Maks. kullanıcı <input id="licenseMaxUsers" type="number"></label>
+        <label>Maks. eşzamanlı oturum <input id="licenseMaxSessions" type="number"></label>
+        <label class="inline-check"><input id="licenseApplyPackageLimits" type="checkbox" checked> Paket limitlerini uygula</label>
+        <div class="row-actions">
+          <button id="btnSaveLicense">Lisansı kaydet</button>
+          <button id="btnLoadLicenseStatus" class="secondary">Durumu yenile</button>
+        </div>
+        <pre id="licenseResult"></pre>
+      </section>
+
+      <section class="card">
+        <details class="advanced-block">
+          <summary>Stirling whitelist (gelişmiş)</summary>
+          <p class="hint">Sunucu tarafı endpoint listesi (<code>tools.yml</code>). Paket ve profil modeli varken nadiren gerekir.</p>
+          <button id="btnLoadTools">Whitelist yükle</button>
+          <label>Araç ID listesi (virgülle) <input id="toolsEnabled" type="text" placeholder="merge-pdfs,..."></label>
+          <button id="btnSaveTools">Whitelist kaydet</button>
+          <pre id="toolsResult"></pre>
+        </details>
+      </section>
+      </div>
+    </div>
+
     <div id="panel-users" class="tab-panel">
+      <section class="card full">
+        <h2>Kullanıcıya profil ata</h2>
+        <p class="hint">Kullanıcı adı oturumdaki <code>preferred_username</code> ile eşleşmelidir. Profil atanmamış kullanıcılar lisans paketindeki <strong>tüm</strong> araçları görür.</p>
+        <div class="row-actions">
+          <label>Kullanıcı adı <input id="assignProfileUser" type="text" placeholder="örn. ahmet.yilmaz" autocomplete="off"></label>
+          <label>Araç profili
+            <select id="assignProfileId">
+              <option value="">— Lisans paketi (tam erişim) —</option>
+            </select>
+          </label>
+          <button type="button" id="btnSaveUserAssignment">Atamayı kaydet</button>
+        </div>
+        <pre id="assignProfileResult" class="modal-result"></pre>
+        <h3 class="subsection">Atanmış kullanıcılar</h3>
+        <div id="userAssignmentsList" class="profiles-list"><p class="hint">Yükleniyor…</p></div>
+      </section>
+
       <section class="card full">
         <h2>Keycloak kullanıcıları</h2>
         <p class="hint">AD kullanicilari icin once "AD kullanici sync", ardindan "AD grup sync" calistirin. Roller AD grup uyeliginden okunur.</p>
@@ -200,6 +381,7 @@
                 <th>E-posta</th>
                 <th>Roller</th>
                 <th>Kaynak</th>
+                <th>Erişim profili</th>
                 <th>Durum</th>
               </tr>
             </thead>
@@ -227,12 +409,45 @@
     </div>
 
     <div id="panel-quota" class="tab-panel">
+      <section class="card full">
+        <h2>Depolama kotaları</h2>
+        <p class="hint">Kullanıcı bazında kullanım ve limit. Varsayılan kota: <span id="quotaDefaultHint">—</span></p>
+        <div class="filter-row">
+          <label>Arama <input id="quotaSearch" type="text" placeholder="kullanıcı adı"></label>
+          <button type="button" id="btnLoadQuotaList">Listeyi yenile</button>
+        </div>
+        <p id="quotaListSummary" class="hint"></p>
+        <div class="table-wrap">
+          <table class="admin-table" id="quotaTable">
+            <thead>
+              <tr>
+                <th>Kullanıcı</th>
+                <th>Kullanım</th>
+                <th>Limit</th>
+                <th>Doluluk</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="quotaTableBody">
+              <tr><td colspan="5" class="muted-cell">Yükleniyor…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager-row" id="quotaPager" hidden>
+          <button type="button" class="secondary" id="quotaPrev">Önceki</button>
+          <span id="quotaPageInfo"></span>
+          <button type="button" class="secondary" id="quotaNext">Sonraki</button>
+        </div>
+      </section>
       <section class="card">
-        <h2>Kullanıcı kotası</h2>
+        <h2>Kota düzenle</h2>
         <label>Kullanıcı ID <input id="quotaUserId" type="text" placeholder="administrator"></label>
-        <button id="btnLoadQuota">Yükle</button>
         <label>Maks. bayt <input id="quotaMaxBytes" type="number"></label>
-        <button id="btnSaveQuota">Kaydet</button>
+        <label class="inline-hint">veya <input id="quotaMaxMb" type="number" min="1" step="1" placeholder="MB"> MB</label>
+        <div class="row-actions">
+          <button type="button" id="btnLoadQuota">Yükle</button>
+          <button type="button" id="btnSaveQuota">Kaydet</button>
+        </div>
         <pre id="quotaResult"></pre>
       </section>
     </div>
@@ -337,29 +552,102 @@ cd docker
       </section>
     </div>
 
-    <div id="panel-tools" class="tab-panel">
-      <section class="card">
-        <h2>Aktif araçlar</h2>
-        <button id="btnLoadTools">Listele</button>
-        <label>Araç listesi (virgülle) <input id="toolsEnabled" type="text" placeholder="merge-pdfs,sign,..."></label>
-        <button id="btnSaveTools">Kaydet</button>
-        <pre id="toolsResult"></pre>
-      </section>
-    </div>
-
     <div id="panel-audit" class="tab-panel">
       <section class="card full">
-        <h2>Audit log</h2>
-        <label>Kullanıcı <input id="auditUserId" type="text"></label>
-        <label>Aksiyon <input id="auditAction" type="text"></label>
-        <label>Başlangıç (ISO) <input id="auditFrom" type="text" placeholder="2026-01-01T00:00:00Z"></label>
-        <label>Bitiş (ISO) <input id="auditTo" type="text"></label>
-        <button id="btnLoadAudit">Yükle</button>
-        <pre id="auditResult"></pre>
+        <h2>Audit log (KVKK)</h2>
+        <p class="hint">Belge adları loglanmaz. Yalnızca iş tipi ve GUID kimlikleri saklanır.</p>
+        <div class="filter-row">
+          <label>Kullanıcı <input id="auditUserId" type="text"></label>
+          <label>Aksiyon (tam)
+            <input id="auditAction" type="text" placeholder="job.completed" list="auditActionHints">
+            <datalist id="auditActionHints">
+              <option value="document.upload">
+              <option value="document.delete">
+              <option value="document.archive">
+              <option value="job.completed">
+              <option value="job.failed">
+              <option value="admin.settings.ldap">
+              <option value="admin.backup.create">
+            </datalist>
+          </label>
+          <label>Aksiyon öneki
+            <input id="auditActionPrefix" type="text" placeholder="document. veya job.">
+          </label>
+          <label>Başlangıç (ISO) <input id="auditFrom" type="text" placeholder="2026-01-01T00:00:00Z"></label>
+          <label>Bitiş (ISO) <input id="auditTo" type="text"></label>
+          <button id="btnLoadAudit">Yükle</button>
+          <button type="button" id="btnExportAudit" class="secondary">CSV indir</button>
+        </div>
+        <p id="auditSummary" class="hint"></p>
+        <div class="table-wrap">
+          <table class="admin-table" id="auditTable">
+            <thead>
+              <tr>
+                <th>Zaman</th>
+                <th>Kullanıcı</th>
+                <th>Aksiyon</th>
+                <th>Kaynak</th>
+                <th>Detay</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <tr><td colspan="5" class="muted-cell">Filtreleyip Yükle'ye basın.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager-row" id="auditPager" hidden>
+          <button type="button" class="secondary" id="auditPrev">Önceki</button>
+          <span id="auditPageInfo"></span>
+          <button type="button" class="secondary" id="auditNext">Sonraki</button>
+        </div>
+      </section>
+      <section class="card full">
+        <h2>Merkezi iş kuyruğu</h2>
+        <p class="hint">Admin yalnızca iş tipini ve GUID kimliklerini görür; dosya adı yok.</p>
+        <div class="filter-row">
+          <label>Kullanıcı <input id="jobsUserId" type="text"></label>
+          <label>Durum
+            <select id="jobsStatus">
+              <option value="">Tümü</option>
+              <option value="queued">Kuyrukta</option>
+              <option value="running">İşleniyor</option>
+              <option value="completed">Tamamlandı</option>
+              <option value="failed">Hata</option>
+            </select>
+          </label>
+          <label>Araç <input id="jobsToolId" type="text" placeholder="merge-pdfs"></label>
+          <button id="btnLoadJobs">Yükle</button>
+        </div>
+        <p id="jobsSummary" class="hint"></p>
+        <div class="table-wrap">
+          <table class="admin-table" id="jobsTable">
+            <thead>
+              <tr>
+                <th>İş</th>
+                <th>Kullanıcı</th>
+                <th>Araç</th>
+                <th>Durum</th>
+                <th>İlerleme</th>
+                <th>Oluşturulma</th>
+                <th>Bitiş</th>
+                <th>Hata</th>
+              </tr>
+            </thead>
+            <tbody id="jobsTableBody">
+              <tr><td colspan="8" class="muted-cell">Filtreleyip Yükle'ye basın.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pager-row" id="jobsPager" hidden>
+          <button type="button" class="secondary" id="jobsPrev">Önceki</button>
+          <span id="jobsPageInfo"></span>
+          <button type="button" class="secondary" id="jobsNext">Sonraki</button>
+        </div>
       </section>
     </div>
 
   </main>
-  <script src="/admin/static/admin.js?v=7"></script>
+
+  <script src="/admin/static/admin.js?v=15"></script>
 </body>
 </html>

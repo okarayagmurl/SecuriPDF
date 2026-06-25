@@ -17,7 +17,7 @@ if [[ -z "${ROLLBACK_TAG}" ]]; then
   echo "Mevcut rollback etiketleri:"
   docker images "entera-pdf" --format "  {{.Tag}}\t{{.CreatedSince}}" | grep rollback || true
   echo ""
-  read -r -p "Rollback etiketi girin (örn. 1.0.0-stirling-0.46.2-rollback-...): " ROLLBACK_TAG
+  read -r -p "Rollback etiketi girin (örn. 1.1.0-stirling-2.13.1-rollback-...): " ROLLBACK_TAG
 fi
 
 if [[ -z "${ROLLBACK_TAG}" ]]; then

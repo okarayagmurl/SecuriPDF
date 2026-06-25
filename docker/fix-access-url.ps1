@@ -55,6 +55,7 @@ Write-Host "  Keycloak: $kcPublic"
 Push-Location $PSScriptRoot
 docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --force-recreate oauth2-proxy keycloak
 & "$PSScriptRoot\bootstrap-keycloak-realm.ps1"
+& "$PSScriptRoot\fix-keycloak-logout.ps1"
 Pop-Location
 
 Write-Host "Tarayici: $appUrl"

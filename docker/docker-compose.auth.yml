@@ -98,6 +98,8 @@ services:
       OAUTH2_PROXY_COOKIE_EXPIRE: ${OAUTH2_COOKIE_EXPIRE:-30m}
       OAUTH2_PROXY_COOKIE_SECURE: "${OAUTH2_COOKIE_SECURE:-false}"
       OAUTH2_PROXY_UPSTREAMS: http://entera-nginx:8080/
+      # Varsayilan 30s — uzun OCR sirasinda poll istekleri 502 verebilir
+      OAUTH2_PROXY_UPSTREAM_TIMEOUT: ${OAUTH2_UPSTREAM_TIMEOUT:-3600s}
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
@@ -123,7 +125,7 @@ services:
     build:
       context: ../services/platform
       dockerfile: Dockerfile
-    image: securipdf-platform:${IMAGE_TAG:-1.0.0-stirling-0.46.2}
+    image: securipdf-platform:${IMAGE_TAG:-1.1.0-stirling-2.13.1}
     container_name: securipdf-platform
     restart: unless-stopped
     expose:
@@ -157,17 +159,22 @@ services:
       SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
       SMTP_AUTH_ENABLED: ${SMTP_AUTH_ENABLED:-false}
       SMTP_MAX_ATTACHMENT_MB: ${SMTP_MAX_ATTACHMENT_MB:-25}
+      KEYCLOAK_THEME_IMG_DIR: /keycloak-theme-img
     volumes:
       - securipdf_vault_data:/vault-data
       - securipdf_platform_logs:/logs
       - ../config/platform.yml:/config/platform.yml:ro
       - ../config/vault.yml:/config/vault.yml:ro
       - ../config/license.yml:/config/license.yml:ro
+      - ../config/license-packages.yml:/config/license-packages.yml:ro
       - ../config/security.yml:/config/security.yml:ro
       - ../config/ad.yml:/config/ad.yml:ro
       - ../config/tools.yml:/config/tools.yml:ro
-      # Admin UI — rebuild gerektirmeden guncelleme (dev)
-      - ../services/platform/app/static/admin:/app/app/static/admin:ro
+      - ../config/ui-tools.yml:/config/ui-tools.yml:ro
+      # Keycloak login logosu — admin branding kaydinda senkron
+      - ./keycloak/themes/securipdf/login/resources/img:/keycloak-theme-img
+      # Platform uygulama kodu — gelistirme icin rebuild gerektirmez
+      - ../services/platform/app:/app/app:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/health || exit 1"]
       interval: 30s

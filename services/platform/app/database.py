@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String, create_engine
+from sqlalchemy import Column, DateTime, Integer, String, create_engine, text
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import Settings
@@ -12,11 +13,26 @@ class Base(DeclarativeBase):
     pass
 
 
+class FolderRecord(Base):
+    __tablename__ = "folders"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, index=True, nullable=False)
+    scope = Column(String, index=True, nullable=False, default="documents")
+    parent_id = Column(String, index=True, nullable=True)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+
+
 class DocumentRecord(Base):
     __tablename__ = "documents"
 
     id = Column(String, primary_key=True)
     user_id = Column(String, index=True, nullable=False)
+    folder_id = Column(String, index=True, nullable=True)
+    storage_scope = Column(String, index=True, nullable=False, default="documents")
+    pinned = Column(Integer, nullable=False, default=0)
+    active_since = Column(DateTime, nullable=True)
     name = Column(String, nullable=False)
     size_bytes = Column(Integer, nullable=False)
     mime_type = Column(String, nullable=False, default="application/pdf")
@@ -69,8 +85,44 @@ class SessionRecord(Base):
     started_at = Column(DateTime, nullable=False)
 
 
+class JobRecord(Base):
+    __tablename__ = "jobs"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, index=True, nullable=False)
+    tool_id = Column(String, index=True, nullable=False)
+    operation = Column(String, nullable=False)
+    status = Column(String, index=True, nullable=False, default="queued")
+    progress = Column(Integer, nullable=False, default=0)
+    input_refs = Column(String, nullable=False, default="[]")
+    output_ref = Column(String, nullable=True)
+    error_code = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+
 _engine = None
 _SessionLocal = None
+
+
+def _migrate_schema(engine) -> None:
+    insp = sa_inspect(engine)
+    table_names = insp.get_table_names()
+    with engine.begin() as conn:
+        if "documents" in table_names:
+            cols = {c["name"] for c in insp.get_columns("documents")}
+            if "folder_id" not in cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN folder_id VARCHAR"))
+            if "storage_scope" not in cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN storage_scope VARCHAR DEFAULT 'documents'"))
+            if "pinned" not in cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN pinned INTEGER DEFAULT 0"))
+            if "active_since" not in cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN active_since DATETIME"))
+                conn.execute(text("UPDATE documents SET active_since = created_at WHERE active_since IS NULL"))
+        if "folders" in table_names:
+            conn.execute(text("UPDATE folders SET parent_id = NULL WHERE parent_id = ''"))
 
 
 def init_db(settings: Settings) -> sessionmaker[Session]:
@@ -78,7 +130,11 @@ def init_db(settings: Settings) -> sessionmaker[Session]:
     settings.data_path.mkdir(parents=True, exist_ok=True)
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     _engine = create_engine(f"sqlite:///{settings.db_path}", connect_args={"check_same_thread": False})
+    with _engine.connect() as conn:
+        conn.execute(text("PRAGMA journal_mode=WAL"))
+        conn.commit()
     Base.metadata.create_all(_engine)
+    _migrate_schema(_engine)
     _SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False)
     return _SessionLocal
 

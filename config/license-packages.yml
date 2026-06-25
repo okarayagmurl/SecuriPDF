@@ -1,0 +1,90 @@
+# SecuriPDF lisans paket tanımları (Faz 6)
+# license.yml içindeki package alanı bu anahtarlardan birini seçer.
+# enterprise: enabled_tools tools.yml ile sync-tools-config tarafından güncellenir.
+
+packages:
+  starter:
+    label: Başlangıç
+    description: Temel birleştirme, bölme, dönüşüm ve güvenlik araçları.
+    limits:
+      max_users: 25
+      max_concurrent_sessions: 10
+    enabled_tools:
+      - merge-pdfs
+      - split-pages
+      - compare
+      - compress-pdf
+      - ocr-pdf
+      - pdf-to-word
+      - file-to-pdf
+      - img-to-pdf
+      - pdf-to-img
+      - rotate-pdf
+      - add-password
+      - remove-password
+      - add-watermark
+      - flatten
+      - repair
+
+  professional:
+    label: Profesyonel
+    description: Geniş dönüşüm, sayfa düzenleme ve güvenlik paketi.
+    limits:
+      max_users: 150
+      max_concurrent_sessions: 30
+    enabled_tools:
+      - merge-pdfs
+      - split-pages
+      - split-by-size-or-count
+      - split-pdf-by-chapters
+      - split-pdf-by-sections
+      - auto-split-pdf
+      - compare
+      - compress-pdf
+      - ocr-pdf
+      - pdf-to-word
+      - file-to-pdf
+      - convert
+      - img-to-pdf
+      - pdf-to-img
+      - pdf-to-presentation
+      - pdf-to-text
+      - pdf-to-html
+      - pdf-to-pdfa
+      - html-to-pdf
+      - markdown-to-pdf
+      - rotate-pdf
+      - remove-pages
+      - extract-pages
+      - rearrange-pages
+      - scale-pages
+      - add-page-numbers
+      - add-watermark
+      - add-stamp
+      - add-password
+      - remove-password
+      - sanitize-pdf
+      - auto-redact
+      - cert-sign
+      - validate-signature
+      - flatten
+      - repair
+      - remove-blanks
+      - extract-images
+      - get-info-on-pdf
+      - crop
+      - multi-page-layout
+      - overlay-pdf
+      - pdf-to-single-page
+      - update-metadata
+      - eml-to-pdf
+      - url-to-pdf
+
+  enterprise:
+    label: Kurumsal
+    description: Tüm aktif Stirling araçları (tools.yml whitelist ile senkron).
+    limits:
+      max_users: 500
+      max_concurrent_sessions: 50
+    # Boş liste = license.yml enabled_tools (sync-tools-config ile tools.yml'den doldurulur)
+    enabled_tools: []

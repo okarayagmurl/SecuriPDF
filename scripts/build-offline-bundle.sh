@@ -38,8 +38,8 @@ if [[ -f "${DOCKER_DIR}/.env" ]]; then
   set +a
 fi
 
-IMAGE_TAG="${IMAGE_TAG:-1.0.0-stirling-0.46.2}"
-STIRLING_VERSION="${STIRLING_VERSION:-0.46.2}"
+IMAGE_TAG="${IMAGE_TAG:-1.1.0-stirling-2.13.1}"
+STIRLING_VERSION="${STIRLING_VERSION:-2.13.1}"
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
 VERSION_DIR="securipdf-${IMAGE_TAG}-offline"
 STAGING="${OUTPUT_ROOT}/${VERSION_DIR}"
@@ -113,6 +113,7 @@ fi
 mkdir -p "${STAGING}/docs"
 cp "${ROOT_DIR}/docs/INSTALL-UBUNTU.md" "${STAGING}/docs/" 2>/dev/null || true
 cp "${ROOT_DIR}/docs/OFFLINE-INSTALL.md" "${STAGING}/docs/" 2>/dev/null || true
+cp "${ROOT_DIR}/docs/FRESH-INSTALL-RUNBOOK.md" "${STAGING}/docs/" 2>/dev/null || true
 cp "${ROOT_DIR}/docs/AD-KEYCLOAK-SETUP.md" "${STAGING}/docs/" 2>/dev/null || true
 cp "${ROOT_DIR}/docs/TROUBLESHOOTING.md" "${STAGING}/docs/" 2>/dev/null || true
 

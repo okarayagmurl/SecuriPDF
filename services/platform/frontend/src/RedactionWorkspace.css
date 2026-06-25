@@ -1,0 +1,147 @@
+.redaction-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 960px) {
+  .redaction-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rw-preview {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.75rem;
+  min-height: 14rem;
+}
+
+.rw-preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-bottom: 0.65rem;
+}
+
+.rw-file-name {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.rw-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 12rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.rw-preview-scroll {
+  overflow: auto;
+  max-height: 28rem;
+  background: #64748b;
+  border-radius: 6px;
+  padding: 0.5rem;
+  min-height: 16rem;
+}
+
+.rw-pdf-iframe {
+  display: block;
+  width: 100%;
+  min-height: 15rem;
+  height: 24rem;
+  border: 0;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.rw-patterns .pattern-picker .rp-groups {
+  max-height: 18rem;
+}
+
+.rw-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.65rem;
+  font-size: 0.88rem;
+}
+
+.rw-match-list {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+  max-height: 6rem;
+  overflow: auto;
+}
+
+.rw-match-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.rw-match-tag {
+  flex-shrink: 0;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.rw-match-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rw-scan-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.rw-scan-btn {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.rw-scan-btn:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.rw-scan-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.rw-scan-ok {
+  color: #0f766e;
+  font-size: 0.88rem;
+}
+
+.rw-scan-err {
+  color: #b91c1c;
+  font-size: 0.88rem;
+}
+
+.rw-hint {
+  color: #64748b;
+  font-size: 0.85rem;
+}

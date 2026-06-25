@@ -20,11 +20,23 @@ quotas:
 
 paths:
   documents: documents
+  archive: archive
   signatures: signatures
   certificates: certificates
 
+# Arşiv depolama kökü (admin panelinden override edilebilir)
+storage_roots:
+  documents: documents
+  archive: archive
+
+ui:
+  # all = tum belgeler (varsayilan) | root_only = yalnizca klasorsuz kok belgeler
+  default_document_list: all
+
 retention:
   soft_delete_days: 30  # Platform baslangicinda purge edilir
+  documents_ttl_value: 7
+  documents_ttl_unit: days  # days | hours
 
 audit:
   enabled: true

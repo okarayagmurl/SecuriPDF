@@ -77,7 +77,7 @@ Tam dokümantasyon: [AUTH-ARCHITECTURE.md](AUTH-ARCHITECTURE.md) · AD kurulum: 
 
 | Volume | Mount | Amaç |
 |--------|-------|------|
-| `entera_data` | `/usr/share/tessdata` | OCR dil paketleri |
+| `entera_data` | `/usr/share/tesseract-ocr/5/tessdata` | OCR dil paketleri |
 | `entera_config` | `/configs` | Runtime ayarlar |
 | `entera_logs` | `/logs` | Loglar |
 | `entera_pipeline` | `/pipeline` | Otomasyon |
@@ -95,7 +95,7 @@ Stirling endpoint referansı: [docs.stirlingpdf.com](https://docs.stirlingpdf.co
 ## Versiyonlama
 
 ```
-entera-pdf:1.0.0-stirling-0.46.2
+entera-pdf:1.1.0-stirling-2.13.1
            │       │         └── Upstream Stirling sürümü
            │       └── Entera sürümü
            └── Image adı

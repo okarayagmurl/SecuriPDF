@@ -18,7 +18,7 @@ fi
 echo "=== Entera PDF Güncelleme ==="
 
 # Mevcut image'ı etiketle (rollback için)
-CURRENT_TAG="${IMAGE_TAG:-1.0.0-stirling-0.46.2}"
+CURRENT_TAG="${IMAGE_TAG:-1.1.0-stirling-2.13.1}"
 ROLLBACK_TAG="${CURRENT_TAG}-rollback-$(date +%Y%m%d%H%M%S)"
 
 if docker image inspect "entera-pdf:${CURRENT_TAG}" &>/dev/null; then
@@ -29,8 +29,8 @@ fi
 
 # Upstream versiyon kontrolü
 echo ""
-echo "Upstream Stirling-PDF sürümü: ${STIRLING_VERSION:-0.46.2}"
-echo "Hedef image: ${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}:${STIRLING_VERSION:-0.46.2}-fat"
+echo "Upstream Stirling-PDF sürümü: ${STIRLING_VERSION:-2.13.1}"
+echo "Hedef image: ${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}:${STIRLING_VERSION:-2.13.1}-fat"
 
 # Config senkronizasyonu
 if [[ -x "${SCRIPT_DIR}/sync-tools-config.sh" ]]; then

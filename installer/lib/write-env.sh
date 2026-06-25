@@ -35,9 +35,9 @@ write_env() {
 # SecuriPDF — installer tarafindan olusturuldu ($(date -Iseconds))
 # LDAP: Admin panel > Active Directory > Kaydet > Keycloak'a uygula
 
-ENTERA_VERSION=1.0.0
-STIRLING_VERSION=0.46.2
-IMAGE_TAG=1.0.0-stirling-0.46.2
+ENTERA_VERSION=1.1.0
+STIRLING_VERSION=2.13.1
+IMAGE_TAG=1.1.0-stirling-2.13.1
 STIRLING_IMAGE=docker.stirlingpdf.com/stirlingtools/stirling-pdf
 
 HTTP_PORT=${http_port}

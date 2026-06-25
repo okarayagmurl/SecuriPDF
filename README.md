@@ -4,7 +4,7 @@ Kurumsal müşterilere sunulabilecek, **SecuriPDF** markalı, Docker tabanlı PD
 
 [Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF) Community sürümünü temel alır; upstream güncellemelerini minimum maliyetle almak için **fork değil, ince sarmalayıcı katman** mimarisi kullanır.
 
-**Mevcut sürüm:** `1.0.0-stirling-0.46.2`
+**Mevcut sürüm:** `1.1.0-stirling-2.13.1`
 
 ## Özellikler (MVP)
 
@@ -13,7 +13,7 @@ Kurumsal müşterilere sunulabilecek, **SecuriPDF** markalı, Docker tabanlı PD
 | Birleştirme / Bölme | Merge, Split |
 | Optimizasyon | Compress, OCR |
 | Dönüşüm | PDF↔Word, Image→PDF |
-| Düzenleme | Rotate, Watermark |
+| Düzenleme | Rotate, Watermark, Text Editor, View PDF |
 | Güvenlik | Password Protect, Remove Password, Sign |
 
 Araçlar `config/tools.yml` üzerinden yönetilir; gereksiz veya riskli araçlar kolayca kapatılabilir.
@@ -97,7 +97,7 @@ Bkz. [docs/BACKUP.md](docs/BACKUP.md) · Prod operasyonları: [docs/PROD-OPS.md]
 Format: `entera-pdf:<ENTERA>-stirling-<STIRLING>`
 
 ```
-entera-pdf:1.0.0-stirling-0.46.2
+entera-pdf:1.1.0-stirling-2.13.1
 ```
 
 - `ENTERA_VERSION` — Entera ürün sürümü

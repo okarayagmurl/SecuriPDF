@@ -23,7 +23,7 @@ $logoSrc = Join-Path $PSScriptRoot "..\branding\static\classic-logo\StirlingPDFL
 $logoDst = Join-Path $PSScriptRoot "keycloak\themes\securipdf\login\resources\img\logo.svg"
 if (Test-Path $logoSrc) {
   Copy-Item $logoSrc $logoDst -Force
-  (Get-Content $logoDst -Raw) -replace 'viewBox="0 0 760 180"', 'viewBox="0 0 620 180"' | Set-Content $logoDst -NoNewline
+  (Get-Content $logoDst -Raw) -replace 'viewBox="0 0 760 180"', 'viewBox="0 0 700 180"' | Set-Content $logoDst -NoNewline
 }
 
 Write-Host "Keycloak login temasi uygulaniyor: $theme"

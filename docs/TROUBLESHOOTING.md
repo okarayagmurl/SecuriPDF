@@ -62,20 +62,60 @@ docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compos
 ## OCR Çalışmıyor
 
 1. Fat image kullanıldığından emin olun (`*-fat` tag)
-2. Tessdata volume mount kontrolü: `entera_data` → `/usr/share/tessdata`
+2. Tessdata volume mount kontrolü: `entera_data` → `/usr/share/tesseract-ocr/5/tessdata` (eski `/usr/share/tessdata` yolu **geçersiz**)
 3. Dil paketi ekleyin:
 
 ```bash
-docker run --rm -v entera-pdf_entera_data:/data alpine ls /data
+bash scripts/setup-tessdata.sh tur
+cd docker && docker compose restart entera-pdf
 ```
 
 Türkçe için `tur.traineddata` dosyasını volume'a ekleyin.
+
+## OCR %40'ta 502 Bad Gateway
+
+İlerleme çubuğu **%40** civarında durup `502 Bad Gateway (nginx)` görürseniz:
+
+1. **Türkçe dil paketi** — varsayılan OCR `tur+eng` seçer; `tur.traineddata` yoksa motor çökebilir:
+   ```bash
+   bash scripts/setup-tessdata.sh tur
+   docker compose -f docker-compose.yml restart entera-pdf
+   ```
+2. **Bellek** — OCR çok RAM kullanır; Stirling limiti (`STIRLING_MEMORY_LIMIT`, varsayılan 4G) ve Docker Desktop RAM ayarını kontrol edin.
+3. **oauth2-proxy zaman aşımı** — `docker-compose.auth.yml` içinde `OAUTH2_PROXY_UPSTREAM_TIMEOUT=3600s` olmalı; değiştirdiyseniz oauth2-proxy'yi yeniden başlatın.
+4. **Loglar** — `docker logs entera-pdf --tail 100` ve `docker logs securipdf-platform --tail 50`
 
 ## Word ↔ PDF Dönüşümü Çalışmıyor
 
 - `file-to-pdf` ve `pdf-to-word` endpoint'lerinin `tools.yml`'de aktif olduğunu doğrulayın
 - Fat image gerekli (LibreOffice)
 - `./scripts/sync-tools-config.sh` çalıştırıp container'ı restart edin
+
+## Stirling V2 (2.x) yükseltmesi
+
+SecuriPDF **1.1.0+** Stirling-PDF **2.13.1** (V2) kullanır. 0.46.x (V1) kurulumundan geçişte:
+
+1. **Yedek:** `./scripts/backup.sh` — özellikle `entera_config` volume (`settings.yml`, veritabanı)
+2. **`.env` güncelle:** `STIRLING_VERSION=2.13.1`, `IMAGE_TAG=1.1.0-stirling-2.13.1`
+3. **`./scripts/sync-tools-config.sh`** — araç whitelist senkronu
+4. **`./scripts/update.sh`** — image build + compose up
+5. **V2 farkları:**
+   - `branding/templates/` (Thymeleaf) artık kullanılmaz; UI React tabanlıdır
+   - `UI_APPNAME` / `UI_HOMEDESCRIPTION` env değişkenleri yok; `UI_APPNAMENAVBAR` + `branding/static/` geçerli
+   - `config/settings.yml` içinde `ui.appName` / `homeDescription` kaldırıldı (navbar adı `appNameNavbar`)
+
+Detay: [Stirling V2 breaking changes](https://docs.stirlingpdf.com/Migration/Breaking-Changes/)
+
+## `/text-editor-pdf` çalışmıyor
+
+Stirling **2.1+** gerekir. `tools.yml` içinde `text-editor-pdf` aktif olmalı ve image `1.1.0-stirling-2.13.1` (veya üzeri) olmalıdır:
+
+```bash
+./scripts/sync-tools-config.sh
+cd docker && docker compose build entera-pdf && docker compose up -d entera-pdf
+```
+
+OCR sonrası alternatif akış: `/ocr-pdf` → `/pdf-to-word` → düzenle → `/file-to-pdf`
 
 ## Araçlar Hâlâ Görünüyor
 

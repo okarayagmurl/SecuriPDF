@@ -16,8 +16,10 @@ cd docker
 | 2 | Auth stack | `bootstrap-keycloak-realm.ps1`, AD grup→rol |
 | 3 | Vault API | `services/platform` |
 | 4 | Orchestration | `vault-archive.js`, `vault-signatures.js` |
-| 5 | Admin UI | `/admin` — kota, LDAP test, araç override, audit, **operasyon/yedek** |
-| 6 | License | `config/license.yml` — **sonraki faz** |
+| 5 | Admin UI | `/admin` — kota, LDAP test, araç override, audit, **operasyon/yedek**, **genel bakış**, **lisans/profil** |
+| 6 | License | `config/license.yml` + paketler — **tamamlandı** (profil tabanlı araç erişimi) |
+| 7 | **Kullanıcı UI** | `/` — SecuriPDF arayüzü; Stirling yalnızca `/api/pdf` proxy |
+| 8 | **Admin Faz 8** | Genel bakış, audit tablosu/CSV, kota listesi — **devam ediyor** |
 
 **Ubuntu sıfırdan kurulum:** [INSTALL-UBUNTU.md](INSTALL-UBUNTU.md)
 
