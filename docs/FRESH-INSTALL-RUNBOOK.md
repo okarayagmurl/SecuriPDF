@@ -45,7 +45,19 @@ ls offline/debs/*.deb | wc -l          # 15+ beklenir
 ls offline/debs-pwsh/*.deb | wc -l   # 1+ (pwsh zorunlu)
 ```
 
-### 2.2 Docker image offline arşivi
+### 2.2 Docker ve pwsh kurulumu (build makinesinde)
+
+`.deb` indirmek **kurulum yapmaz**. Image build için Docker daemon gerekir:
+
+```bash
+sudo bash scripts/ubuntu/install-prerequisites-offline.sh
+docker --version
+docker compose version
+```
+
+> `spadm` kullanıcısıyla build alacaksanız: kurulumdan sonra `newgrp docker` veya oturumu kapatıp açın.
+
+### 2.3 Docker image offline arşivi
 
 ```bash
 chmod +x scripts/build-offline-bundle.sh scripts/install-offline.sh

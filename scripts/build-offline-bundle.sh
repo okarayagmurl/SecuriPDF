@@ -59,6 +59,31 @@ echo "=== SecuriPDF offline paket build ==="
 echo "Surum: ${IMAGE_TAG}"
 echo "Staging: ${STAGING}"
 
+if ! command -v docker &>/dev/null; then
+  DEBS_DIR="${ROOT_DIR}/offline/debs"
+  if [[ -d "${DEBS_DIR}" ]] && compgen -G "${DEBS_DIR}/*.deb" >/dev/null; then
+    echo ""
+    echo "Docker kurulu degil — offline/debs ile kuruluyor..."
+    INSTALL_SCRIPT="${ROOT_DIR}/scripts/ubuntu/install-prerequisites-offline.sh"
+    if [[ "${EUID}" -ne 0 ]]; then
+      sudo bash "${INSTALL_SCRIPT}"
+    else
+      bash "${INSTALL_SCRIPT}"
+    fi
+  else
+    echo "HATA: docker bulunamadi ve offline/debs bos." >&2
+    echo "  1) sudo bash scripts/ubuntu/download-offline-debs.sh" >&2
+    echo "  2) sudo bash scripts/ubuntu/install-prerequisites-offline.sh" >&2
+    echo "  3) ./scripts/build-offline-bundle.sh" >&2
+    exit 1
+  fi
+fi
+
+if ! docker info &>/dev/null; then
+  echo "HATA: Docker daemon calismiyor. sudo systemctl start docker" >&2
+  exit 1
+fi
+
 mkdir -p "${STAGING}/images"
 
 cd "${DOCKER_DIR}"
