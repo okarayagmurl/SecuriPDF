@@ -112,10 +112,11 @@ if [[ "${DO_DEPLOY}" -eq 1 ]]; then
   "${COMPOSE[@]}" up -d --no-build
 
   echo "Servisler hazirlaniyor..."
-  sleep 20
+  sleep 10
 
   if [[ "${SKIP_BOOTSTRAP}" -eq 0 ]]; then
-    run_ps1 bootstrap-keycloak-realm.ps1
+    chmod +x "${DOCKER_DIR}/wait-keycloak.sh" "${DOCKER_DIR}/verify-keycloak-realm.sh" "${DOCKER_DIR}/bootstrap-stack-auth.sh" 2>/dev/null || true
+    "${DOCKER_DIR}/bootstrap-stack-auth.sh"
     if [[ -n "${LDAP_BIND_PASSWORD:-}" ]]; then
       run_ps1 fix-keycloak-ldap.ps1
     else

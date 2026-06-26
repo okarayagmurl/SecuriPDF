@@ -294,7 +294,7 @@ LDAP / SMTP: kurulum sonrası **Admin panel** → Yapılandırma.
 | Belirti | Neden | Çözüm |
 |---------|--------|--------|
 | `localhost:8090` yönlendirme | `.env` IP ile uyumsuz | `docker/fix-access-url.sh SUNUCU_IP` |
-| OAuth callback **500** / `unauthorized_client` | `OAUTH2_CLIENT_SECRET` boş | `.env` doldur + `bootstrap-keycloak-realm.ps1` |
+| OAuth callback **500** / `unauthorized_client` | `OAUTH2_CLIENT_SECRET` boş | `.env` doldur + `bash bootstrap-stack-auth.sh` |
 | `pwsh: command not found` | `debs-pwsh` pakette yok | Entera'da `download-offline-debs.sh` tekrar |
 | Bootstrap `TEMP is null` | Eski script | Güncel `main` + `ps1-common.ps1` |
 | `entera-nginx unhealthy` (HTTPS) | TLS yok | `generate-tls.sh` veya HTTP modu |
@@ -342,7 +342,7 @@ docker compose \
 bash install-offline.sh --load-images
 cd docker
 docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.offline.yml up -d --no-build
-pwsh -File bootstrap-keycloak-realm.ps1
+bash bootstrap-stack-auth.sh
 ```
 
 ---

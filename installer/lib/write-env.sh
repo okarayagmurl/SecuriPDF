@@ -115,6 +115,9 @@ SMTP_ENABLED=false
 EOF
 
   chmod 600 "${ENV_FILE}"
+  if [[ -n "${SUDO_USER:-}" ]] && [[ "$(id -u)" -eq 0 ]]; then
+    chown "${SUDO_USER}:${SUDO_USER}" "${ENV_FILE}"
+  fi
 
   local cred_file="${INSTALLER_DIR}/CREDENTIALS-$(date +%Y%m%d-%H%M%S).txt"
   cat > "${cred_file}" <<EOF
@@ -136,6 +139,9 @@ Keycloak yonetici (acil durum):
 LDAP: Admin panel > Active Directory bolumunden yapilandirin.
 EOF
   chmod 600 "${cred_file}"
+  if [[ -n "${SUDO_USER:-}" ]] && [[ "$(id -u)" -eq 0 ]]; then
+    chown "${SUDO_USER}:${SUDO_USER}" "${cred_file}"
+  fi
 
   INSTALLER_CRED_FILE="${cred_file}"
   INSTALLER_APP_URL="${app_url}"

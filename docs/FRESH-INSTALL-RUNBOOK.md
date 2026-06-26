@@ -129,14 +129,20 @@ sudo ./install.sh
 
 ### 3.5 Erişim adreslerini ayarla
 
-Sunucu IP veya FQDN ile (localhost kullanmayın):
+Kurulum sihirbazı (`install.sh`) realm bootstrap'ı otomatik yapar. IP değişikliğinde:
 
 ```bash
 cd docker
 sudo bash fix-access-url.sh SUNUCU_IP
-# veya: sudo bash fix-access-url.sh pdf.sirket.local
-sudo bash bootstrap-keycloak-realm.ps1   # pwsh gerekir
-sudo bash fix-keycloak-logout.ps1
+# fix-access-url: Keycloak bekleme + realm senkronu + oauth2-proxy yenileme (otomatik)
+sudo bash fix-keycloak-logout.ps1   # opsiyonel
+```
+
+Postgres volume sıfırlandıysa:
+
+```bash
+cd docker
+sudo bash bootstrap-stack-auth.sh
 ```
 
 ### 3.6 Doğrulama

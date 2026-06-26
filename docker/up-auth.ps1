@@ -22,9 +22,14 @@ docker compose @composeFiles up -d --build @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Servisler hazirlaniyor..."
-Start-Sleep -Seconds 15
+Start-Sleep -Seconds 10
 
-& "$PSScriptRoot\bootstrap-keycloak-realm.ps1"
+if ((Test-Path "$PSScriptRoot/bootstrap-stack-auth.sh") -and (Get-Command bash -ErrorAction SilentlyContinue)) {
+  Write-Host "Keycloak bootstrap (bekleme + dogrulama)..."
+  bash "$PSScriptRoot/bootstrap-stack-auth.sh"
+} else {
+  & "$PSScriptRoot\bootstrap-keycloak-realm.ps1"
+}
 
 if (-not $SkipTest) {
   & "$PSScriptRoot\test-stack.ps1"

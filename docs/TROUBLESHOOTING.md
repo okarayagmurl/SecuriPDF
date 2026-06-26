@@ -182,7 +182,7 @@ curl -sf http://127.0.0.1:8090/realms/master && echo OK
 
 ```bash
 cd docker
-sudo pwsh -NoProfile -File bootstrap-keycloak-realm.ps1
+sudo bash bootstrap-stack-auth.sh
 ```
 
 **Sik nedenler**

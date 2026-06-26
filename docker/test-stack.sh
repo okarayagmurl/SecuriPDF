@@ -62,7 +62,9 @@ test_nginx() {
 }
 
 test_keycloak() {
-  docker exec securipdf-keycloak sh -c "timeout 2 sh -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'" >/dev/null 2>&1
+  local kc_port="${KEYCLOAK_HTTP_PORT:-8090}"
+  curl -sf --max-time 5 "http://127.0.0.1:${kc_port}/health/ready" >/dev/null 2>&1 \
+    || curl -sf --max-time 5 "http://127.0.0.1:${kc_port}/realms/master" >/dev/null 2>&1
 }
 
 test_postgres() {

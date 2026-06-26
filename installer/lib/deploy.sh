@@ -46,11 +46,10 @@ deploy_stack() {
     compose_cmd up -d --build
   fi
 
-  log "Servisler hazirlaniyor (30 sn)..."
-  sleep 30
+  log "Servisler hazirlaniyor..."
+  sleep 10
 
-  log "Keycloak realm bootstrap (LDAP atlanir — Admin panelden yapilir)..."
-  run_ps1 bootstrap-keycloak-realm.ps1
+  bootstrap_keycloak
 
   if [[ -x "${DOCKER_DIR}/test-stack.sh" ]]; then
     log "Dogrulama testleri..."

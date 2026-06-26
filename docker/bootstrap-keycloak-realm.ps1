@@ -43,9 +43,11 @@ $breakGlassUser = "securipdf-local-admin"
 
 Write-Host "Keycloak realm bootstrap: $realm"
 
-if (-not (Wait-KeycloakReady)) {
-  Show-KeycloakStartupHelp
-  throw "Keycloak hazir degil"
+if ($env:SECURIPDF_SKIP_KEYCLOAK_WAIT -ne '1') {
+  if (-not (Wait-KeycloakReady)) {
+    Show-KeycloakStartupHelp
+    throw "Keycloak hazir degil"
+  }
 }
 
 Invoke-Kcadm @("config", "credentials", "--server", "http://localhost:8080", "--realm", "master", "--user", $admin, "--password", $adminPass) | Out-Null

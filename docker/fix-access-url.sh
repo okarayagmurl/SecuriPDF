@@ -85,16 +85,26 @@ echo "  Issuer:    ${KC_PUBLIC}/realms/securipdf"
 echo ""
 
 cd "${SCRIPT_DIR}"
+COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.auth.yml)
+if [[ -f docker-compose.offline.yml ]]; then
+  COMPOSE+=(-f docker-compose.offline.yml)
+fi
+
 echo "Container'lar yeniden baslatiliyor..."
-docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --force-recreate oauth2-proxy keycloak
+"${COMPOSE[@]}" up -d --force-recreate oauth2-proxy keycloak
 
 echo ""
-echo "Keycloak client redirect URI guncelleniyor..."
-if command -v pwsh &>/dev/null; then
+echo "Keycloak realm senkronu (bekleme + bootstrap + dogrulama)..."
+if [[ -x "${SCRIPT_DIR}/bootstrap-stack-auth.sh" ]]; then
+  bash "${SCRIPT_DIR}/bootstrap-stack-auth.sh"
+elif command -v pwsh &>/dev/null; then
+  bash "${SCRIPT_DIR}/wait-keycloak.sh"
   pwsh -NoProfile -File "${SCRIPT_DIR}/bootstrap-keycloak-realm.ps1"
+  bash "${SCRIPT_DIR}/verify-keycloak-realm.sh"
+  "${COMPOSE[@]}" up -d --force-recreate oauth2-proxy
 else
-  echo "UYARI: pwsh yok — bootstrap atlandi. Keycloak Admin'den redirect URI ekleyin:"
-  echo "  ${APP_URL}/oauth2/callback"
+  echo "HATA: pwsh ve bootstrap-stack-auth.sh gerekli." >&2
+  exit 1
 fi
 
 echo ""

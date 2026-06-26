@@ -51,11 +51,23 @@ prompt_yes_no() {
 run_ps1() {
   local script="$1"
   shift
+  if [[ -f "${ENV_FILE}" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "${ENV_FILE}"
+    set +a
+  fi
   if command -v pwsh &>/dev/null; then
     pwsh -NoProfile -File "${DOCKER_DIR}/${script}" "$@"
   else
     die "PowerShell (pwsh) gerekli. Ubuntu: sudo apt install powershell"
   fi
+}
+
+bootstrap_keycloak() {
+  [[ -x "${DOCKER_DIR}/bootstrap-stack-auth.sh" ]] || die "bootstrap-stack-auth.sh bulunamadi"
+  log "Keycloak realm bootstrap (bekleme + dogrulama)..."
+  "${DOCKER_DIR}/bootstrap-stack-auth.sh"
 }
 
 compose_cmd() {
