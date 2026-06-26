@@ -43,18 +43,10 @@ $breakGlassUser = "securipdf-local-admin"
 
 Write-Host "Keycloak realm bootstrap: $realm"
 
-$ready = $false
-for ($i = 0; $i -lt 24; $i++) {
-  $prev = $ErrorActionPreference
-  $ErrorActionPreference = "SilentlyContinue"
-  docker exec securipdf-keycloak sh -c "timeout 2 sh -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'" 2>$null | Out-Null
-  $probeOk = $LASTEXITCODE -eq 0
-  $ErrorActionPreference = $prev
-  if ($probeOk) { $ready = $true; break }
-  if ($i -eq 0) { Write-Host "Keycloak baslatiliyor, bekleniyor..." }
-  Start-Sleep -Seconds 5
+if (-not (Wait-KeycloakReady)) {
+  Show-KeycloakStartupHelp
+  throw "Keycloak hazir degil"
 }
-if (-not $ready) { throw "Keycloak hazir degil" }
 
 Invoke-Kcadm @("config", "credentials", "--server", "http://localhost:8080", "--realm", "master", "--user", $admin, "--password", $adminPass) | Out-Null
 

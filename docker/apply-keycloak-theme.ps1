@@ -28,13 +28,8 @@ if (Test-Path $logoSrc) {
 
 Write-Host "Keycloak login temasi uygulaniyor: $theme"
 
-$ready = $false
-for ($i = 0; $i -lt 12; $i++) {
-  docker exec securipdf-keycloak sh -c "timeout 2 sh -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'" 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) { $ready = $true; break }
-  Start-Sleep -Seconds 5
-}
-if (-not $ready) {
+if (-not (Wait-KeycloakReady -MaxAttempts 24)) {
+  Show-KeycloakStartupHelp
   Write-Warning "Keycloak hazir degil; temayi sonra calistirin: .\apply-keycloak-theme.ps1"
   exit 1
 }
