@@ -173,8 +173,6 @@ services:
       - ../config/ui-tools.yml:/config/ui-tools.yml:ro
       # Keycloak login logosu — admin branding kaydinda senkron
       - ./keycloak/themes/securipdf/login/resources/img:/keycloak-theme-img
-      # Platform uygulama kodu — gelistirme icin rebuild gerektirmez
-      - ../services/platform/app:/app/app:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/health || exit 1"]
       interval: 30s

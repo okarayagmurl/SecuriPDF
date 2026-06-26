@@ -1,12 +1,24 @@
 # SecuriPDF — Keycloak + oauth2-proxy + Platform ile başlat
-param([switch]$SkipTest)
+param(
+  [switch]$SkipTest,
+  [switch]$Dev
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
+$composeFiles = @(
+  "-f", "docker-compose.yml",
+  "-f", "docker-compose.auth.yml"
+)
+if ($Dev) {
+  $composeFiles += @("-f", "docker-compose.dev.yml")
+  Write-Host "Dev modu: platform kodu host'tan mount ediliyor (offline/prod'da -Dev kullanmayin)."
+}
+
 Write-Host "SecuriPDF tam stack baslatiliyor..."
-docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d --build @args
+docker compose @composeFiles up -d --build @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Servisler hazirlaniyor..."

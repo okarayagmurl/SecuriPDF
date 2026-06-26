@@ -85,6 +85,30 @@ Türkçe için `tur.traineddata` dosyasını volume'a ekleyin.
 3. **oauth2-proxy zaman aşımı** — `docker-compose.auth.yml` içinde `OAUTH2_PROXY_UPSTREAM_TIMEOUT=3600s` olmalı; değiştirdiyseniz oauth2-proxy'yi yeniden başlatın.
 4. **Loglar** — `docker logs entera-pdf --tail 100` ve `docker logs securipdf-platform --tail 50`
 
+## `securipdf-platform is unhealthy` — `Could not import module "app.main"`
+
+**Offline kurulumda** veya repoda `services/platform/app` yokken gorulur.
+
+**Neden:** Eski `docker-compose.auth.yml` dosyalari platform kodunu host'tan mount eder (`../services/platform/app:/app/app`). Offline pakette bu klasor yok; Docker bos dizin olusturur ve image icindeki Python kodunun ustune yazar.
+
+**Dogrulama:**
+
+```bash
+docker logs securipdf-platform --tail 20
+ls -la ../services/platform/app   # bos dizin (sadece . ..)
+```
+
+**Duzeltme (musteri sunucusu):**
+
+```bash
+cd docker
+# docker-compose.auth.yml icinde su satiri kaldirin veya yorumlayin:
+#   - ../services/platform/app:/app/app:ro
+docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.offline.yml up -d --no-build securipdf-platform
+```
+
+Guncel repoda bu mount yalnizca `docker-compose.dev.yml` icindedir (yerel gelistirme). Offline/prod stack'te kullanilmaz.
+
 ## Word ↔ PDF Dönüşümü Çalışmıyor
 
 - `file-to-pdf` ve `pdf-to-word` endpoint'lerinin `tools.yml`'de aktif olduğunu doğrulayın
