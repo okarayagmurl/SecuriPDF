@@ -159,6 +159,41 @@ cd docker && docker compose restart entera-pdf
 
 ## Auth / Keycloak
 
+### `Keycloak hazir degil` (bootstrap)
+
+Bootstrap scripti Keycloak'in HTTP portunu dinlemesini bekler (eski surum ~2 dk; guncel ~5 dk).
+
+**1. Container durumu**
+
+```bash
+docker ps -a --filter name=securipdf-keycloak
+docker logs securipdf-keycloak --tail 60
+docker logs securipdf-postgres --tail 20
+```
+
+**2. Hazirlik testi (host'tan)**
+
+```bash
+curl -sf http://127.0.0.1:8090/health/ready && echo OK
+curl -sf http://127.0.0.1:8090/realms/master && echo OK
+```
+
+`curl` basarili olunca:
+
+```bash
+cd docker
+sudo pwsh -NoProfile -File bootstrap-keycloak-realm.ps1
+```
+
+**Sik nedenler**
+
+| Log / belirti | Cozum |
+|---------------|--------|
+| `password authentication failed for user "keycloak"` | Postgres volume eski sifre ile kaldi — `.env` `KEYCLOAK_DB_PASSWORD` uyumsuz |
+| `OutOfMemoryError` / surekli restart | RAM artirin (onerilen 8 GB) |
+| Ilk kurulum, henuz `started` yok | 3-5 dk bekleyin |
+| Container `Exited` | `docker logs securipdf-keycloak` tam ciktiyi inceleyin |
+
 ### Bootstrap hatasi (kcadm yardim metni)
 
 PowerShell'de `$Args` ayrilmis degiskendir — guncel `bootstrap-keycloak-realm.ps1` kullanin.
