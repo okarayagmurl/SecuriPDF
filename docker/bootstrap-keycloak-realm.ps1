@@ -93,6 +93,7 @@ foreach ($role in @("pdf-user", "pdf-admin")) {
 }
 
 $clients = ""
+$clientJustCreated = $false
 try {
   $clients = Invoke-Kcadm @("get", "clients", "-r", $realm, "-q", "clientId=$clientId") | Out-String
 } catch { }
@@ -122,6 +123,7 @@ if ($clients -notmatch '"id"\s*:\s*"([^"]+)"') {
   try {
     Invoke-Kcadm @("create", "clients", "-r", $realm, "-f", "/tmp/oauth-client.json") | Out-Null
     Write-Host "OAuth client olusturuldu: $clientId"
+    $clientJustCreated = $true
   } catch {
     if ($_.Exception.Message -notmatch "already exists") { throw }
     Write-Host "OAuth client zaten mevcut: $clientId"
@@ -132,13 +134,31 @@ if ($clients -notmatch '"id"\s*:\s*"([^"]+)"') {
 
 if ($clients -match '"id"\s*:\s*"([^"]+)"') {
   $cid = $Matches[1]
-  Invoke-Kcadm @("update", "clients/$cid", "-r", $realm, "-s", "secret=$clientSecret") | Out-Null
-  Invoke-Kcadm @(
-    "update", "clients/$cid", "-r", $realm,
-    "-s", "attributes.post.logout.redirect.uris=$postLogoutUris",
-    "-s", "frontchannelLogout=true"
-  ) | Out-Null
-  Write-Host "OAuth client guncellendi: $clientId (post-logout: $postLogoutUris)"
+  if (-not $clientJustCreated) {
+    try {
+      Invoke-Kcadm @("update", "clients/$cid", "-r", $realm, "-s", "secret=$clientSecret") | Out-Null
+    } catch {
+      Write-Warning "Client secret guncelleme atlandi: $($_.Exception.Message)"
+    }
+  }
+  $patchFile = Join-Path $SecuriPdfTemp "securipdf-client-patch.json"
+  $escapedLogout = $postLogoutUris -replace '\\', '\\\\' -replace '"', '\"'
+  @"
+{
+  "attributes": {
+    "post.logout.redirect.uris": "$escapedLogout"
+  },
+  "frontchannelLogout": true
+}
+"@ | Set-Content -Path $patchFile -Encoding UTF8
+  docker cp $patchFile "securipdf-keycloak:/tmp/client-patch.json" | Out-Null
+  try {
+    Invoke-Kcadm @("update", "clients/$cid", "-r", $realm, "-f", "/tmp/client-patch.json") | Out-Null
+    Write-Host "OAuth client guncellendi: $clientId (post-logout: $postLogoutUris)"
+  } catch {
+    Write-Warning "OAuth client post-logout guncelleme atlandi: $($_.Exception.Message)"
+  }
+  Remove-Item $patchFile -Force -ErrorAction SilentlyContinue
 
   $audMapper = "audience-$clientId"
   $audMapperFile = Join-Path $PSScriptRoot "keycloak-audience-mapper.json"
