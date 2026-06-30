@@ -195,6 +195,8 @@ class SettingsStore:
     def deployment_access_urls(dep: dict[str, Any]) -> dict[str, str]:
         fqdn = (dep.get("public_fqdn") or "localhost").strip()
         server_ip = (dep.get("server_ip") or "").strip()
+        if fqdn in ("", "localhost", "127.0.0.1") and server_ip:
+            fqdn = server_ip
         use_https = bool(dep.get("use_https"))
         http_port = int(dep.get("http_port") or 8080)
         https_port = int(dep.get("https_port") or 443)

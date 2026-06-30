@@ -96,7 +96,7 @@ if [[ -f docker-compose.offline.yml ]]; then
 fi
 
 echo "Container'lar yeniden baslatiliyor..."
-"${COMPOSE[@]}" up -d --force-recreate oauth2-proxy keycloak
+"${COMPOSE[@]}" up -d --force-recreate oauth2-proxy keycloak securipdf-platform
 
 echo ""
 echo "Keycloak realm senkronu (bekleme + bootstrap + dogrulama)..."

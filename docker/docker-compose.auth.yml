@@ -161,6 +161,14 @@ services:
       SMTP_AUTH_ENABLED: ${SMTP_AUTH_ENABLED:-false}
       SMTP_MAX_ATTACHMENT_MB: ${SMTP_MAX_ATTACHMENT_MB:-25}
       KEYCLOAK_THEME_IMG_DIR: /keycloak-theme-img
+      PUBLIC_SERVER_IP: ${PUBLIC_SERVER_IP:-}
+      PUBLIC_FQDN: ${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-localhost}}
+      KEYCLOAK_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
+      KEYCLOAK_PUBLIC_FQDN: ${KEYCLOAK_PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-localhost}}
+      PUBLIC_USE_HTTPS: ${PUBLIC_USE_HTTPS:-false}
+      HTTP_PORT: ${HTTP_PORT:-8080}
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+      KEYCLOAK_HTTP_PORT: ${KEYCLOAK_HTTP_PORT:-8090}
     volumes:
       - securipdf_vault_data:/vault-data
       - securipdf_platform_logs:/logs

@@ -4032,12 +4032,7 @@
 
   bindOptional('btnLogout', 'click', function () {
     closeUserMenu();
-    var fallback = '/oauth2/sign_out';
-    fetchJson(APP + '/logout-url').then(function (d) {
-      window.location.replace((d && d.url) ? d.url : fallback);
-    }).catch(function () {
-      window.location.replace(fallback);
-    });
+    window.location.replace('/oauth2/sign_out');
   });
 
   bindOptional('btnRefreshJobs', 'click', loadJobs);

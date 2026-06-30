@@ -122,10 +122,9 @@ def update_profile(
 
 
 @router.get("/logout-url")
-def logout_url(settings: Settings = Depends(get_settings)):
-    dep = SettingsStore(settings).merged_deployment()
-    urls = SettingsStore.deployment_access_urls(dep)
-    return {"url": urls.get("sign_out_url") or "/oauth2/sign_out"}
+def logout_url():
+    # Goreli yol — tarayicinin actigi host/IP uzerinden cikis (localhost API URL'si uretme)
+    return {"url": "/oauth2/sign_out"}
 
 
 @router.get("/branding")
