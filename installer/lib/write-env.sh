@@ -86,7 +86,8 @@ OAUTH2_CLIENT_SECRET=${oauth_secret}
 OAUTH2_ISSUER_URL=${kc_public}/realms/securipdf
 OAUTH2_REDIRECT_URL=${app_url}/oauth2/callback
 OAUTH2_LOGIN_URL="${kc_public}/realms/securipdf/protocol/openid-connect/auth?ui_locales=tr"
-OAUTH2_SIGN_OUT_REDIRECT_URL="${kc_public}/realms/securipdf/protocol/openid-connect/logout?client_id=securipdf&post_logout_redirect_uri=${app_url}/"
+OAUTH2_BACKEND_LOGOUT_URL="http://keycloak:8080/realms/securipdf/protocol/openid-connect/logout?id_token_hint={id_token}&client_id=securipdf&post_logout_redirect_uri=${app_url}/"
+OAUTH2_SIGN_OUT_REDIRECT_URL="${app_url}/"
 OAUTH2_COOKIE_SECRET=${cookie_secret}
 OAUTH2_COOKIE_EXPIRE=30m
 OAUTH2_GROUPS_CLAIM=realm_access.roles

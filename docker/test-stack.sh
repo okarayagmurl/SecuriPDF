@@ -72,12 +72,12 @@ test_postgres() {
 }
 
 test_oauth_sign_out_url() {
-  local env_val proxy_val
-  env_val="$(grep '^OAUTH2_SIGN_OUT_REDIRECT_URL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' || true)"
-  [[ "${env_val}" == *post_logout_redirect_uri=* ]] || return 1
-  proxy_val="$(docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-    | grep '^OAUTH2_PROXY_SIGN_OUT_REDIRECT_URL=' | cut -d= -f2- || true)"
-  [[ "${proxy_val}" == *post_logout_redirect_uri=* ]]
+  local backend_val proxy_backend
+  backend_val="$(grep '^OAUTH2_BACKEND_LOGOUT_URL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' || true)"
+  [[ "${backend_val}" == *id_token_hint={id_token}* ]] || return 1
+  proxy_backend="$(docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+    | grep '^OAUTH2_PROXY_BACKEND_LOGOUT_URL=' | cut -d= -f2- || true)"
+  [[ "${proxy_backend}" == *id_token_hint={id_token}* ]]
 }
 
 test_unauth_redirect() {

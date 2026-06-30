@@ -30,22 +30,33 @@ check_contains() {
 
 echo "[verify-auth-urls] OAuth URL dogrulamasi..."
 
+if [[ -z "${OAUTH2_BACKEND_LOGOUT_URL:-}" ]]; then
+  echo "[verify-auth-urls] HATA: OAUTH2_BACKEND_LOGOUT_URL bos" >&2
+  FAIL=1
+else
+  check_contains "${OAUTH2_BACKEND_LOGOUT_URL}" "id_token_hint={id_token}" "backend logout id_token_hint (.env)"
+  check_contains "${OAUTH2_BACKEND_LOGOUT_URL}" "client_id=securipdf" "backend logout client_id (.env)"
+fi
+
 if [[ -z "${OAUTH2_SIGN_OUT_REDIRECT_URL:-}" ]]; then
   echo "[verify-auth-urls] HATA: OAUTH2_SIGN_OUT_REDIRECT_URL bos" >&2
   FAIL=1
-else
-  check_contains "${OAUTH2_SIGN_OUT_REDIRECT_URL}" "post_logout_redirect_uri=" "sign-out post_logout_redirect_uri (.env)"
-  check_contains "${OAUTH2_SIGN_OUT_REDIRECT_URL}" "client_id=securipdf" "sign-out client_id (.env)"
 fi
 
 if docker inspect securipdf-oauth2-proxy &>/dev/null; then
   proxy_sign_out="$(docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' \
     | grep '^OAUTH2_PROXY_SIGN_OUT_REDIRECT_URL=' | cut -d= -f2- || true)"
+  proxy_backend="$(docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' \
+    | grep '^OAUTH2_PROXY_BACKEND_LOGOUT_URL=' | cut -d= -f2- || true)"
   if [[ -z "${proxy_sign_out}" ]]; then
     echo "[verify-auth-urls] HATA: oauth2-proxy SIGN_OUT_REDIRECT_URL yok" >&2
     FAIL=1
+  fi
+  if [[ -z "${proxy_backend}" ]]; then
+    echo "[verify-auth-urls] HATA: oauth2-proxy BACKEND_LOGOUT_URL yok" >&2
+    FAIL=1
   else
-    check_contains "${proxy_sign_out}" "post_logout_redirect_uri=" "sign-out post_logout_redirect_uri (container)"
+    check_contains "${proxy_backend}" "id_token_hint={id_token}" "backend logout id_token_hint (container)"
   fi
 else
   echo "[verify-auth-urls] UYARI: securipdf-oauth2-proxy calismiyor" >&2

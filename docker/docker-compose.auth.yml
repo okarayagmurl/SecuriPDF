@@ -69,7 +69,7 @@ services:
       - entera-net
 
   oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.2
     container_name: securipdf-oauth2-proxy
     restart: unless-stopped
     ports:
@@ -109,7 +109,9 @@ services:
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       OAUTH2_PROXY_PROMPT: login
       OAUTH2_PROXY_SKIP_AUTH_REGEX: ^/api/license/v1/status$
-      OAUTH2_PROXY_SIGN_OUT_REDIRECT_URL: ${OAUTH2_SIGN_OUT_REDIRECT_URL:-http://${KEYCLOAK_HOSTNAME:-localhost}:${KEYCLOAK_HTTP_PORT:-8090}/realms/securipdf/protocol/openid-connect/logout?client_id=securipdf&post_logout_redirect_uri=http://${KEYCLOAK_HOSTNAME:-localhost}:${HTTP_PORT:-8080}/}
+      # Keycloak SSO: id_token_hint ile sunucu tarafinda oturum kapatma (client_id tek basina yetmez)
+      OAUTH2_PROXY_BACKEND_LOGOUT_URL: ${OAUTH2_BACKEND_LOGOUT_URL:-http://keycloak:8080/realms/securipdf/protocol/openid-connect/logout?id_token_hint={id_token}&client_id=securipdf}
+      OAUTH2_PROXY_SIGN_OUT_REDIRECT_URL: ${OAUTH2_SIGN_OUT_REDIRECT_URL:-http://${KEYCLOAK_HOSTNAME:-localhost}:${HTTP_PORT:-8080}/}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

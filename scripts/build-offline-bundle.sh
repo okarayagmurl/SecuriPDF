@@ -96,7 +96,7 @@ echo "[2/5] Upstream image'lar cekiliyor..."
 docker pull "nginx:1.27-alpine"
 docker pull "postgres:16-alpine"
 docker pull "quay.io/keycloak/keycloak:26.0"
-docker pull "quay.io/oauth2-proxy/oauth2-proxy:v7.7.1"
+docker pull "quay.io/oauth2-proxy/oauth2-proxy:v7.8.2"
 docker pull "${STIRLING_IMAGE}:${STIRLING_VERSION}-fat" || true
 
 IMAGE_REFS=(
@@ -105,7 +105,7 @@ IMAGE_REFS=(
   "nginx:1.27-alpine"
   "postgres:16-alpine"
   "quay.io/keycloak/keycloak:26.0"
-  "quay.io/oauth2-proxy/oauth2-proxy:v7.7.1"
+  "quay.io/oauth2-proxy/oauth2-proxy:v7.8.2"
 )
 
 echo ""
@@ -174,7 +174,7 @@ cat > "${STAGING}/MANIFEST.json" <<EOF
     "nginx:1.27-alpine",
     "postgres:16-alpine",
     "quay.io/keycloak/keycloak:26.0",
-    "quay.io/oauth2-proxy/oauth2-proxy:v7.7.1"
+    "quay.io/oauth2-proxy/oauth2-proxy:v7.8.2"
   ],
   "compose": [
     "docker/docker-compose.yml",
