@@ -148,6 +148,7 @@ chmod +x "${STAGING}/install-offline.sh" 2>/dev/null || true
 chmod +x "${STAGING}/installer/install.sh" "${STAGING}/installer/lib/"*.sh 2>/dev/null || true
 chmod +x "${STAGING}/scripts/ubuntu/"*.sh 2>/dev/null || true
 chmod +x "${STAGING}/docker/fix-access-url.sh" "${STAGING}/docker/"*.sh 2>/dev/null || true
+chmod +x "${STAGING}/scripts/upgrade-offline-stack.sh" 2>/dev/null || true
 
 DEB_COUNT=0
 PWSH_COUNT=0
@@ -206,8 +207,13 @@ echo "=== Tamam ==="
 echo "Paket: ${OUTPUT_ROOT}/${VERSION_DIR}.tar.gz"
 echo "Boyut: $(du -h "${OUTPUT_ROOT}/${VERSION_DIR}.tar.gz" | cut -f1)"
 echo ""
-echo "Musteri sunucusunda:"
+echo "Musteri sunucusunda (yeni kurulum):"
 echo "  tar xzf ${VERSION_DIR}.tar.gz"
 echo "  cd ${VERSION_DIR}"
 echo "  sudo bash scripts/ubuntu/install-prerequisites-offline.sh"
 echo "  cd installer && ./install.sh"
+echo ""
+echo "Mevcut kurulumu guncelleme:"
+echo "  tar xzf ${VERSION_DIR}.tar.gz"
+echo "  cd ${VERSION_DIR}"
+echo "  sudo ./scripts/upgrade-offline-stack.sh"

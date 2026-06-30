@@ -55,10 +55,10 @@ set_env() {
   local tmp="${ENV_FILE}.tmp.$$"
   if grep -q "^${key}=" "${ENV_FILE}"; then
     grep -v "^${key}=" "${ENV_FILE}" > "${tmp}"
-    printf '%s=%s\n' "${key}" "${val}" >> "${tmp}"
+    printf '%s="%s"\n' "${key}" "${val}" >> "${tmp}"
     mv "${tmp}" "${ENV_FILE}"
   else
-    printf '%s=%s\n' "${key}" "${val}" >> "${ENV_FILE}"
+    printf '%s="%s"\n' "${key}" "${val}" >> "${ENV_FILE}"
   fi
   rm -f "${tmp}" 2>/dev/null || true
 }
@@ -112,11 +112,9 @@ else
   exit 1
 fi
 
-if command -v pwsh &>/dev/null && [[ -f "${SCRIPT_DIR}/fix-keycloak-logout.ps1" ]]; then
+if [[ -x "${SCRIPT_DIR}/verify-auth-urls.sh" ]]; then
   echo ""
-  echo "Keycloak post-logout URI senkronu..."
-  pwsh -NoProfile -File "${SCRIPT_DIR}/fix-keycloak-logout.ps1"
-  "${COMPOSE[@]}" up -d --force-recreate oauth2-proxy
+  bash "${SCRIPT_DIR}/verify-auth-urls.sh"
 fi
 
 echo ""

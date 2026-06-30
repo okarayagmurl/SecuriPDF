@@ -59,19 +59,56 @@
     setTimeout(function () { el.remove(); }, 4000);
   }
 
+  function redirectToLogin() {
+    var rd = window.location.pathname + window.location.search;
+    if (rd === '/' || rd === '/app/' || rd === '/app') {
+      rd = '/';
+    }
+    window.location.replace('/oauth2/start?rd=' + encodeURIComponent(rd || '/'));
+  }
+
+  function isAuthFailureResponse(r) {
+    if (!r) return false;
+    if (r.type === 'opaqueredirect') return true;
+    var s = r.status;
+    return s === 0 || s === 302 || s === 301 || s === 401 || s === 403;
+  }
+
+  function isAuthFetchError(err) {
+    if (!err) return false;
+    if (err.status === 401 || err.status === 403) return true;
+    var msg = String((err && err.message) || err);
+    return /failed to fetch|networkerror|network error|load failed|cors/i.test(msg);
+  }
+
   function fetchJson(url, opts) {
     opts = opts || {};
     opts.credentials = 'same-origin';
+    opts.redirect = 'manual';
     return fetch(url, opts).then(function (r) {
+      if (isAuthFailureResponse(r)) {
+        redirectToLogin();
+        return new Promise(function () {});
+      }
       if (!r.ok) {
         return r.text().then(function (t) {
           var err = new Error(formatHttpError(t, r.status));
           err.status = r.status;
+          if (r.status === 401 || r.status === 403) {
+            redirectToLogin();
+            return new Promise(function () {});
+          }
           throw err;
         });
       }
       if (r.status === 204) return null;
       return r.json();
+    }).catch(function (err) {
+      if (isAuthFetchError(err)) {
+        redirectToLogin();
+        return new Promise(function () {});
+      }
+      throw err;
     });
   }
 
@@ -4032,7 +4069,8 @@
 
   bindOptional('btnLogout', 'click', function () {
     closeUserMenu();
-    window.location.replace('/oauth2/sign_out');
+    state.me = null;
+    window.location.replace('/oauth2/sign_out?rd=' + encodeURIComponent('/'));
   });
 
   bindOptional('btnRefreshJobs', 'click', loadJobs);
@@ -4100,7 +4138,11 @@
       location.replace('#/belgeler');
     }
     route();
-  }).catch(function () {
+  }).catch(function (err) {
+    if (isAuthFetchError(err)) {
+      redirectToLogin();
+      return;
+    }
     location.replace('#/belgeler');
     route();
   });

@@ -35,8 +35,15 @@ run_ps1() {
 run_ps1 bootstrap-keycloak-realm.ps1
 "${DOCKER_DIR}/verify-keycloak-realm.sh"
 
+echo "[bootstrap-stack-auth] Keycloak post-logout URI senkronu..."
+run_ps1 fix-keycloak-logout.ps1
+
 echo "[bootstrap-stack-auth] oauth2-proxy yeniden baslatiliyor..."
 cd "${DOCKER_DIR}"
 "${COMPOSE[@]}" up -d --force-recreate oauth2-proxy
+
+if [[ -x "${DOCKER_DIR}/verify-auth-urls.sh" ]]; then
+  bash "${DOCKER_DIR}/verify-auth-urls.sh"
+fi
 
 echo "[bootstrap-stack-auth] Tamam."

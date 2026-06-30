@@ -51,6 +51,11 @@ deploy_stack() {
 
   bootstrap_keycloak
 
+  if [[ -x "${DOCKER_DIR}/verify-auth-urls.sh" ]]; then
+    log "OAuth erisim URL dogrulamasi..."
+    "${DOCKER_DIR}/verify-auth-urls.sh"
+  fi
+
   if [[ -x "${DOCKER_DIR}/test-stack.sh" ]]; then
     log "Dogrulama testleri..."
     "${DOCKER_DIR}/test-stack.sh" || warn "Bazi testler basarisiz — LDAP henuz yoksa normal"

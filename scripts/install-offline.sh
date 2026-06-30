@@ -17,6 +17,7 @@ DO_PREREQS=0
 DO_LOAD=0
 DO_DEPLOY=0
 DO_VERIFY=0
+DO_UPGRADE=0
 SKIP_BOOTSTRAP=0
 
 usage() {
@@ -25,6 +26,7 @@ usage() {
   echo "Ornek:"
   echo "  ./install.sh --load-images --deploy"
   echo "  ./install.sh --verify"
+  echo "  ./install.sh --upgrade   # mevcut kurulumu yeni paketle guncelle"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -33,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --load-images) DO_LOAD=1 ;;
     --deploy) DO_DEPLOY=1 ;;
     --verify) DO_VERIFY=1 ;;
+    --upgrade) DO_UPGRADE=1 ;;
     --skip-bootstrap) SKIP_BOOTSTRAP=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Bilinmeyen arguman: $1" >&2; usage; exit 1 ;;
@@ -40,9 +43,15 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ "${DO_PREREQS}" -eq 0 && "${DO_LOAD}" -eq 0 && "${DO_DEPLOY}" -eq 0 && "${DO_VERIFY}" -eq 0 ]]; then
+if [[ "${DO_PREREQS}" -eq 0 && "${DO_LOAD}" -eq 0 && "${DO_DEPLOY}" -eq 0 && "${DO_VERIFY}" -eq 0 && "${DO_UPGRADE}" -eq 0 ]]; then
   usage
   exit 1
+fi
+
+if [[ "${DO_UPGRADE}" -eq 1 ]]; then
+  UPGRADE="${ROOT_DIR}/scripts/upgrade-offline-stack.sh"
+  [[ -x "${UPGRADE}" ]] || chmod +x "${UPGRADE}"
+  exec bash "${UPGRADE}"
 fi
 
 run_ps1() {
@@ -128,6 +137,9 @@ fi
 
 if [[ "${DO_VERIFY}" -eq 1 ]]; then
   cd "${DOCKER_DIR}"
+  if [[ -x ./verify-auth-urls.sh ]]; then
+    ./verify-auth-urls.sh
+  fi
   if [[ -x ./test-stack.sh ]]; then
     ./test-stack.sh
   fi
