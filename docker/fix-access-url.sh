@@ -52,11 +52,15 @@ fi
 set_env() {
   local key="$1"
   local val="$2"
+  local tmp="${ENV_FILE}.tmp.$$"
   if grep -q "^${key}=" "${ENV_FILE}"; then
-    sed -i "s|^${key}=.*|${key}=${val}|" "${ENV_FILE}"
+    grep -v "^${key}=" "${ENV_FILE}" > "${tmp}"
+    printf '%s=%s\n' "${key}" "${val}" >> "${tmp}"
+    mv "${tmp}" "${ENV_FILE}"
   else
-    echo "${key}=${val}" >> "${ENV_FILE}"
+    printf '%s=%s\n' "${key}" "${val}" >> "${ENV_FILE}"
   fi
+  rm -f "${tmp}" 2>/dev/null || true
 }
 
 set_env PUBLIC_SERVER_IP "${HOST}"
@@ -121,6 +125,9 @@ grep -E '^OAUTH2_(LOGIN_URL|REDIRECT_URL|SIGN_OUT_REDIRECT_URL)=' "${ENV_FILE}" 
 if docker inspect securipdf-oauth2-proxy &>/dev/null; then
   docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
     | grep -E '^OAUTH2_PROXY_(LOGIN_URL|REDIRECT_URL|SIGN_OUT_REDIRECT_URL)=' || true
+fi
+if grep -qE '^OAUTH2_(LOGIN_URL|REDIRECT_URL)=http://localhost' "${ENV_FILE}" 2>/dev/null; then
+  echo "UYARI: .env hala localhost iceriyor — yukaridaki URL'leri kontrol edin." >&2
 fi
 echo ""
 echo "Tarayici: ${APP_URL}"
