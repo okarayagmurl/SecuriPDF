@@ -9,10 +9,9 @@ DOCKER_DIR="${ROOT_DIR}/docker"
 cd "${DOCKER_DIR}"
 
 if [[ -f .env ]]; then
-  set -a
   # shellcheck disable=SC1091
-  source .env
-  set +a
+  source ./load-env.sh
+  load_dotenv .env
 fi
 
 echo "=== Entera PDF Güncelleme ==="

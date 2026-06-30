@@ -72,7 +72,7 @@ test_postgres() {
 }
 
 # shellcheck disable=SC1091
-[[ -f .env ]] && set -a && source .env && set +a
+[[ -f .env ]] && source ./load-env.sh && load_dotenv .env
 
 step "Platform health" test_platform_health
 step "License API" test_license

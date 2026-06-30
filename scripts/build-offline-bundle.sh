@@ -32,10 +32,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -f "${DOCKER_DIR}/.env" ]]; then
-  set -a
   # shellcheck disable=SC1091
-  source "${DOCKER_DIR}/.env"
-  set +a
+  source "${DOCKER_DIR}/load-env.sh"
+  load_dotenv "${DOCKER_DIR}/.env"
 fi
 
 IMAGE_TAG="${IMAGE_TAG:-1.1.0-stirling-2.13.1}"

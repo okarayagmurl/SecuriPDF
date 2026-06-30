@@ -52,10 +52,9 @@ run_ps1() {
   local script="$1"
   shift
   if [[ -f "${ENV_FILE}" ]]; then
-    set -a
     # shellcheck disable=SC1091
-    source "${ENV_FILE}"
-    set +a
+    source "${DOCKER_DIR}/load-env.sh"
+    load_dotenv "${ENV_FILE}"
   fi
   if command -v pwsh &>/dev/null; then
     pwsh -NoProfile -File "${DOCKER_DIR}/${script}" "$@"

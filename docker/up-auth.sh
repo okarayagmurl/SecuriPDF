@@ -44,7 +44,7 @@ if [[ "${SKIP_TEST}" -eq 0 ]]; then
 fi
 
 # shellcheck disable=SC1091
-[[ -f .env ]] && set -a && source .env && set +a
+[[ -f .env ]] && source ./load-env.sh && load_dotenv .env
 HTTP_PORT="${HTTP_PORT:-8080}"
 
 echo ""

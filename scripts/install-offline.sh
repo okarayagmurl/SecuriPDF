@@ -88,7 +88,8 @@ if [[ "${DO_DEPLOY}" -eq 1 ]]; then
     exit 1
   fi
   # shellcheck disable=SC1091
-  set -a && source "${DOCKER_DIR}/.env" && set +a
+  source "${DOCKER_DIR}/load-env.sh"
+  load_dotenv "${DOCKER_DIR}/.env"
   if [[ -z "${OAUTH2_CLIENT_SECRET:-}" ]]; then
     echo "HATA: OAUTH2_CLIENT_SECRET bos — oauth2-proxy 500 (unauthorized_client) verir." >&2
     echo "  .env dosyasinda guclu bir secret tanimlayin, sonra:" >&2
@@ -137,7 +138,10 @@ fi
 
 if [[ "${DO_DEPLOY}" -eq 1 ]]; then
   # shellcheck disable=SC1091
-  [[ -f "${DOCKER_DIR}/.env" ]] && set -a && source "${DOCKER_DIR}/.env" && set +a
+  if [[ -f "${DOCKER_DIR}/.env" ]]; then
+    source "${DOCKER_DIR}/load-env.sh"
+    load_dotenv "${DOCKER_DIR}/.env"
+  fi
   HTTP_PORT="${HTTP_PORT:-8080}"
   APP_HOST="${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-localhost}}"
   echo ""

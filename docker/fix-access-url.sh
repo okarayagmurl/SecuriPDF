@@ -29,7 +29,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 
 # shellcheck disable=SC1091
-source "${ENV_FILE}" 2>/dev/null || true
+source "${SCRIPT_DIR}/load-env.sh"
+load_dotenv "${ENV_FILE}"
 
 HTTP_PORT="${HTTP_PORT:-8080}"
 KC_PORT="${KEYCLOAK_HTTP_PORT:-8090}"
