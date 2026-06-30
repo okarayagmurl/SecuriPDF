@@ -108,6 +108,13 @@ else
   exit 1
 fi
 
+if command -v pwsh &>/dev/null && [[ -f "${SCRIPT_DIR}/fix-keycloak-logout.ps1" ]]; then
+  echo ""
+  echo "Keycloak post-logout URI senkronu..."
+  pwsh -NoProfile -File "${SCRIPT_DIR}/fix-keycloak-logout.ps1"
+  "${COMPOSE[@]}" up -d --force-recreate oauth2-proxy
+fi
+
 echo ""
 echo "Dogrulama:"
 docker exec securipdf-oauth2-proxy sh -c 'echo LOGIN=$OAUTH2_PROXY_LOGIN_URL; echo REDIRECT=$OAUTH2_PROXY_REDIRECT_URL' 2>/dev/null || true
