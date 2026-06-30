@@ -305,8 +305,8 @@ Doğrulama komutları:
 ```bash
 cd docker
 grep OAUTH2_CLIENT_SECRET .env
-docker exec securipdf-oauth2-proxy printenv OAUTH2_PROXY_LOGIN_URL
-docker exec securipdf-oauth2-proxy printenv OAUTH2_PROXY_CLIENT_SECRET
+docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' | grep OAUTH2_PROXY_LOGIN_URL
+docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' | grep OAUTH2_PROXY_CLIENT_SECRET
 docker compose -f docker-compose.yml -f docker-compose.auth.yml -f docker-compose.offline.yml ps
 ```
 

@@ -116,7 +116,11 @@ if command -v pwsh &>/dev/null && [[ -f "${SCRIPT_DIR}/fix-keycloak-logout.ps1" 
 fi
 
 echo ""
-echo "Dogrulama:"
-docker exec securipdf-oauth2-proxy sh -c 'echo LOGIN=$OAUTH2_PROXY_LOGIN_URL; echo REDIRECT=$OAUTH2_PROXY_REDIRECT_URL' 2>/dev/null || true
+echo "Dogrulama (.env):"
+grep -E '^OAUTH2_(LOGIN_URL|REDIRECT_URL|SIGN_OUT_REDIRECT_URL)=' "${ENV_FILE}" 2>/dev/null || true
+if docker inspect securipdf-oauth2-proxy &>/dev/null; then
+  docker inspect securipdf-oauth2-proxy --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+    | grep -E '^OAUTH2_PROXY_(LOGIN_URL|REDIRECT_URL|SIGN_OUT_REDIRECT_URL)=' || true
+fi
 echo ""
 echo "Tarayici: ${APP_URL}"
