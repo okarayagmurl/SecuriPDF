@@ -7,7 +7,7 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1091
-  source "${DOCKER_DIR}/load-env.sh"
+  source "${SCRIPT_DIR}/load-env.sh"
   load_dotenv "${ENV_FILE}"
 fi
 
