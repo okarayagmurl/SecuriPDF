@@ -1173,7 +1173,11 @@
       renderVersionUpgrade(installed, upgrade);
     } catch (e) {
       var grid = document.getElementById('opsVersionGrid');
-      if (grid) grid.innerHTML = '<p class="hint">' + esc(e.message) + '</p>';
+      var msg = e.message || String(e);
+      if (msg === 'Not Found') {
+        msg = 'Sürüm API yanıt vermiyor (404). Platform image güncel değil — sunucuda: cd ~/SecuriPDF && git pull && sudo bash scripts/patch-logout-deploy.sh';
+      }
+      if (grid) grid.innerHTML = '<p class="hint">' + esc(msg) + '</p>';
     }
   }
 

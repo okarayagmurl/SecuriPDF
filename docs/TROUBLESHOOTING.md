@@ -194,6 +194,26 @@ sudo bash bootstrap-stack-auth.sh
 | Ilk kurulum, henuz `started` yok | 3-5 dk bekleyin |
 | Container `Exited` | `docker logs securipdf-keycloak` tam ciktiyi inceleyin |
 
+### Admin Operasyon: "Not Found" (sürüm API)
+
+**Neden:** Platform container eski image ile calisiyor; `/api/vault/v1/admin/ops/version` endpoint'i yok (404).
+
+**Dogrulama:**
+
+```bash
+docker exec securipdf-platform curl -sf http://127.0.0.1:8000/openapi.json | grep ops/version
+# Cikti yoksa image guncel degil
+```
+
+**Duzeltme:**
+
+```bash
+cd ~/SecuriPDF && git pull
+sudo bash scripts/patch-logout-deploy.sh
+```
+
+Tarayicida Ctrl+Shift+R ile onbellegi temizleyin.
+
 ### `.env: line N: PDF: command not found`
 
 **Neden:** `.env` icinde bosluklu degerler (`UI_HOMEDESCRIPTION=Kurumsal PDF ...`) bash `source` ile okununca `PDF` komut sanilir.

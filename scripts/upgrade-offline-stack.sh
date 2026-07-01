@@ -50,7 +50,7 @@ echo "[2/3] Erisim URL + auth stack senkronu (${HOST})..."
 bash "${DOCKER_DIR}/fix-access-url.sh" "${HOST}"
 
 echo ""
-echo "[3/3] Dogrulama..."
+echo "[3/4] Dogrulama..."
 if [[ -f "${ROOT_DIR}/MANIFEST.json" ]] && docker ps --format '{{.Names}}' | grep -q '^securipdf-platform$'; then
   docker exec securipdf-platform mkdir -p /vault-data/upgrades/staging
   docker cp "${ROOT_DIR}/MANIFEST.json" securipdf-platform:/vault-data/upgrades/staging/manifest.json
@@ -59,6 +59,20 @@ fi
 bash "${DOCKER_DIR}/verify-auth-urls.sh"
 if [[ -x "${DOCKER_DIR}/test-stack.sh" ]]; then
   bash "${DOCKER_DIR}/test-stack.sh"
+fi
+
+echo ""
+echo "[4/4] Platform surum API dogrulamasi..."
+if docker ps --format '{{.Names}}' | grep -q '^securipdf-platform$'; then
+  if docker exec securipdf-platform curl -sf --max-time 10 http://127.0.0.1:8000/openapi.json \
+    | grep -q '"/api/vault/v1/admin/ops/version"'; then
+    echo "  OK: /admin/ops/version endpoint mevcut"
+  else
+    echo "UYARI: Platform image eski — Admin > Operasyon surum API 404 verebilir." >&2
+    echo "  cd ~/SecuriPDF && git pull && sudo bash scripts/patch-logout-deploy.sh" >&2
+  fi
+else
+  echo "  UYARI: securipdf-platform calismiyor"
 fi
 
 HTTP_PORT="${HTTP_PORT:-8080}"
