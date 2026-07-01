@@ -179,6 +179,10 @@ services:
       STIRLING_VERSION: ${STIRLING_VERSION:-2.13.1}
       OAUTH2_PROXY_IMAGE: ${OAUTH2_PROXY_IMAGE:-quay.io/oauth2-proxy/oauth2-proxy:v7.8.2}
       KEYCLOAK_IMAGE: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.0}
+      SECURIPDF_UPDATER_URL: ${SECURIPDF_UPDATER_URL:-http://host.docker.internal:8765}
+      SECURIPDF_UPDATER_TOKEN: ${SECURIPDF_UPDATER_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - securipdf_vault_data:/vault-data
       - securipdf_platform_logs:/logs

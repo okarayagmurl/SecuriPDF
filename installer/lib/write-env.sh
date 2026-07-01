@@ -23,12 +23,13 @@ write_env() {
     kc_public="${scheme}://${host}:${kc_port}"
   fi
 
-  local oauth_secret cookie_secret vault_key kc_admin kc_db
+  local oauth_secret cookie_secret vault_key kc_admin kc_db updater_token
   oauth_secret="$(rand_hex 16)"
   cookie_secret="$(rand_hex 16)"
   vault_key="$(rand_base64 24)"
   kc_admin="$(rand_base64 16)"
   kc_db="$(rand_base64 16)"
+  updater_token="$(rand_hex 16)"
 
   mkdir -p "${DOCKER_DIR}"
   cat > "${ENV_FILE}" <<EOF
@@ -100,6 +101,9 @@ OAUTH2_COOKIE_SECURE=${INSTALLER_COOKIE_SECURE}
 
 VAULT_MASTER_KEY=${vault_key}
 BREAK_GLASS_PASSWORD=${INSTALLER_BREAK_GLASS}
+
+SECURIPDF_UPDATER_TOKEN=${updater_token}
+SECURIPDF_UPDATER_URL=http://host.docker.internal:8765
 
 SYSTEM_MAXFILESIZE=500
 SYSTEM_ENABLEANALYTICS=false

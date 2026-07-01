@@ -49,6 +49,7 @@ from ..ops import (
     restore_backup,
     run_maintenance_purge,
 )
+from ..updater_client import UpdaterError, updater_apply, updater_get_job, updater_health, updater_preflight
 from ..version_info import get_installed_version, get_upgrade_available, save_staging_manifest
 from ..mail import test_smtp_connection
 from ..settings_store import SettingsStore
@@ -726,6 +727,65 @@ def admin_ops_upgrade_staging(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     write_audit(settings, user.user_id, "admin.upgrade.staging", body.version, {"path": str(path)})
     return {"ok": True, "path": str(path), "manifest": manifest}
+
+
+def _updater_http_error(exc: UpdaterError) -> HTTPException:
+    return HTTPException(status_code=exc.status or 502, detail=str(exc))
+
+
+@router.get("/ops/upgrade/updater")
+def admin_ops_upgrade_updater(
+    user: AuthUser = Depends(get_current_user),
+):
+    require_admin(user)
+    return updater_health()
+
+
+@router.post("/ops/upgrade/preflight")
+def admin_ops_upgrade_preflight(
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    try:
+        result = updater_preflight()
+    except UpdaterError as exc:
+        raise _updater_http_error(exc) from exc
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.upgrade.preflight",
+        "updater",
+        {"ok": result.get("ok"), "checks": len(result.get("checks") or [])},
+    )
+    return result
+
+
+@router.post("/ops/upgrade/apply")
+def admin_ops_upgrade_apply(
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    try:
+        job = updater_apply()
+    except UpdaterError as exc:
+        raise _updater_http_error(exc) from exc
+    write_audit(settings, user.user_id, "admin.upgrade.apply", job.get("id", "updater"), {"status": job.get("status")})
+    return {"ok": True, "job": job}
+
+
+@router.get("/ops/upgrade/jobs/{job_id}")
+def admin_ops_upgrade_job(
+    job_id: str,
+    user: AuthUser = Depends(get_current_user),
+):
+    require_admin(user)
+    try:
+        job = updater_get_job(job_id)
+    except UpdaterError as exc:
+        raise _updater_http_error(exc) from exc
+    return {"ok": True, "job": job}
 
 
 @router.get("/ops/backups")

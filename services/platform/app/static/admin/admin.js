@@ -1034,7 +1034,90 @@
     } catch (e) { alert(e.message); }
   }
 
+  var upgradeJobPollTimer = null;
+  var lastUpgradeState = null;
+
+  function renderUpdaterStatus(updater, webAvailable) {
+    var el = document.getElementById('opsUpdaterStatus');
+    var applyBtn = document.getElementById('btnUpgradeApply');
+    if (!el) return;
+    var cfg = updater && updater.configured;
+    var reach = updater && updater.reachable;
+    var st = (updater && updater.status) || {};
+    var err = updater && updater.error;
+    el.innerHTML =
+      '<div class="stat-card"><span class="stat-label">Updater yapılandırma</span><strong>' + (cfg ? 'Token var' : 'Yok') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Agent erişimi</span><strong>' + (reach ? 'Erişilebilir' : 'Kapalı') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Image arşivi</span><strong>' + (st.imagesTarExists ? 'Mevcut' : 'Yok') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Docker</span><strong>' + (st.dockerOk ? 'OK' : 'Hata') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Web güncelleme</span><strong>' + (webAvailable ? 'Hazır' : 'Hazır değil') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Offline dizin</span><strong class="stat-small">' + esc(st.offlineDir || '—') + '</strong></div>';
+    if (applyBtn) {
+      applyBtn.disabled = !webAvailable;
+      applyBtn.title = webAvailable ? '' : (err || 'Ön koşullar sağlanmadı — ön kontrol çalıştırın');
+    }
+  }
+
+  function renderPreflightChecks(checks) {
+    var list = document.getElementById('opsPreflightList');
+    if (!list) return;
+    list.innerHTML = '';
+    (checks || []).forEach(function (c) {
+      var li = document.createElement('li');
+      li.className = 'readiness-item ' + (c.ok ? 'ok' : 'fail');
+      li.innerHTML =
+        '<span class="readiness-icon">' + (c.ok ? '✓' : '✗') + '</span>' +
+        '<span>' + esc(c.label || c.id) + (c.hint ? ' — ' + esc(c.hint) : '') + '</span>';
+      list.appendChild(li);
+    });
+  }
+
+  function renderUpgradeJob(job) {
+    var logEl = document.getElementById('opsUpgradeJobLog');
+    var resEl = document.getElementById('opsUpgradeJobResult');
+    if (!job) return;
+    if (logEl) logEl.textContent = (job.log || []).join('\n');
+    if (resEl) {
+      resEl.textContent = JSON.stringify({
+        id: job.id,
+        status: job.status,
+        exitCode: job.exitCode,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        error: job.error
+      }, null, 2);
+    }
+  }
+
+  function stopUpgradeJobPoll() {
+    if (upgradeJobPollTimer) {
+      clearInterval(upgradeJobPollTimer);
+      upgradeJobPollTimer = null;
+    }
+  }
+
+  function startUpgradeJobPoll(jobId) {
+    stopUpgradeJobPoll();
+    if (!jobId) return;
+    async function poll() {
+      try {
+        var data = await api('/ops/upgrade/jobs/' + encodeURIComponent(jobId));
+        var job = data.job || data;
+        renderUpgradeJob(job);
+        if (job.status === 'succeeded' || job.status === 'failed') {
+          stopUpgradeJobPoll();
+          await loadVersionUpgrade();
+        }
+      } catch (e) {
+        stopUpgradeJobPoll();
+      }
+    }
+    poll();
+    upgradeJobPollTimer = setInterval(poll, 3000);
+  }
+
   function renderVersionUpgrade(installed, upgrade) {
+    lastUpgradeState = upgrade;
     var grid = document.getElementById('opsVersionGrid');
     var summary = document.getElementById('opsUpgradeSummary');
     var detail = document.getElementById('opsUpgradeDetail');
@@ -1049,12 +1132,19 @@
       '<div class="stat-card"><span class="stat-label">oauth2-proxy</span><strong class="stat-small">' + esc((installed.oauth2ProxyImage || '').split(':').pop() || '—') + '</strong></div>';
 
     var avail = upgrade && upgrade.available;
-    summary.className = 'readiness-summary ' + (avail ? 'ready-fail' : 'ready-ok');
-    summary.textContent = avail
-      ? ('Güncelleme hazır: ' + (upgrade.stagingVersion || ''))
-      : (upgrade && upgrade.reason ? upgrade.reason : 'Güncelleme bilgisi yok');
+    var webReady = upgrade && upgrade.webUpgradeAvailable;
+    summary.className = 'readiness-summary ' + (avail ? (webReady ? 'ready-ok' : 'ready-fail') : 'ready-ok');
+    if (webReady) {
+      summary.textContent = 'Web güncelleme hazır: ' + (upgrade.stagingVersion || '');
+    } else if (avail) {
+      summary.textContent = 'Güncelleme mevcut (CLI veya updater ön koşulları): ' + (upgrade.stagingVersion || '');
+    } else {
+      summary.textContent = (upgrade && upgrade.reason) ? upgrade.reason : 'Güncelleme bilgisi yok';
+    }
 
     var staging = (upgrade && upgrade.staging) || {};
+    var updater = (upgrade && upgrade.updater) || {};
+    var ust = updater.status || {};
     detail.textContent = [
       'Kurulu sürüm:        ' + (installed.version || '—'),
       'Platform image:      ' + (installed.platformImage || '—'),
@@ -1068,8 +1158,12 @@
       'Staging kayıt:       ' + (upgrade.registerHint || '—'),
       'CLI güncelleme:      ' + (upgrade.cliUpgrade || '—'),
       '',
-      'Web güncelleme (Faz 2): ' + (upgrade.webUpgradePlanned ? 'planlandı' : '—')
+      'Updater agent:       ' + (updater.reachable ? 'erişilebilir' : (updater.error || 'yapılandırılmamış')),
+      'Image arşivi:        ' + (ust.imagesTarExists ? 'mevcut' : 'yok'),
+      'Web güncelleme:      ' + (webReady ? 'hazır' : 'hazır değil')
     ].join('\n');
+
+    renderUpdaterStatus(updater, !!webReady);
   }
 
   async function loadVersionUpgrade() {
@@ -1094,6 +1188,43 @@
   document.getElementById('btnRefreshReadiness').addEventListener('click', loadReadiness);
   document.getElementById('btnRefreshBackups').addEventListener('click', loadBackups);
   document.getElementById('btnRefreshVersion').addEventListener('click', loadVersionUpgrade);
+
+  document.getElementById('btnUpgradePreflight').addEventListener('click', async function () {
+    var btn = document.getElementById('btnUpgradePreflight');
+    btn.disabled = true;
+    try {
+      var result = await api('/ops/upgrade/preflight', { method: 'POST' });
+      renderPreflightChecks(result.checks || []);
+      show('opsUpgradeJobResult', result);
+      if (result.status) {
+        renderUpdaterStatus({ configured: true, reachable: true, status: result.status }, !!(lastUpgradeState && lastUpgradeState.webUpgradeAvailable));
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('btnUpgradeApply').addEventListener('click', async function () {
+    if (!lastUpgradeState || !lastUpgradeState.webUpgradeAvailable) {
+      return alert('Web güncelleme hazır değil — staging manifest, updater agent ve image arşivi gerekli.');
+    }
+    if (!window.confirm('Host üzerinde upgrade-offline-stack.sh çalıştırılacak. Devam?')) return;
+    var btn = document.getElementById('btnUpgradeApply');
+    btn.disabled = true;
+    try {
+      var data = await api('/ops/upgrade/apply', { method: 'POST' });
+      var job = data.job || data;
+      renderUpgradeJob(job);
+      show('opsUpgradeJobResult', job);
+      startUpgradeJobPoll(job.id);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      btn.disabled = !(lastUpgradeState && lastUpgradeState.webUpgradeAvailable);
+    }
+  });
 
   document.getElementById('btnSaveStagingManifest').addEventListener('click', async function () {
     var raw = document.getElementById('upgradeStagingJson').value.trim();

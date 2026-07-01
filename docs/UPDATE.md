@@ -24,11 +24,48 @@ Staging manifest yolu (vault volume): `/vault-data/upgrades/staging/manifest.jso
 # Yeni paket MANIFEST'ini staging'e kopyala
 docker cp MANIFEST.json securipdf-platform:/vault-data/upgrades/staging/manifest.json
 
-# Güncelleme uygula (CLI — Faz 2'de Admin'den tetiklenecek)
+# Güncelleme uygula (CLI veya Admin web güncelleme)
 cd ~/securipdf-*-offline && sudo bash scripts/upgrade-offline-stack.sh
 ```
 
 Offline paket `MANIFEST.json` alanları: `version`, `min_upgrade_from`, `upgrade_from`, `changelog`, `platform_ui`, `oauth2_proxy`.
+
+## Admin — Web güncelleme (Faz 2)
+
+**Admin → Operasyon → Sistem sürümü ve güncelleme → Web güncelleme**
+
+Host üzerinde `securipdf-updater` systemd servisi (127.0.0.1:8765) çalışır. Platform container, `SECURIPDF_UPDATER_URL` ve `SECURIPDF_UPDATER_TOKEN` ile agent'a bağlanır.
+
+| API | Açıklama |
+|-----|----------|
+| `GET /api/vault/v1/admin/ops/upgrade/updater` | Updater erişimi ve host durumu |
+| `POST /api/vault/v1/admin/ops/upgrade/preflight` | Ön kontrol (Docker, image arşivi, OAuth URL) |
+| `POST /api/vault/v1/admin/ops/upgrade/apply` | `upgrade-offline-stack.sh` job başlat |
+| `GET /api/vault/v1/admin/ops/upgrade/jobs/{id}` | Job durumu ve log |
+
+### Kurulum akışı
+
+1. Yeni offline paketi sunucuda mevcut dizine açın (`images/securipdf-images.tar` dahil).
+2. CLI ile güncelleyin veya Admin'den **Ön kontrol** → **Güncelleme uygula**.
+3. İlk kurulumda veya token değişiminde updater agent kurun:
+
+```bash
+cd ~/securipdf-*-offline
+sudo SECURIPDF_OFFLINE_DIR="$PWD" bash scripts/securipdf-updater/install-updater.sh
+```
+
+`upgrade-offline-stack.sh` tamamlandığında updater kurulumu otomatik denenir. `docker/.env` içine `SECURIPDF_UPDATER_TOKEN` ve `SECURIPDF_UPDATER_URL` yazılır; platform container yeniden başlatılmalıdır.
+
+### Ön koşullar (web güncelleme hazır)
+
+- Staging manifest kayıtlı (`GET .../upgrade/available` → `webUpgradeAvailable: true`)
+- Updater agent erişilebilir
+- `images/securipdf-images.tar` offline dizinde mevcut
+
+```bash
+# Manuel CLI (updater olmadan)
+cd ~/securipdf-*-offline && sudo bash scripts/upgrade-offline-stack.sh
+```
 
 ## Stirling 0.46 → 2.x (V1 → V2)
 

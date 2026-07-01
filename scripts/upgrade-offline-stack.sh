@@ -66,3 +66,13 @@ echo ""
 echo "=== Guncelleme tamam ==="
 echo "  Uygulama: http://${HOST}:${HTTP_PORT}"
 echo "  Tarayici: Ctrl+Shift+R ile onbellegi temizleyip cikis testi yapin"
+
+UPDATER_INSTALL="${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
+if [[ -f "${UPDATER_INSTALL}" && -z "${SECURIPDF_UPDATER_SKIP_INSTALL:-}" ]]; then
+  echo ""
+  echo "[+] Host updater agent (securipdf-updater)..."
+  SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${UPDATER_INSTALL}" || {
+    echo "UYARI: updater kurulumu tamamlanamadi — elle calistirin:" >&2
+    echo "  sudo SECURIPDF_OFFLINE_DIR=${ROOT_DIR} bash ${UPDATER_INSTALL}" >&2
+  }
+fi

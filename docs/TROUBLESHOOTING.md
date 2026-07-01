@@ -194,6 +194,18 @@ sudo bash bootstrap-stack-auth.sh
 | Ilk kurulum, henuz `started` yok | 3-5 dk bekleyin |
 | Container `Exited` | `docker logs securipdf-keycloak` tam ciktiyi inceleyin |
 
+### `.env: line N: PDF: command not found`
+
+**Neden:** `.env` icinde bosluklu degerler (`UI_HOMEDESCRIPTION=Kurumsal PDF ...`) bash `source` ile okununca `PDF` komut sanilir.
+
+**Duzeltme:** Degerleri tirnak icine alin veya guncel `docker/load-env.sh` kullanin:
+
+```bash
+sed -i 's/^UI_HOMEDESCRIPTION=.*/UI_HOMEDESCRIPTION="Kurumsal PDF islem platformu"/' docker/.env
+sed -i 's/^LDAP_GROUP_FILTER=.*/LDAP_GROUP_FILTER="(cn=SecuriPDF-*)"/' docker/.env
+cd docker && bash bootstrap-stack-auth.sh
+```
+
 ### Bootstrap hatasi (kcadm yardim metni)
 
 PowerShell'de `$Args` ayrilmis degiskendir — guncel `bootstrap-keycloak-realm.ps1` kullanin.

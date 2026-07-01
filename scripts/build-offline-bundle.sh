@@ -163,6 +163,8 @@ chmod +x "${STAGING}/installer/install.sh" "${STAGING}/installer/lib/"*.sh 2>/de
 chmod +x "${STAGING}/scripts/ubuntu/"*.sh 2>/dev/null || true
 chmod +x "${STAGING}/docker/fix-access-url.sh" "${STAGING}/docker/"*.sh 2>/dev/null || true
 chmod +x "${STAGING}/scripts/upgrade-offline-stack.sh" 2>/dev/null || true
+chmod +x "${STAGING}/scripts/securipdf-updater/updater.py" 2>/dev/null || true
+chmod +x "${STAGING}/scripts/securipdf-updater/install-updater.sh" 2>/dev/null || true
 
 DEB_COUNT=0
 PWSH_COUNT=0
@@ -204,6 +206,7 @@ cat > "${STAGING}/MANIFEST.json" <<EOF
   "install": "cd installer && ./install.sh",
   "install_offline_cli": "./install-offline.sh --load-images --deploy --verify",
   "upgrade_cli": "sudo bash scripts/upgrade-offline-stack.sh",
+  "updater_install": "sudo SECURIPDF_OFFLINE_DIR=. bash scripts/securipdf-updater/install-updater.sh",
   "offline_debs": "offline/debs",
   "offline_pwsh_debs": "offline/debs-pwsh"
 }

@@ -458,12 +458,22 @@
           <h2>Sistem sürümü ve güncelleme</h2>
           <button type="button" id="btnRefreshVersion" class="secondary">Yenile</button>
         </div>
-        <p class="hint">Kurulu bileşen sürümleri ve staging paket durumu. Web üzerinden güncelleme Faz 2 ile gelecek; şimdilik CLI komutu kullanın.</p>
+        <p class="hint">Kurulu bileşen sürümleri, staging paket durumu ve host updater ile tek tık güncelleme.</p>
         <div id="opsVersionGrid" class="stat-grid">
           <p class="hint">Yükleniyor…</p>
         </div>
         <div id="opsUpgradeSummary" class="readiness-summary"></div>
         <pre id="opsUpgradeDetail" class="access-urls"></pre>
+        <h3 class="subsection">Web güncelleme (host updater)</h3>
+        <p class="hint">Platform container, sunucudaki <code>securipdf-updater</code> agent'ına bağlanır. Yeni offline paketi sunucuda açın; ardından ön kontrol ve uygula adımlarını kullanın.</p>
+        <div id="opsUpdaterStatus" class="stat-grid"></div>
+        <ul id="opsPreflightList" class="readiness-list compact"></ul>
+        <div class="row-actions">
+          <button type="button" id="btnUpgradePreflight" class="secondary">Ön kontrol</button>
+          <button type="button" id="btnUpgradeApply">Güncellemeyi uygula</button>
+        </div>
+        <pre id="opsUpgradeJobLog" class="access-urls"></pre>
+        <pre id="opsUpgradeJobResult"></pre>
         <h3 class="subsection">Staging MANIFEST kaydı</h3>
         <p class="hint">Yeni offline paketteki <code>MANIFEST.json</code> içeriğini yapıştırın veya sunucuda <code>docker cp</code> ile vault staging yoluna kopyalayın.</p>
         <label>MANIFEST (JSON)
@@ -670,6 +680,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=16"></script>
+  <script src="/admin/static/admin.js?v=17"></script>
 </body>
 </html>

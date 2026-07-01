@@ -51,6 +51,18 @@ deploy_stack() {
 
   bootstrap_keycloak
 
+  if [[ -x "${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh" ]]; then
+    log "Host updater agent kuruluyor..."
+    if [[ "${EUID}" -eq 0 ]]; then
+      SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
+    else
+      sudo SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
+    fi
+    log "Platform container yeniden baslatiliyor (updater token)..."
+    cd "${DOCKER_DIR}"
+    compose_cmd up -d --force-recreate securipdf-platform
+  fi
+
   if [[ -x "${DOCKER_DIR}/verify-auth-urls.sh" ]]; then
     log "OAuth erisim URL dogrulamasi..."
     "${DOCKER_DIR}/verify-auth-urls.sh"

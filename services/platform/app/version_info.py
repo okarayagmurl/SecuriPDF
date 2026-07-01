@@ -9,6 +9,7 @@ from typing import Any
 
 from .config import Settings
 from .settings_store import SettingsStore
+from .updater_client import updater_configured, updater_health
 
 _APP_ROOT = Path(__file__).resolve().parent
 _STAGING_REL = Path("upgrades/staging/manifest.json")
@@ -155,7 +156,9 @@ def get_upgrade_available(settings: Settings) -> dict[str, Any]:
             "stagingPath": str(_staging_path(settings)),
             "registerHint": staging_register,
             "cliUpgrade": cli_upgrade,
-            "webUpgradePlanned": True,
+            "webUpgradePlanned": updater_configured(),
+            "webUpgradeAvailable": False,
+            "updater": updater_health(),
         }
 
     target = str(staging.get("version") or "")
@@ -170,8 +173,17 @@ def get_upgrade_available(settings: Settings) -> dict[str, Any]:
     elif not compatible:
         reason = "Staging paketi bu surumden yukseltmeyi desteklemiyor"
 
+    updater = updater_health()
+    web_ready = (
+        available
+        and updater.get("reachable") is True
+        and (updater.get("status") or {}).get("imagesTarExists") is True
+    )
+
     return {
         "available": available,
+        "webUpgradeAvailable": web_ready,
+        "updater": updater,
         "installedVersion": current,
         "stagingVersion": target or None,
         "compatible": compatible,
@@ -189,5 +201,5 @@ def get_upgrade_available(settings: Settings) -> dict[str, Any]:
         },
         "registerHint": staging_register,
         "cliUpgrade": cli_upgrade,
-        "webUpgradePlanned": True,
+        "webUpgradePlanned": updater_configured(),
     }
