@@ -20,6 +20,8 @@ cd docker
 | 6 | License | `config/license.yml` + paketler — **tamamlandı** (profil tabanlı araç erişimi) |
 | 7 | **Kullanıcı UI** | `/` — SecuriPDF arayüzü; Stirling yalnızca `/api/pdf` proxy |
 | 8 | **Admin Faz 8** | Genel bakış, audit tablosu/CSV, kota listesi — **devam ediyor** |
+| 9 | **Upgrade Faz 1** | Admin Operasyon: kurulu sürüm, staging MANIFEST, CLI upgrade yolu — **tamamlandı** |
+| 10 | **Upgrade Faz 2** | Host updater agent + Admin tek tık güncelleme — **planlandı** |
 
 **Ubuntu sıfırdan kurulum:** [INSTALL-UBUNTU.md](INSTALL-UBUNTU.md)
 

@@ -8,6 +8,28 @@ entera-pdf:<ENTERA_VERSION>-stirling-<STIRLING_VERSION>
 
 Örnek: `entera-pdf:1.1.0-stirling-2.13.1`
 
+## Admin — Sürüm ve staging (Faz 1)
+
+**Admin → Operasyon → Sistem sürümü ve güncelleme**
+
+| API | Açıklama |
+|-----|----------|
+| `GET /api/vault/v1/admin/ops/version` | Kurulu sürüm, image tag, FQDN |
+| `GET /api/vault/v1/admin/ops/upgrade/available` | Staging paket vs kurulu |
+| `PUT /api/vault/v1/admin/ops/upgrade/staging` | Staging `MANIFEST.json` kaydet |
+
+Staging manifest yolu (vault volume): `/vault-data/upgrades/staging/manifest.json`
+
+```bash
+# Yeni paket MANIFEST'ini staging'e kopyala
+docker cp MANIFEST.json securipdf-platform:/vault-data/upgrades/staging/manifest.json
+
+# Güncelleme uygula (CLI — Faz 2'de Admin'den tetiklenecek)
+cd ~/securipdf-*-offline && sudo bash scripts/upgrade-offline-stack.sh
+```
+
+Offline paket `MANIFEST.json` alanları: `version`, `min_upgrade_from`, `upgrade_from`, `changelog`, `platform_ui`, `oauth2_proxy`.
+
 ## Stirling 0.46 → 2.x (V1 → V2)
 
 Büyük sürüm atlaması. Önce yedek alın, staging'de deneyin.

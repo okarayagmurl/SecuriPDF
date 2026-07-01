@@ -51,6 +51,11 @@ bash "${DOCKER_DIR}/fix-access-url.sh" "${HOST}"
 
 echo ""
 echo "[3/3] Dogrulama..."
+if [[ -f "${ROOT_DIR}/MANIFEST.json" ]] && docker ps --format '{{.Names}}' | grep -q '^securipdf-platform$'; then
+  docker exec securipdf-platform mkdir -p /vault-data/upgrades/staging
+  docker cp "${ROOT_DIR}/MANIFEST.json" securipdf-platform:/vault-data/upgrades/staging/manifest.json
+  echo "Staging MANIFEST platform vault'a yazildi (Admin > Operasyon)."
+fi
 bash "${DOCKER_DIR}/verify-auth-urls.sh"
 if [[ -x "${DOCKER_DIR}/test-stack.sh" ]]; then
   bash "${DOCKER_DIR}/test-stack.sh"

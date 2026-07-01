@@ -453,6 +453,28 @@
     </div>
 
     <div id="panel-ops" class="tab-panel">
+      <section class="card full" id="opsVersionCard">
+        <div class="dash-header-row">
+          <h2>Sistem sürümü ve güncelleme</h2>
+          <button type="button" id="btnRefreshVersion" class="secondary">Yenile</button>
+        </div>
+        <p class="hint">Kurulu bileşen sürümleri ve staging paket durumu. Web üzerinden güncelleme Faz 2 ile gelecek; şimdilik CLI komutu kullanın.</p>
+        <div id="opsVersionGrid" class="stat-grid">
+          <p class="hint">Yükleniyor…</p>
+        </div>
+        <div id="opsUpgradeSummary" class="readiness-summary"></div>
+        <pre id="opsUpgradeDetail" class="access-urls"></pre>
+        <h3 class="subsection">Staging MANIFEST kaydı</h3>
+        <p class="hint">Yeni offline paketteki <code>MANIFEST.json</code> içeriğini yapıştırın veya sunucuda <code>docker cp</code> ile vault staging yoluna kopyalayın.</p>
+        <label>MANIFEST (JSON)
+          <textarea id="upgradeStagingJson" rows="8" placeholder='{"version":"1.1.1-stirling-2.13.1", ...}'></textarea>
+        </label>
+        <div class="row-actions">
+          <button type="button" id="btnSaveStagingManifest">Staging kaydet</button>
+        </div>
+        <pre id="upgradeStagingResult"></pre>
+      </section>
+
       <section class="card full">
         <h2>Sistem durumu</h2>
         <p class="hint">Vault servisi, disk kullanimi ve yedek ozeti.</p>
@@ -648,6 +670,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=15"></script>
+  <script src="/admin/static/admin.js?v=16"></script>
 </body>
 </html>

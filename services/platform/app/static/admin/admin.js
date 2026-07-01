@@ -632,6 +632,14 @@
         data.setupChecks = setupData.checks.slice(0, 4);
       }
       renderDashboard(data);
+      try {
+        var ver = await api('/ops/version');
+        var grid = document.getElementById('dashStatGrid');
+        if (grid && ver && ver.version) {
+          grid.innerHTML += '<div class="dash-stat"><span class="dash-stat-label">Sürüm</span><strong class="stat-small">' +
+            esc(ver.version) + '</strong><span class="dash-stat-meta">UI v' + esc(String(ver.platformUiVersion || '—')) + '</span></div>';
+        }
+      } catch (verErr) { /* optional */ }
     } catch (e) {
       var grid = document.getElementById('dashStatGrid');
       if (grid) grid.innerHTML = '<p class="hint">' + esc(e.message) + '</p>';
@@ -1026,7 +1034,57 @@
     } catch (e) { alert(e.message); }
   }
 
+  function renderVersionUpgrade(installed, upgrade) {
+    var grid = document.getElementById('opsVersionGrid');
+    var summary = document.getElementById('opsUpgradeSummary');
+    var detail = document.getElementById('opsUpgradeDetail');
+    if (!grid || !summary || !detail) return;
+
+    grid.innerHTML =
+      '<div class="stat-card"><span class="stat-label">SecuriPDF</span><strong class="stat-small">' + esc(installed.version || '—') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Stirling</span><strong>' + esc(installed.stirlingVersion || '—') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">UI (app.js)</span><strong>v' + esc(String(installed.platformUiVersion || '—')) + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">Ortam</span><strong>' + esc((installed.access && installed.access.environment) || '—') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">FQDN</span><strong class="stat-small">' + esc((installed.access && installed.access.publicFqdn) || '—') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">oauth2-proxy</span><strong class="stat-small">' + esc((installed.oauth2ProxyImage || '').split(':').pop() || '—') + '</strong></div>';
+
+    var avail = upgrade && upgrade.available;
+    summary.className = 'readiness-summary ' + (avail ? 'ready-fail' : 'ready-ok');
+    summary.textContent = avail
+      ? ('Güncelleme hazır: ' + (upgrade.stagingVersion || ''))
+      : (upgrade && upgrade.reason ? upgrade.reason : 'Güncelleme bilgisi yok');
+
+    var staging = (upgrade && upgrade.staging) || {};
+    detail.textContent = [
+      'Kurulu sürüm:        ' + (installed.version || '—'),
+      'Platform image:      ' + (installed.platformImage || '—'),
+      'Keycloak image:      ' + (installed.keycloakImage || '—'),
+      'Build:               ' + (installed.builtAt || '—'),
+      '',
+      'Staging sürüm:       ' + (upgrade.stagingVersion || '—'),
+      'Staging changelog:   ' + (staging.changelog || '—'),
+      'Staging yolu:        ' + (staging.path || upgrade.stagingPath || '—'),
+      '',
+      'Staging kayıt:       ' + (upgrade.registerHint || '—'),
+      'CLI güncelleme:      ' + (upgrade.cliUpgrade || '—'),
+      '',
+      'Web güncelleme (Faz 2): ' + (upgrade.webUpgradePlanned ? 'planlandı' : '—')
+    ].join('\n');
+  }
+
+  async function loadVersionUpgrade() {
+    try {
+      var installed = await api('/ops/version');
+      var upgrade = await api('/ops/upgrade/available');
+      renderVersionUpgrade(installed, upgrade);
+    } catch (e) {
+      var grid = document.getElementById('opsVersionGrid');
+      if (grid) grid.innerHTML = '<p class="hint">' + esc(e.message) + '</p>';
+    }
+  }
+
   function loadOpsPanel() {
+    loadVersionUpgrade();
     loadHealth();
     loadReadiness();
     loadBackups();
@@ -1035,6 +1093,22 @@
   document.getElementById('btnRefreshHealth').addEventListener('click', loadHealth);
   document.getElementById('btnRefreshReadiness').addEventListener('click', loadReadiness);
   document.getElementById('btnRefreshBackups').addEventListener('click', loadBackups);
+  document.getElementById('btnRefreshVersion').addEventListener('click', loadVersionUpgrade);
+
+  document.getElementById('btnSaveStagingManifest').addEventListener('click', async function () {
+    var raw = document.getElementById('upgradeStagingJson').value.trim();
+    if (!raw) return alert('MANIFEST JSON gerekli');
+    try {
+      var manifest = JSON.parse(raw);
+      var result = await api('/ops/upgrade/staging', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(manifest)
+      });
+      show('upgradeStagingResult', result);
+      await loadVersionUpgrade();
+    } catch (e) { alert(e.message); }
+  });
 
   document.getElementById('btnSaveDeployment').addEventListener('click', async () => {
     try {

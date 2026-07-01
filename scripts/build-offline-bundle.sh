@@ -87,6 +87,20 @@ mkdir -p "${STAGING}/images"
 
 cd "${DOCKER_DIR}"
 
+export SECURIPDF_BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export IMAGE_TAG STIRLING_VERSION
+
+PLATFORM_UI_VER="$(grep -oE 'app\.js\?v=[0-9]+' "${ROOT_DIR}/services/platform/app/static/app/index.html" | grep -oE '[0-9]+' || echo 0)"
+CHANGELOG_TEXT=""
+if [[ -f "${ROOT_DIR}/CHANGELOG.md" ]]; then
+  CHANGELOG_TEXT="$(awk -v ver="${IMAGE_TAG}" '
+    $0 ~ "^## "ver {show=1; next}
+    show && /^## / {exit}
+    show {gsub(/"/, "\\\""); printf "%s ", $0}
+  ' "${ROOT_DIR}/CHANGELOG.md" | sed 's/[[:space:]]*$//')"
+fi
+[[ -n "${CHANGELOG_TEXT}" ]] || CHANGELOG_TEXT="SecuriPDF ${IMAGE_TAG} offline paketi"
+
 echo ""
 echo "[1/5] SecuriPDF image'lari derleniyor..."
 docker compose "${COMPOSE_BUILD[@]}" build entera-pdf securipdf-platform
@@ -166,7 +180,13 @@ cat > "${STAGING}/MANIFEST.json" <<EOF
   "product": "SecuriPDF",
   "version": "${IMAGE_TAG}",
   "stirling_version": "${STIRLING_VERSION}",
-  "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "built_at": "${SECURIPDF_BUILT_AT}",
+  "min_upgrade_from": "${IMAGE_TAG}",
+  "upgrade_from": ["${IMAGE_TAG}"],
+  "platform_ui": ${PLATFORM_UI_VER},
+  "oauth2_proxy": "v7.8.2",
+  "keycloak": "26.0",
+  "changelog": "${CHANGELOG_TEXT}",
   "images_archive": "images/securipdf-images.tar",
   "images": [
     "entera-pdf:${IMAGE_TAG}",
@@ -183,6 +203,7 @@ cat > "${STAGING}/MANIFEST.json" <<EOF
   ],
   "install": "cd installer && ./install.sh",
   "install_offline_cli": "./install-offline.sh --load-images --deploy --verify",
+  "upgrade_cli": "sudo bash scripts/upgrade-offline-stack.sh",
   "offline_debs": "offline/debs",
   "offline_pwsh_debs": "offline/debs-pwsh"
 }

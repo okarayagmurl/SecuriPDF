@@ -9,6 +9,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+ARG SECURIPDF_VERSION=unknown
+ARG SECURIPDF_BUILT_AT=
+ARG STIRLING_VERSION=unknown
+
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -17,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY --from=frontend /frontend/dist ./app/static/app/react
+
+RUN printf '%s\n' "${SECURIPDF_VERSION}" > /app/VERSION \
+    && printf '{"version":"%s","stirling_version":"%s","built_at":"%s"}\n' \
+         "${SECURIPDF_VERSION}" "${STIRLING_VERSION}" "${SECURIPDF_BUILT_AT}" > /app/RELEASE.json
 
 ENV PYTHONUNBUFFERED=1
 ENV PLATFORM_CONFIG=/config/platform.yml

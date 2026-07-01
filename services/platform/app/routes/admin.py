@@ -49,6 +49,7 @@ from ..ops import (
     restore_backup,
     run_maintenance_purge,
 )
+from ..version_info import get_installed_version, get_upgrade_available, save_staging_manifest
 from ..mail import test_smtp_connection
 from ..settings_store import SettingsStore
 
@@ -684,6 +685,47 @@ def admin_ops_readiness(
 ):
     require_admin(user)
     return get_prod_readiness(settings, db)
+
+
+@router.get("/ops/version")
+def admin_ops_version(
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    return get_installed_version(settings)
+
+
+@router.get("/ops/upgrade/available")
+def admin_ops_upgrade_available(
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    return get_upgrade_available(settings)
+
+
+class StagingManifestBody(BaseModel):
+    model_config = {"extra": "allow"}
+
+    version: str = Field(min_length=1)
+    product: str | None = "SecuriPDF"
+
+
+@router.put("/ops/upgrade/staging")
+def admin_ops_upgrade_staging(
+    body: StagingManifestBody,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    manifest = body.model_dump()
+    try:
+        path = save_staging_manifest(settings, manifest)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    write_audit(settings, user.user_id, "admin.upgrade.staging", body.version, {"path": str(path)})
+    return {"ok": True, "path": str(path), "manifest": manifest}
 
 
 @router.get("/ops/backups")
