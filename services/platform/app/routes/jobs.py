@@ -175,6 +175,11 @@ async def submit_job(
         except (json.JSONDecodeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="bookmarkData geçerli bir JSON dizisi olmalıdır") from exc
 
+    if tool_id == "merge-pdfs":
+        merge_count = sum(1 for field, _, _, _ in files if field == "fileInput")
+        if merge_count < 2:
+            raise HTTPException(status_code=400, detail="Birlestirmek icin en az 2 PDF gerekli")
+
     if tool_id == "compare":
         fields = {field for field, _, _, _ in files}
         if "fileInput1" not in fields or "fileInput2" not in fields:

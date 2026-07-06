@@ -52,10 +52,20 @@ def _encode_form_data(form_data: dict) -> dict[str, str | list[str]] | None:
 
 def _encode_stirling_files(
     files: list[tuple[str, tuple[str | None, bytes, str | None]]],
-) -> dict[str, tuple[str, bytes, str]]:
-    out: dict[str, tuple[str, bytes, str]] = {}
+) -> list[tuple[str, tuple[str, bytes, str]]]:
+    """httpx listesi — ayni alan adinda birden fazla dosya (merge-pdfs vb.)."""
+    out: list[tuple[str, tuple[str, bytes, str]]] = []
     for field, (filename, content, content_type) in files:
-        out[field] = (filename or "input.bin", content, content_type or "application/octet-stream")
+        out.append(
+            (
+                field,
+                (
+                    filename or "input.bin",
+                    content,
+                    content_type or "application/octet-stream",
+                ),
+            )
+        )
     return out
 
 
@@ -334,6 +344,7 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
 
     files: list[tuple[str, tuple[str | None, bytes, str | None]]] = []
     field_ref: dict[str, str] = {}
+    input_labels = load_labels(settings, row.user_id, input_refs)
     for ref_id in input_refs:
         meta_file = inputs_dir / f"{ref_id}.meta"
         bin_file = inputs_dir / f"{ref_id}.bin"
@@ -347,7 +358,8 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         content = decrypt_bytes(settings, bin_file.read_bytes())
         field = file_meta.get("field", "fileInput")
         ctype = file_meta.get("contentType") or "application/octet-stream"
-        files.append((field, (f"{ref_id}.bin", content, ctype)))
+        orig_name = input_labels.get(ref_id) or f"{ref_id}.bin"
+        files.append((field, (orig_name, content, ctype)))
         field_ref[str(field)] = ref_id
 
     row.progress = 25

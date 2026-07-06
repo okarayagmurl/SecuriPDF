@@ -3771,6 +3771,13 @@
         return;
       }
     }
+    if (state.currentTool.id === 'merge-pdfs') {
+      var mergeInput = form.querySelector('[name="fileInput"]');
+      if (!mergeInput || !mergeInput.files || mergeInput.files.length < 2) {
+        setToolStatus('Birleştirmek için en az 2 PDF seçin.', false);
+        return;
+      }
+    }
     if (state.currentTool.id === 'compare') {
       var cmp1 = form.querySelector('[name="fileInput1"]');
       var cmp2 = form.querySelector('[name="fileInput2"]');

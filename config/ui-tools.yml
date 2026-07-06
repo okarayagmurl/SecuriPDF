@@ -15,11 +15,13 @@ tools:
     apiPath: /api/v1/general/merge-pdfs
     inputs:
       - name: fileInput
-        label: PDF dosyaları
+        label: PDF dosyaları seç
         type: file
         multiple: true
         accept: .pdf,application/pdf
         required: true
+        sectionTitle: Dosyalar
+        showSelection: true
 
   - id: split-pages
     title: PDF Böl
@@ -615,6 +617,7 @@ tools:
         accept: .jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp,image/*
         required: true
         sectionTitle: Dosyalar
+        showSelection: true
       - name: fitOption
         label: Sayfaya sığdırma
         type: select
@@ -844,6 +847,7 @@ tools:
         accept: .pdf,application/pdf
         multiple: true
         required: true
+        showSelection: true
       - name: overlayMode
         label: Katman modu
         type: select
@@ -1487,6 +1491,7 @@ tools:
         type: file
         multiple: true
         required: true
+        showSelection: true
       - name: convertToPdfA3b
         label: PDF/A-3b
         type: checkbox
