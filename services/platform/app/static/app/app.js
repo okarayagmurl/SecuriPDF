@@ -3382,6 +3382,158 @@
     });
   }
 
+  function appendPageSelectionInput(form, input) {
+    var SP = window.SecuriPages;
+    var body = input.sectionTitle ? appendToolSection(form, input.sectionTitle) : form;
+    var wrap = document.createElement('div');
+    wrap.className = 'convert-field page-selection-field';
+
+    var lbl = document.createElement('span');
+    lbl.className = 'field-label';
+    lbl.textContent = input.label || input.name;
+    wrap.appendChild(lbl);
+
+    var textEl = document.createElement('input');
+    textEl.type = 'text';
+    textEl.className = 'split-text-input page-selection-input';
+    textEl.name = input.name;
+    textEl.setAttribute('data-page-selection', 'true');
+    if (input.placeholder) textEl.placeholder = input.placeholder;
+    if (input.default != null) textEl.value = String(input.default);
+    if (input.required) textEl.required = true;
+    wrap.appendChild(textEl);
+
+    var boundHint = document.createElement('p');
+    boundHint.className = 'compress-level-hint page-selection-bound-hint';
+    boundHint.textContent = input.hint || 'Virgül ve aralık: 1,3,5-7';
+    wrap.appendChild(boundHint);
+
+    var errHint = document.createElement('p');
+    errHint.className = 'compress-level-hint page-selection-err';
+    errHint.hidden = true;
+    wrap.appendChild(errHint);
+
+    var picker = document.createElement('div');
+    picker.className = 'page-selection-picker';
+    picker.hidden = true;
+    wrap.appendChild(picker);
+
+    form._pageSelectionFields = form._pageSelectionFields || [];
+    form._pageSelectionFields.push({
+      name: input.name,
+      allowAll: !!input.allowAll,
+      minKeep: input.minKeep != null ? Number(input.minKeep) : 0
+    });
+
+    var syncing = false;
+
+    function selectionOptions() {
+      var cfg = form._pageSelectionFields.find(function (f) { return f.name === input.name; }) || {};
+      return {
+        maxPages: form._pdfFileMeta && form._pdfFileMeta.pageCount,
+        allowAll: cfg.allowAll,
+        minKeep: cfg.minKeep
+      };
+    }
+
+    function refreshBoundHint() {
+      var maxPages = form._pdfFileMeta && form._pdfFileMeta.pageCount;
+      if (maxPages) {
+        boundHint.textContent = 'Belge ' + formatPageCount(maxPages) +
+          '. Toplu seçim: virgül ve aralık (örn. 2,4 veya 1-' + Math.min(3, maxPages) + ').';
+        if (input.minKeep > 0) {
+          boundHint.textContent += ' En fazla ' + (maxPages - input.minKeep) + ' sayfa silebilirsiniz.';
+        }
+      } else if (input.hint) {
+        boundHint.textContent = input.hint;
+      }
+    }
+
+    function renderPicker() {
+      var maxPages = form._pdfFileMeta && form._pdfFileMeta.pageCount;
+      picker.innerHTML = '';
+      if (!maxPages || maxPages > 24) {
+        picker.hidden = true;
+        return;
+      }
+      picker.hidden = false;
+      var parsed = SP ? SP.parse(textEl.value, maxPages, !!input.allowAll) : { pages: [] };
+      var selected = {};
+      if (parsed.pages) {
+        parsed.pages.forEach(function (p) { selected[p] = true; });
+      }
+      for (var p = 1; p <= maxPages; p++) {
+        (function (pageNum) {
+          var lab = document.createElement('label');
+          lab.className = 'check-option page-pick-chip';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = !!selected[pageNum];
+          cb.addEventListener('change', function () {
+            if (syncing || !SP) return;
+            var next = [];
+            picker.querySelectorAll('input[type="checkbox"]').forEach(function (box, idx) {
+              if (box.checked) next.push(idx + 1);
+            });
+            syncing = true;
+            textEl.value = SP.formatList(next);
+            syncing = false;
+            validateLive();
+          });
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(' ' + pageNum));
+          picker.appendChild(lab);
+        })(p);
+      }
+    }
+
+    function syncPickerFromText() {
+      if (syncing || !SP) return;
+      var maxPages = form._pdfFileMeta && form._pdfFileMeta.pageCount;
+      if (!maxPages || maxPages > 24) return;
+      var parsed = SP.parse(textEl.value, maxPages, !!input.allowAll);
+      syncing = true;
+      var selected = {};
+      if (parsed.pages) {
+        parsed.pages.forEach(function (n) { selected[n] = true; });
+      }
+      picker.querySelectorAll('input[type="checkbox"]').forEach(function (box, idx) {
+        box.checked = !!selected[idx + 1];
+      });
+      syncing = false;
+    }
+
+    function validateLive() {
+      if (!SP) return;
+      var err = SP.validate(textEl.value, selectionOptions());
+      if (err) {
+        errHint.textContent = err;
+        errHint.hidden = false;
+        textEl.setAttribute('aria-invalid', 'true');
+      } else {
+        errHint.hidden = true;
+        textEl.removeAttribute('aria-invalid');
+      }
+    }
+
+    textEl.addEventListener('input', function () {
+      validateLive();
+      syncPickerFromText();
+    });
+
+    var prevRefresh = form._refreshPdfPageMeta;
+    form._refreshPdfPageMeta = function () {
+      if (typeof prevRefresh === 'function') prevRefresh();
+      refreshBoundHint();
+      renderPicker();
+      syncPickerFromText();
+      validateLive();
+    };
+
+    body.appendChild(wrap);
+    refreshBoundHint();
+  }
+
   function appendGenericField(form, input) {
     var body = input.sectionTitle ? appendToolSection(form, input.sectionTitle) : form;
     var wrap = document.createElement('div');
@@ -3498,6 +3650,10 @@
       appendCertSignInput(form);
       return;
     }
+    if (input.type === 'pageSelection') {
+      appendPageSelectionInput(form, input);
+      return;
+    }
     if (input.type === 'file') {
       appendFileInput(form, input);
       return;
@@ -3539,6 +3695,7 @@
       form._redactCleanup = null;
     }
     form.innerHTML = '';
+    form._pageSelectionFields = [];
     (tool.inputs || []).forEach(function (input) { appendToolInput(form, input); });
     appendOutputOptions(form);
     var submit = document.createElement('button');
@@ -3648,6 +3805,22 @@
     if (!doDownload && !doSave) {
       setToolStatus('En az bir çıktı seçeneği işaretleyin.', false);
       return;
+    }
+    if (form._pageSelectionFields && window.SecuriPages) {
+      for (var psi = 0; psi < form._pageSelectionFields.length; psi++) {
+        var pCfg = form._pageSelectionFields[psi];
+        var pEl = form.querySelector('[name="' + pCfg.name + '"]');
+        if (!pEl) continue;
+        var pErr = window.SecuriPages.validate(pEl.value, {
+          maxPages: form._pdfFileMeta && form._pdfFileMeta.pageCount,
+          allowAll: pCfg.allowAll,
+          minKeep: pCfg.minKeep
+        });
+        if (pErr) {
+          setToolStatus(pErr, false);
+          return;
+        }
+      }
     }
     if (state.currentTool.id === 'compress-pdf') {
       var visibleSize = form.querySelector('.compress-size-input');

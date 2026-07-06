@@ -91,6 +91,11 @@
     if (mode.id === 'byPages') {
       var pages = ((form.querySelector('[name="pageNumbers"]') || {}).value || '').trim();
       if (!pages) return 'Sayfa numaraları girin (örn. 1,5,10).';
+      if (global.SecuriPages) {
+        var maxP = form._pdfFileMeta && form._pdfFileMeta.pageCount;
+        var pErr = global.SecuriPages.validate(pages, { maxPages: maxP, allowAll: false, minKeep: 0 });
+        if (pErr) return pErr;
+      }
     }
     if (mode.id === 'byChapters') {
       var lvl = form.querySelector('[name="bookmarkLevel"]');

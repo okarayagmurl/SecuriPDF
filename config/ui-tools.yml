@@ -264,10 +264,11 @@ tools:
         showSelection: true
       - name: pageNumbers
         label: Silinecek sayfalar
-        type: text
+        type: pageSelection
         required: true
-        placeholder: "örn. 2,5,8-10"
-        hint: "Sayfa seçim sözdizimi: virgülle ayrılmış numaralar ve aralıklar (1,3,5-9)."
+        minKeep: 1
+        placeholder: "örn. 2,4 veya 1-3"
+        hint: "Virgülle ayrılmış numaralar ve aralıklar (1,3,5-7). Aşağıdan tıklayarak da seçebilirsiniz."
 
   - id: extract-pages
     title: Sayfa Çıkar
@@ -285,9 +286,9 @@ tools:
         showSelection: true
       - name: pageNumbers
         label: Çıkarılacak sayfalar
-        type: text
+        type: pageSelection
         required: true
-        placeholder: "örn. 1-5, 10, 15-20"
+        placeholder: "örn. 1-5, 10"
         hint: "Çıkarılacak sayfaları virgül veya aralık olarak girin."
 
   - id: rearrange-pages
