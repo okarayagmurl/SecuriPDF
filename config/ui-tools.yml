@@ -307,33 +307,9 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: customMode
-        label: Sıralama modu
-        type: select
-        default: CUSTOM
-        options:
-          - value: CUSTOM
-            label: Özel sıra (aşağıdaki alan)
-          - value: REVERSE_ORDER
-            label: Ters çevir
-          - value: DUPLEX_SORT
-            label: Dubleks tarama sırası
-          - value: BOOKLET_SORT
-            label: Kitapçık baskısı
-          - value: ODD_EVEN_SPLIT
-            label: Tek / çift ayır
-          - value: ODD_EVEN_MERGE
-            label: Tek / çift birleştir
-          - value: REMOVE_FIRST
-            label: İlk sayfayı kaldır
-          - value: REMOVE_LAST
-            label: Son sayfayı kaldır
-      - name: pageNumbers
-        label: Yeni sayfa sırası
-        type: text
-        default: all
-        placeholder: "örn. 3,1,2,5,4"
-        hint: "CUSTOM modunda yeni sırayı girin; diğer modlarda genelde all yeterlidir."
+      - name: rearrangeSettings
+        type: rearrange
+        sectionTitle: Sıralama
 
   - id: scale-pages
     title: Sayfa Ölçekle

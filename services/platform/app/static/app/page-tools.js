@@ -125,12 +125,63 @@
     return out;
   }
 
+  function identityOrder(maxPages) {
+    var out = [];
+    for (var p = 1; p <= maxPages; p++) out.push(p);
+    return out;
+  }
+
+  function orderToCsv(order) {
+    return (order || []).join(',');
+  }
+
+  function csvToOrder(raw, maxPages) {
+    var parsed = parse(raw, maxPages, false);
+    if (parsed.error) return { error: parsed.error };
+    var pages = parsed.pages;
+    if (!maxPages) return { error: 'Sayfa sayısı bilinmiyor.' };
+    if (pages.length !== maxPages) {
+      return { error: 'Özel sırada tam ' + maxPages + ' sayfa (her biri bir kez) olmalı.' };
+    }
+    var seen = {};
+    for (var i = 0; i < pages.length; i++) {
+      if (seen[pages[i]]) {
+        return { error: 'Sayfa ' + pages[i] + ' yinelenemez.' };
+      }
+      seen[pages[i]] = true;
+    }
+    return { order: pages };
+  }
+
+  function validateOrder(order, maxPages) {
+    if (!maxPages) {
+      return 'Sayfa sayısı okunamadı — PDF dosyasını seçin.';
+    }
+    if (!order || order.length !== maxPages) {
+      return 'Tüm ' + maxPages + ' sayfa yeni sırada bir kez yer almalı.';
+    }
+    var seen = {};
+    for (var i = 0; i < order.length; i++) {
+      var p = order[i];
+      if (p < 1 || p > maxPages) {
+        return 'Geçersiz sayfa numarası: ' + p + ' (belge ' + maxPages + ' sayfa).';
+      }
+      if (seen[p]) return 'Sayfa ' + p + ' yalnızca bir kez kullanılabilir.';
+      seen[p] = true;
+    }
+    return '';
+  }
+
   global.SecuriPages = {
     parse: parse,
     formatList: formatList,
     validate: validate,
     modeLabels: modeLabels,
     pagesMatching: pagesMatching,
+    identityOrder: identityOrder,
+    orderToCsv: orderToCsv,
+    csvToOrder: csvToOrder,
+    validateOrder: validateOrder,
     MAX_VISUAL: 120
   };
 })(typeof window !== 'undefined' ? window : this);

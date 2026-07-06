@@ -3675,6 +3675,313 @@
     renderVisualPicker();
   }
 
+  function appendRearrangeInput(form, input) {
+    var SR = window.SecuriRearrange;
+    var SP = window.SecuriPages;
+    var modes = SR ? SR.MODES : [{ value: 'CUSTOM', label: 'Özel sıra', desc: '' }];
+    var body = appendToolSection(form, (input && input.sectionTitle) || 'Sıralama');
+    var wrap = document.createElement('div');
+    wrap.className = 'convert-field rearrange-field';
+
+    var modeLbl = document.createElement('span');
+    modeLbl.className = 'field-label';
+    modeLbl.textContent = 'Sıralama modu';
+    wrap.appendChild(modeLbl);
+
+    var modeSel = document.createElement('select');
+    modeSel.className = 'convert-format-select';
+    modeSel.name = 'customMode';
+    modes.forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m.value;
+      o.textContent = m.label;
+      if (m.value === 'CUSTOM') o.selected = true;
+      modeSel.appendChild(o);
+    });
+    wrap.appendChild(modeSel);
+
+    var modeDesc = document.createElement('p');
+    modeDesc.className = 'compress-level-hint rearrange-mode-desc';
+    wrap.appendChild(modeDesc);
+
+    var pageNumbersEl = document.createElement('input');
+    pageNumbersEl.type = 'hidden';
+    pageNumbersEl.name = 'pageNumbers';
+    pageNumbersEl.value = 'all';
+    wrap.appendChild(pageNumbersEl);
+
+    var customPanel = document.createElement('div');
+    customPanel.className = 'rearrange-custom-panel';
+    wrap.appendChild(customPanel);
+
+    var waitHint = document.createElement('p');
+    waitHint.className = 'compress-level-hint rearrange-wait';
+    waitHint.textContent = 'Özel sıra için önce PDF seçin.';
+    customPanel.appendChild(waitHint);
+
+    var explain = document.createElement('p');
+    explain.className = 'rearrange-explain';
+    explain.innerHTML =
+      '<strong>Soldan sağa = yeni belge sırası.</strong> Her kutuda <em>orijinal</em> sayfa numarası yazar. ' +
+      'Örnek: <code>3, 1, 2</code> → yeni 1. sayfa eski 3, yeni 2. sayfa eski 1.';
+    customPanel.appendChild(explain);
+
+    var flowPreview = document.createElement('div');
+    flowPreview.className = 'rearrange-flow-preview';
+    customPanel.appendChild(flowPreview);
+
+    var toolbar = document.createElement('div');
+    toolbar.className = 'rearrange-toolbar';
+    customPanel.appendChild(toolbar);
+
+    var orderList = document.createElement('div');
+    orderList.className = 'rearrange-order-list';
+    customPanel.appendChild(orderList);
+
+    var errHint = document.createElement('p');
+    errHint.className = 'compress-level-hint page-selection-err rearrange-err';
+    errHint.hidden = true;
+    customPanel.appendChild(errHint);
+
+    var advanced = document.createElement('details');
+    advanced.className = 'page-selection-advanced rearrange-advanced';
+    advanced.innerHTML = '<summary>Gelişmiş: sayfa numaralarını yaz</summary>';
+    var advBody = document.createElement('div');
+    advBody.className = 'page-selection-advanced-body';
+    var manualInput = document.createElement('input');
+    manualInput.type = 'text';
+    manualInput.className = 'split-text-input';
+    manualInput.placeholder = 'örn. 3,1,2,4';
+    advBody.appendChild(manualInput);
+    var advHint = document.createElement('p');
+    advHint.className = 'compress-level-hint';
+    advHint.textContent = 'Virgülle ayırın. Her değer orijinal PDF\'ten bir sayfa; sıra = yeni çıktı sırası.';
+    advBody.appendChild(advHint);
+    advanced.appendChild(advBody);
+    customPanel.appendChild(advanced);
+
+    var order = [];
+    var dragFrom = -1;
+    var maxVisual = SP ? SP.MAX_VISUAL : 120;
+
+    function getMaxPages() {
+      return form._pdfFileMeta && form._pdfFileMeta.pageCount;
+    }
+
+    function updateModeDesc() {
+      var m = SR ? SR.getMode(modeSel.value) : null;
+      modeDesc.textContent = m ? m.desc : '';
+    }
+
+    function syncPageNumbersField() {
+      if (modeSel.value !== 'CUSTOM') {
+        pageNumbersEl.value = 'all';
+        return;
+      }
+      pageNumbersEl.value = SP ? SP.orderToCsv(order) : order.join(',');
+      if (manualInput.value !== pageNumbersEl.value) {
+        manualInput.value = pageNumbersEl.value;
+      }
+    }
+
+    function updateFlowPreview() {
+      var maxPages = getMaxPages();
+      if (!maxPages || modeSel.value !== 'CUSTOM' || !order.length) {
+        flowPreview.textContent = '';
+        return;
+      }
+      var parts = order.map(function (orig, idx) {
+        return (idx + 1) + '←' + orig;
+      });
+      flowPreview.textContent = 'Yeni sıra: ' + parts.join('  ·  ');
+    }
+
+    function validateCustom() {
+      if (modeSel.value !== 'CUSTOM') {
+        errHint.hidden = true;
+        return true;
+      }
+      var maxPages = getMaxPages();
+      if (!SP) return false;
+      var err = SP.validateOrder(order, maxPages);
+      if (err) {
+        errHint.textContent = err;
+        errHint.hidden = false;
+        return false;
+      }
+      errHint.hidden = true;
+      return true;
+    }
+
+    function renderOrderList() {
+      var maxPages = getMaxPages();
+      waitHint.hidden = !!maxPages;
+      orderList.innerHTML = '';
+      toolbar.innerHTML = '';
+      if (!maxPages) {
+        order = [];
+        syncPageNumbersField();
+        updateFlowPreview();
+        return;
+      }
+      if (order.length !== maxPages) {
+        order = SP ? SP.identityOrder(maxPages) : [];
+      }
+      if (maxPages > maxVisual) {
+        orderList.innerHTML = '<p class="hint">' + maxPages + ' sayfa — sürükle-bırak için en fazla ' +
+          maxVisual + ' sayfa. Gelişmiş alanı kullanın.</p>';
+        advanced.open = true;
+        syncPageNumbersField();
+        updateFlowPreview();
+        validateCustom();
+        return;
+      }
+
+      var resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'btn btn-secondary btn-sm';
+      resetBtn.textContent = 'Orijinal sıra (1,2,3…)';
+      resetBtn.addEventListener('click', function () {
+        order = SP ? SP.identityOrder(maxPages) : [];
+        renderOrderList();
+      });
+      var revBtn = document.createElement('button');
+      revBtn.type = 'button';
+      revBtn.className = 'btn btn-secondary btn-sm';
+      revBtn.textContent = 'Ters çevir';
+      revBtn.addEventListener('click', function () {
+        order = order.slice().reverse();
+        renderOrderList();
+      });
+      toolbar.appendChild(resetBtn);
+      toolbar.appendChild(revBtn);
+
+      order.forEach(function (origPage, idx) {
+        var item = document.createElement('div');
+        item.className = 'rearrange-order-item';
+        item.setAttribute('draggable', 'true');
+        item.setAttribute('data-idx', String(idx));
+
+        var pos = document.createElement('span');
+        pos.className = 'rearrange-pos';
+        pos.textContent = String(idx + 1);
+        item.appendChild(pos);
+
+        var num = document.createElement('span');
+        num.className = 'rearrange-orig';
+        num.textContent = 'Sayfa ' + origPage;
+        item.appendChild(num);
+
+        var moves = document.createElement('div');
+        moves.className = 'rearrange-moves';
+        if (idx > 0) {
+          var up = document.createElement('button');
+          up.type = 'button';
+          up.className = 'rearrange-nudge';
+          up.title = 'Sola taşı';
+          up.textContent = '‹';
+          up.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var t = order[idx];
+            order[idx] = order[idx - 1];
+            order[idx - 1] = t;
+            renderOrderList();
+          });
+          moves.appendChild(up);
+        }
+        if (idx < order.length - 1) {
+          var down = document.createElement('button');
+          down.type = 'button';
+          down.className = 'rearrange-nudge';
+          down.title = 'Sağa taşı';
+          down.textContent = '›';
+          down.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var t = order[idx];
+            order[idx] = order[idx + 1];
+            order[idx + 1] = t;
+            renderOrderList();
+          });
+          moves.appendChild(down);
+        }
+        item.appendChild(moves);
+
+        item.addEventListener('dragstart', function (e) {
+          dragFrom = idx;
+          item.classList.add('is-dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', function () {
+          dragFrom = -1;
+          item.classList.remove('is-dragging');
+        });
+        item.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        });
+        item.addEventListener('drop', function (e) {
+          e.preventDefault();
+          var toIdx = idx;
+          if (dragFrom < 0 || dragFrom === toIdx) return;
+          var moved = order.splice(dragFrom, 1)[0];
+          order.splice(toIdx, 0, moved);
+          renderOrderList();
+        });
+
+        orderList.appendChild(item);
+      });
+
+      syncPageNumbersField();
+      updateFlowPreview();
+      validateCustom();
+    }
+
+    function toggleCustomPanel() {
+      var isCustom = modeSel.value === 'CUSTOM';
+      customPanel.hidden = !isCustom;
+      if (!isCustom) {
+        pageNumbersEl.value = 'all';
+        errHint.hidden = true;
+      } else {
+        renderOrderList();
+      }
+    }
+
+    modeSel.addEventListener('change', function () {
+      updateModeDesc();
+      toggleCustomPanel();
+    });
+
+    manualInput.addEventListener('input', function () {
+      if (modeSel.value !== 'CUSTOM' || !SP) return;
+      var maxPages = getMaxPages();
+      if (!maxPages) return;
+      var parsed = SP.csvToOrder(manualInput.value, maxPages);
+      if (parsed.order) {
+        order = parsed.order;
+        renderOrderList();
+      } else {
+        pageNumbersEl.value = manualInput.value;
+        validateCustom();
+      }
+    });
+
+    var prevRefresh = form._refreshPdfPageMeta;
+    form._refreshPdfPageMeta = function () {
+      if (typeof prevRefresh === 'function') prevRefresh();
+      if (modeSel.value === 'CUSTOM') renderOrderList();
+    };
+
+    form._validateRearrange = function () {
+      if (modeSel.value !== 'CUSTOM') return '';
+      return SP ? SP.validateOrder(order, getMaxPages()) : '';
+    };
+
+    body.appendChild(wrap);
+    updateModeDesc();
+    toggleCustomPanel();
+  }
+
   function appendGenericField(form, input) {
     var body = input.sectionTitle ? appendToolSection(form, input.sectionTitle) : form;
     var wrap = document.createElement('div');
@@ -3793,6 +4100,10 @@
     }
     if (input.type === 'pageSelection') {
       appendPageSelectionInput(form, input);
+      return;
+    }
+    if (input.type === 'rearrange') {
+      appendRearrangeInput(form, input);
       return;
     }
     if (input.type === 'file') {
@@ -4090,6 +4401,23 @@
       if (!mergeInput || !mergeInput.files || mergeInput.files.length < 2) {
         setToolStatus('Birleştirmek için en az 2 PDF seçin.', false);
         return;
+      }
+    }
+    if (state.currentTool.id === 'rearrange-pages') {
+      if (typeof form._validateRearrange === 'function') {
+        var rearrErr = form._validateRearrange();
+        if (rearrErr) {
+          setToolStatus(rearrErr, false);
+          return;
+        }
+      }
+      var cm = (form.querySelector('[name="customMode"]') || {}).value;
+      if (cm === 'CUSTOM') {
+        var pn = ((form.querySelector('[name="pageNumbers"]') || {}).value || '').trim();
+        if (!pn) {
+          setToolStatus('Özel sıra için sayfa düzenini belirleyin.', false);
+          return;
+        }
       }
     }
     if (state.currentTool.id === 'compare') {
