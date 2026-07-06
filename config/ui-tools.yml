@@ -365,39 +365,9 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: position
-        label: Konum
-        type: select
-        default: "8"
-        options:
-          - value: "1"
-            label: Üst sol
-          - value: "2"
-            label: Üst orta
-          - value: "3"
-            label: Üst sağ
-          - value: "7"
-            label: Alt sol
-          - value: "8"
-            label: Alt orta
-          - value: "9"
-            label: Alt sağ
-      - name: startingNumber
-        label: Başlangıç numarası
-        type: number
-        default: 1
-        min: 1
-      - name: fontSize
-        label: Yazı boyutu
-        type: number
-        default: 12
-        min: 6
-        max: 72
-      - name: pagesToNumber
-        label: Numaralandırılacak sayfalar
-        type: text
-        default: all
-        placeholder: all veya 1,3,5-9
+      - name: pageNumberSettings
+        type: addPageNumbers
+        sectionTitle: Numaralandırma
 
   - id: flatten
     title: Düzleştir

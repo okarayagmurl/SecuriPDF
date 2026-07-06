@@ -1542,6 +1542,12 @@ body {
   background: #eff6ff;
 }
 
+.page-selection-mode-number .page-legend-swatch.is-selected,
+.page-selection-mode-add-page-numbers .page-legend-swatch.is-selected {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
 .page-selection-toolbar {
   display: flex;
   flex-direction: column;
@@ -1624,6 +1630,116 @@ body {
 .page-tile.is-selected.is-pick {
   border-color: var(--accent, #0ea5e9);
   background: #e0f2fe;
+}
+
+.page-tile.is-selected.is-number {
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.pn-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.pn-position-panel {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.pn-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.pn-pos-btn {
+  padding: 0.45rem 0.35rem;
+  font-size: 0.78rem;
+  border: 2px solid var(--border, #cbd5e1);
+  border-radius: 0.35rem;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.25;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.pn-pos-btn:hover {
+  border-color: #94a3b8;
+}
+
+.pn-pos-btn.is-active {
+  border-color: #059669;
+  background: #ecfdf5;
+  font-weight: 600;
+}
+
+.pn-preview-panel {
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.pn-preview-page {
+  position: relative;
+  width: 7.5rem;
+  height: 10.5rem;
+  margin: 0 auto;
+  border: 2px solid var(--border, #94a3b8);
+  border-radius: 0.25rem;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.pn-preview-num {
+  position: absolute;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.pn-preview-num.pn-pos-1 { top: 6%; left: 8%; }
+.pn-preview-num.pn-pos-2 { top: 6%; left: 50%; transform: translateX(-50%); }
+.pn-preview-num.pn-pos-3 { top: 6%; right: 8%; }
+.pn-preview-num.pn-pos-7 { bottom: 6%; left: 8%; }
+.pn-preview-num.pn-pos-8 { bottom: 6%; left: 50%; transform: translateX(-50%); }
+.pn-preview-num.pn-pos-9 { bottom: 6%; right: 8%; }
+
+.pn-options-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.pn-opt-field {
+  margin: 0;
+}
+
+.pn-scope-section {
+  margin-top: 0.35rem;
+}
+
+.pn-all-pages {
+  display: block;
+  margin: 0.35rem 0 0.5rem;
+}
+
+.pn-scope-summary {
+  margin: 0.35rem 0;
+}
+
+.pn-scope-grid {
+  margin-top: 0.35rem;
+}
+
+.pn-scope-manual {
+  margin-top: 0.35rem;
 }
 
 .page-selection-advanced {

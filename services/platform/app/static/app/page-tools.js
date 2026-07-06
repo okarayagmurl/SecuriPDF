@@ -108,6 +108,15 @@
         selectedClass: 'is-extract'
       };
     }
+    if (mode === 'number') {
+      return {
+        action: 'numaralandırılacak',
+        keep: 'numarasız kalacak',
+        pickHint: 'Numara eklenecek sayfalara tıklayın',
+        tileTitle: 'Sayfa {n}',
+        selectedClass: 'is-number'
+      };
+    }
     return {
       action: 'seçili',
       keep: 'dışarıda',

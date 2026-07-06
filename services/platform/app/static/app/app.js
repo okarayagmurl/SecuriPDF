@@ -3982,6 +3982,293 @@
     toggleCustomPanel();
   }
 
+  var PN_POSITIONS = [
+    { value: '1', label: 'Üst sol', posClass: 'pn-pos-1' },
+    { value: '2', label: 'Üst orta', posClass: 'pn-pos-2' },
+    { value: '3', label: 'Üst sağ', posClass: 'pn-pos-3' },
+    { value: '7', label: 'Alt sol', posClass: 'pn-pos-7' },
+    { value: '8', label: 'Alt orta', posClass: 'pn-pos-8' },
+    { value: '9', label: 'Alt sağ', posClass: 'pn-pos-9' }
+  ];
+
+  function appendAddPageNumbersInput(form, input) {
+    var SP = window.SecuriPages;
+    var labels = SP ? SP.modeLabels('number') : { selectedClass: 'is-number' };
+    var body = appendToolSection(form, (input && input.sectionTitle) || 'Numaralandırma');
+    var wrap = document.createElement('div');
+    wrap.className = 'convert-field add-page-numbers-field';
+
+    var layout = document.createElement('div');
+    layout.className = 'pn-layout';
+
+    var posPanel = document.createElement('div');
+    posPanel.className = 'pn-position-panel';
+    posPanel.innerHTML = '<span class="field-label">Numara konumu</span>';
+    var posGrid = document.createElement('div');
+    posGrid.className = 'pn-position-grid';
+    posPanel.appendChild(posGrid);
+
+    var previewPanel = document.createElement('div');
+    previewPanel.className = 'pn-preview-panel';
+    var previewPage = document.createElement('div');
+    previewPage.className = 'pn-preview-page';
+    var previewNum = document.createElement('span');
+    previewNum.className = 'pn-preview-num pn-pos-8';
+    previewNum.textContent = '1';
+    previewPage.appendChild(previewNum);
+    previewPanel.appendChild(previewPage);
+    var previewHint = document.createElement('p');
+    previewHint.className = 'compress-level-hint';
+    previewHint.textContent = 'Önizleme — gerçek PDF\'teki konum yaklaşıktır.';
+    previewPanel.appendChild(previewHint);
+
+    layout.appendChild(posPanel);
+    layout.appendChild(previewPanel);
+    wrap.appendChild(layout);
+
+    var positionInput = document.createElement('input');
+    positionInput.type = 'hidden';
+    positionInput.name = 'position';
+    positionInput.value = '8';
+    wrap.appendChild(positionInput);
+
+    var optsRow = document.createElement('div');
+    optsRow.className = 'pn-options-row';
+
+    var startField = document.createElement('div');
+    startField.className = 'convert-field pn-opt-field';
+    startField.innerHTML = '<span class="field-label">Başlangıç numarası</span>';
+    var startIn = document.createElement('input');
+    startIn.type = 'number';
+    startIn.className = 'split-num-input';
+    startIn.name = 'startingNumber';
+    startIn.min = '1';
+    startIn.value = '1';
+    startField.appendChild(startIn);
+    var startHint = document.createElement('p');
+    startHint.className = 'compress-level-hint';
+    startHint.textContent = 'İlk numaralanan sayfa bu değerden başlar.';
+    startField.appendChild(startHint);
+    optsRow.appendChild(startField);
+
+    var fontField = document.createElement('div');
+    fontField.className = 'convert-field pn-opt-field';
+    fontField.innerHTML = '<span class="field-label">Yazı boyutu (pt)</span>';
+    var fontRow = document.createElement('div');
+    fontRow.className = 'compress-level-row';
+    var fontSlider = document.createElement('input');
+    fontSlider.type = 'range';
+    fontSlider.className = 'compress-slider';
+    fontSlider.min = '6';
+    fontSlider.max = '72';
+    fontSlider.step = '1';
+    fontSlider.value = '12';
+    var fontIn = document.createElement('input');
+    fontIn.type = 'number';
+    fontIn.className = 'compress-level-num';
+    fontIn.name = 'fontSize';
+    fontIn.min = '6';
+    fontIn.max = '72';
+    fontIn.value = '12';
+    fontRow.appendChild(fontSlider);
+    fontRow.appendChild(fontIn);
+    fontField.appendChild(fontRow);
+    optsRow.appendChild(fontField);
+    wrap.appendChild(optsRow);
+
+    var scopeSection = document.createElement('div');
+    scopeSection.className = 'pn-scope-section';
+    scopeSection.innerHTML = '<span class="field-label">Hangi sayfalar?</span>';
+    var allLabel = document.createElement('label');
+    allLabel.className = 'check-option pn-all-pages';
+    var allCb = document.createElement('input');
+    allCb.type = 'checkbox';
+    allCb.checked = true;
+    allLabel.appendChild(allCb);
+    allLabel.appendChild(document.createTextNode(' Tüm sayfalar'));
+    scopeSection.appendChild(allLabel);
+
+    var pagesToNumberIn = document.createElement('input');
+    pagesToNumberIn.type = 'hidden';
+    pagesToNumberIn.name = 'pagesToNumber';
+    pagesToNumberIn.value = 'all';
+    scopeSection.appendChild(pagesToNumberIn);
+
+    var manualWrap = document.createElement('div');
+    manualWrap.className = 'pn-scope-manual';
+    manualWrap.hidden = true;
+    var manualIn = document.createElement('input');
+    manualIn.type = 'text';
+    manualIn.className = 'split-text-input';
+    manualIn.placeholder = 'Örn. 1-5 veya 2,4,6';
+    manualWrap.appendChild(manualIn);
+    var manualHint = document.createElement('p');
+    manualHint.className = 'compress-level-hint';
+    manualHint.textContent = 'Virgül veya aralık ile yazın (1-3, 5, 8).';
+    manualWrap.appendChild(manualHint);
+    scopeSection.appendChild(manualWrap);
+
+    var scopeSummary = document.createElement('div');
+    scopeSummary.className = 'page-selection-summary pn-scope-summary';
+    scopeSummary.hidden = true;
+    scopeSection.appendChild(scopeSummary);
+
+    var scopeGrid = document.createElement('div');
+    scopeGrid.className = 'page-selection-grid pn-scope-grid';
+    scopeGrid.hidden = true;
+    scopeSection.appendChild(scopeGrid);
+
+    var scopeErr = document.createElement('p');
+    scopeErr.className = 'compress-level-hint page-selection-err';
+    scopeErr.hidden = true;
+    scopeSection.appendChild(scopeErr);
+
+    wrap.appendChild(scopeSection);
+    body.appendChild(wrap);
+
+    var selectedPos = '8';
+    var scopePages = [];
+
+    function getMaxPages() {
+      return form._pdfFileMeta && form._pdfFileMeta.pageCount;
+    }
+
+    function updatePreview() {
+      previewNum.textContent = String(startIn.value || '1');
+      previewNum.style.fontSize = Math.max(8, Math.min(24, Number(fontIn.value) || 12)) * 0.85 + 'px';
+      PN_POSITIONS.forEach(function (p) {
+        previewNum.classList.toggle(p.posClass, p.value === selectedPos);
+      });
+    }
+
+    function buildPositionGrid() {
+      posGrid.innerHTML = '';
+      PN_POSITIONS.forEach(function (p) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pn-pos-btn' + (p.value === selectedPos ? ' is-active' : '');
+        btn.textContent = p.label;
+        btn.addEventListener('click', function () {
+          selectedPos = p.value;
+          positionInput.value = p.value;
+          buildPositionGrid();
+          updatePreview();
+        });
+        posGrid.appendChild(btn);
+      });
+    }
+
+    function syncScopeField() {
+      if (allCb.checked) {
+        pagesToNumberIn.value = 'all';
+        scopeSummary.hidden = true;
+        scopeGrid.hidden = true;
+        manualWrap.hidden = true;
+        scopeErr.hidden = true;
+        return;
+      }
+      var maxPages = getMaxPages();
+      var useManual = maxPages && maxPages > (SP ? SP.MAX_VISUAL : 120);
+      if (useManual) {
+        pagesToNumberIn.value = manualIn.value.trim();
+      } else {
+        pagesToNumberIn.value = SP ? SP.formatList(scopePages) : scopePages.join(',');
+      }
+      if (maxPages) {
+        scopeSummary.hidden = false;
+        var nSel = useManual && SP
+          ? ((SP.parse(pagesToNumberIn.value, maxPages, false).pages) || []).length
+          : scopePages.length;
+        scopeSummary.innerHTML = '<span class="page-sum-action">' +
+          (nSel ? nSel + ' sayfa ' + labels.action : 'Sayfa seçin veya liste yazın') +
+          '</span><span class="page-sum-sep"> · </span><span class="page-sum-keep">' +
+          (maxPages - nSel) + ' sayfa ' + labels.keep + '</span>';
+      }
+    }
+
+    function renderScopeGrid() {
+      var maxPages = getMaxPages();
+      scopeGrid.innerHTML = '';
+      if (allCb.checked || !maxPages) {
+        manualWrap.hidden = true;
+        syncScopeField();
+        return;
+      }
+      var useManual = maxPages > (SP ? SP.MAX_VISUAL : 120);
+      scopeGrid.hidden = useManual;
+      manualWrap.hidden = !useManual;
+      if (useManual) {
+        scopeErr.hidden = true;
+        syncScopeField();
+        return;
+      }
+      scopeErr.hidden = true;
+      var selected = {};
+      scopePages.forEach(function (p) { selected[p] = true; });
+      for (var p = 1; p <= maxPages; p++) {
+        (function (pageNum) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'page-tile ' + labels.selectedClass + (selected[pageNum] ? ' is-selected' : '');
+          btn.innerHTML = '<span class="page-tile-num">' + pageNum + '</span>';
+          btn.addEventListener('click', function () {
+            var idx = scopePages.indexOf(pageNum);
+            if (idx >= 0) scopePages.splice(idx, 1);
+            else {
+              scopePages.push(pageNum);
+              scopePages.sort(function (a, b) { return a - b; });
+            }
+            renderScopeGrid();
+          });
+          scopeGrid.appendChild(btn);
+        })(p);
+      }
+      syncScopeField();
+    }
+
+    fontSlider.addEventListener('input', function () {
+      fontIn.value = fontSlider.value;
+      updatePreview();
+    });
+    fontIn.addEventListener('input', function () {
+      var v = Math.max(6, Math.min(72, Number(fontIn.value) || 12));
+      fontSlider.value = String(v);
+      updatePreview();
+    });
+    startIn.addEventListener('input', updatePreview);
+
+    allCb.addEventListener('change', function () {
+      if (allCb.checked) {
+        scopePages = [];
+        manualIn.value = '';
+      }
+      renderScopeGrid();
+    });
+
+    manualIn.addEventListener('input', function () {
+      syncScopeField();
+    });
+
+    var prevRefresh = form._refreshPdfPageMeta;
+    form._refreshPdfPageMeta = function () {
+      if (typeof prevRefresh === 'function') prevRefresh();
+      renderScopeGrid();
+    };
+
+    form._validateAddPageNumbers = function () {
+      if (allCb.checked) return '';
+      var maxPages = getMaxPages();
+      if (!maxPages) return 'Sayfa sayısı okunamadı — PDF seçin.';
+      var val = pagesToNumberIn.value.trim();
+      if (!val) return 'Numaralandırılacak en az bir sayfa seçin veya liste yazın.';
+      return SP ? SP.validate(val, { maxPages: maxPages, allowAll: false, minKeep: 0 }) : '';
+    };
+
+    buildPositionGrid();
+    updatePreview();
+    renderScopeGrid();
+  }
+
   function appendGenericField(form, input) {
     var body = input.sectionTitle ? appendToolSection(form, input.sectionTitle) : form;
     var wrap = document.createElement('div');
@@ -4104,6 +4391,10 @@
     }
     if (input.type === 'rearrange') {
       appendRearrangeInput(form, input);
+      return;
+    }
+    if (input.type === 'addPageNumbers') {
+      appendAddPageNumbersInput(form, input);
       return;
     }
     if (input.type === 'file') {
@@ -4416,6 +4707,15 @@
         var pn = ((form.querySelector('[name="pageNumbers"]') || {}).value || '').trim();
         if (!pn) {
           setToolStatus('Özel sıra için sayfa düzenini belirleyin.', false);
+          return;
+        }
+      }
+    }
+    if (state.currentTool.id === 'add-page-numbers') {
+      if (typeof form._validateAddPageNumbers === 'function') {
+        var pnErr = form._validateAddPageNumbers();
+        if (pnErr) {
+          setToolStatus(pnErr, false);
           return;
         }
       }
