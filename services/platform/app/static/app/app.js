@@ -1043,11 +1043,23 @@
     if (state.folderId) fd.append('folder_id', state.folderId);
     fetch(VAULT + '/documents', { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+        if (!r.ok) {
+          return r.text().then(function (t) {
+            var err = new Error(formatHttpError(t, r.status));
+            err.status = r.status;
+            throw err;
+          });
+        }
         return r.json();
       })
-        .then(function () { toast('Belge yüklendi'); loadDocuments(); })
-      .catch(function () { toast('Yükleme başarısız', true); });
+      .then(function () { toast('Belge yüklendi'); loadDocuments(); })
+      .catch(function (e) {
+        var msg = formatFetchError(e);
+        if (e && e.status === 500 && /latin-1|UnicodeEncodeError/i.test(msg)) {
+          msg = 'Belge kaydedilmiş olabilir; önizleme Türkçe dosya adında hata veriyor. Platform güncellemesi gerekli.';
+        }
+        toast(msg || 'Yükleme başarısız', true);
+      });
   }
 
   function createFolder() {

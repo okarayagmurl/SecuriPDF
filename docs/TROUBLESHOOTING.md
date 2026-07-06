@@ -343,6 +343,14 @@ API oturum gerektirir — tarayicidan `8080` uzerinden giris yapin; dogrudan cur
 
 ## Büyük Dosya Yükleme Hatası
 
+### Türkçe karakterli dosya adı — Internal Server Error (önizleme / indirme)
+
+**Belirti:** `UnicodeEncodeError: 'latin-1' codec can't encode character` — log'da `preview_document` veya `Content-Disposition`.
+
+**Neden:** Dosya adında `ı`, `ş`, `ğ` gibi karakterler varken HTTP başlığı latin-1 ile kodlanamıyor.
+
+**Çözüm:** Güncel platform image (RFC 5987 `filename*=UTF-8` desteği). Geçici: dosyayı ASCII adla yeniden yükleyin.
+
 Nginx ve Stirling limitlerini kontrol edin:
 
 - `CLIENT_MAX_BODY_SIZE=500M` (nginx)

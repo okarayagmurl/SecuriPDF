@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..audit import read_document_activity, write_audit
 from ..auth import AuthUser, decrypt_bytes, encrypt_bytes, get_current_user, new_id, require_admin
 from ..config import Settings, get_settings
+from ..http_util import content_disposition
 from ..job_queue import enqueue_email_job
 from ..mail import send_document_email
 from ..database import (
@@ -294,7 +295,16 @@ async def upload_document(
     quota = _quota(db, settings, user.user_id)
     quota.used_bytes += len(data)
     db.commit()
-    write_audit(settings, user.user_id, "document.upload", doc_id, {"documentRef": doc_id, "size": len(data), "scope": scope})
+    try:
+        write_audit(
+            settings,
+            user.user_id,
+            "document.upload",
+            doc_id,
+            {"documentRef": doc_id, "size": len(data), "scope": scope},
+        )
+    except OSError as exc:
+        print(f"[vault] audit yazilamadi (belge yuklendi): {exc}", flush=True)
     return {
         "id": row.id,
         "documentGuid": row.id,
@@ -348,7 +358,11 @@ def download_document(
     settings: Settings = Depends(get_settings),
 ):
     row, data = _load_user_document(doc_id, db, user, settings)
-    return Response(content=data, media_type=row.mime_type, headers={"Content-Disposition": f'attachment; filename="{row.name}"'})
+    return Response(
+        content=data,
+        media_type=row.mime_type,
+        headers={"Content-Disposition": content_disposition("attachment", row.name)},
+    )
 
 
 @router.get("/documents/{doc_id}/preview")
@@ -359,7 +373,11 @@ def preview_document(
     settings: Settings = Depends(get_settings),
 ):
     row, data = _load_user_document(doc_id, db, user, settings)
-    return Response(content=data, media_type=row.mime_type, headers={"Content-Disposition": f'inline; filename="{row.name}"'})
+    return Response(
+        content=data,
+        media_type=row.mime_type,
+        headers={"Content-Disposition": content_disposition("inline", row.name)},
+    )
 
 
 @router.post("/documents/{doc_id}/archive")

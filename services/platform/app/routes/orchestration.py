@@ -11,6 +11,7 @@ from ..audit import write_audit
 from ..auth import AuthUser, decrypt_bytes, get_current_user
 from ..config import Settings, get_settings
 from ..database import CertificateRecord, SignatureRecord, get_db
+from ..http_util import content_disposition
 from ..license import LicenseService
 
 router = APIRouter(prefix="/orchestration", tags=["orchestration"])
@@ -104,6 +105,6 @@ def certificate_for_stirling(
         media_type="application/x-pkcs12",
         headers={
             "X-SecuriPDF-Certificate-Id": cert_id,
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": content_disposition("attachment", filename),
         },
     )

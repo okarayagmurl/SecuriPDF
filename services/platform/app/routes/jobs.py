@@ -14,6 +14,7 @@ from ..document_store import store_document_bytes
 from ..job_queue import _job_dir, enqueue_tool_job
 from ..job_refs import load_labels
 
+from ..http_util import content_disposition
 from ..job_output import output_file_info
 
 router = APIRouter(tags=["jobs"])
@@ -268,7 +269,7 @@ def download_job_result(
     return Response(
         content=data,
         media_type=info["mime"],
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition("attachment", filename)},
     )
 
 
