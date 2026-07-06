@@ -4269,6 +4269,393 @@
     renderScopeGrid();
   }
 
+  function fetchPdfPageDimensions(file) {
+    var fd = new FormData();
+    fd.append('fileInput', file);
+    return fetch(APP + '/redaction/metadata', { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var pages = data && data.pages;
+        var first = pages && pages.length ? pages[0] : null;
+        if (!first) return null;
+        return {
+          pageCount: Number(data.pageCount) || pages.length,
+          width: Number(first.width) || 595,
+          height: Number(first.height) || 842
+        };
+      })
+      .catch(function () { return null; });
+  }
+
+  function appendCropInput(form, input) {
+    var SC = window.SecuriCrop;
+    var body = appendToolSection(form, (input && input.sectionTitle) || 'Kırpma alanı');
+    var wrap = document.createElement('div');
+    wrap.className = 'convert-field crop-field';
+
+    var emptyState = document.createElement('div');
+    emptyState.className = 'crop-empty-state';
+    emptyState.innerHTML = '<p class="compress-level-hint">Kırpma alanını ayarlamak için önce PDF seçin.</p>';
+    wrap.appendChild(emptyState);
+
+    var workspace = document.createElement('div');
+    workspace.className = 'crop-workspace';
+    workspace.hidden = true;
+
+    var presetRow = document.createElement('div');
+    presetRow.className = 'crop-preset-row';
+    [
+      { id: 'full', label: 'Tam sayfa' },
+      { id: 'margin5', label: '%5 kenar' },
+      { id: 'margin10', label: '%10 kenar' },
+      { id: 'center80', label: 'Ortala %80' }
+    ].forEach(function (p) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-secondary btn-sm crop-preset-btn';
+      btn.textContent = p.label;
+      btn.setAttribute('data-preset', p.id);
+      presetRow.appendChild(btn);
+    });
+    workspace.appendChild(presetRow);
+
+    var previewWrap = document.createElement('div');
+    previewWrap.className = 'crop-preview-wrap';
+    var pageSizeLbl = document.createElement('p');
+    pageSizeLbl.className = 'crop-page-size compress-level-hint';
+    pageSizeLbl.textContent = 'Sayfa boyutu: —';
+    previewWrap.appendChild(pageSizeLbl);
+
+    var stage = document.createElement('div');
+    stage.className = 'crop-preview-stage';
+    var pageEl = document.createElement('div');
+    pageEl.className = 'crop-preview-page';
+    var shadeTop = document.createElement('div');
+    shadeTop.className = 'crop-shade crop-shade-top';
+    var shadeRight = document.createElement('div');
+    shadeRight.className = 'crop-shade crop-shade-right';
+    var shadeBottom = document.createElement('div');
+    shadeBottom.className = 'crop-shade crop-shade-bottom';
+    var shadeLeft = document.createElement('div');
+    shadeLeft.className = 'crop-shade crop-shade-left';
+    var cropBox = document.createElement('div');
+    cropBox.className = 'crop-box';
+    cropBox.innerHTML =
+      '<span class="crop-handle crop-handle-nw" data-handle="nw"></span>' +
+      '<span class="crop-handle crop-handle-ne" data-handle="ne"></span>' +
+      '<span class="crop-handle crop-handle-sw" data-handle="sw"></span>' +
+      '<span class="crop-handle crop-handle-se" data-handle="se"></span>' +
+      '<span class="crop-handle crop-handle-n" data-handle="n"></span>' +
+      '<span class="crop-handle crop-handle-s" data-handle="s"></span>' +
+      '<span class="crop-handle crop-handle-w" data-handle="w"></span>' +
+      '<span class="crop-handle crop-handle-e" data-handle="e"></span>' +
+      '<span class="crop-box-label"></span>';
+    pageEl.appendChild(shadeTop);
+    pageEl.appendChild(shadeRight);
+    pageEl.appendChild(shadeBottom);
+    pageEl.appendChild(shadeLeft);
+    pageEl.appendChild(cropBox);
+    stage.appendChild(pageEl);
+    previewWrap.appendChild(stage);
+    var previewHint = document.createElement('p');
+    previewHint.className = 'compress-level-hint';
+    previewHint.textContent = 'Kırpma kutusunu sürükleyin veya köşelerden boyutlandırın. Koordinatlar pt cinsindendir (sol üst köşe).';
+    previewWrap.appendChild(previewHint);
+    workspace.appendChild(previewWrap);
+
+    var marginRow = document.createElement('div');
+    marginRow.className = 'crop-margin-row';
+    marginRow.innerHTML = '<span class="field-label">Kenar boşlukları (pt)</span>';
+    var marginGrid = document.createElement('div');
+    marginGrid.className = 'crop-margin-grid';
+    var marginFields = {};
+    [
+      { key: 'top', label: 'Üst' },
+      { key: 'right', label: 'Sağ' },
+      { key: 'bottom', label: 'Alt' },
+      { key: 'left', label: 'Sol' }
+    ].forEach(function (f) {
+      var cell = document.createElement('label');
+      cell.className = 'crop-margin-cell';
+      cell.innerHTML = '<span class="crop-margin-lbl">' + f.label + '</span>';
+      var inp = document.createElement('input');
+      inp.type = 'number';
+      inp.className = 'split-num-input crop-margin-input';
+      inp.min = '0';
+      inp.step = '1';
+      inp.value = '0';
+      inp.setAttribute('data-margin', f.key);
+      cell.appendChild(inp);
+      marginGrid.appendChild(cell);
+      marginFields[f.key] = inp;
+    });
+    marginRow.appendChild(marginGrid);
+    workspace.appendChild(marginRow);
+
+    var rectRow = document.createElement('div');
+    rectRow.className = 'crop-rect-row';
+    var rectFields = {};
+    [
+      { name: 'x', label: 'Sol (X)' },
+      { name: 'y', label: 'Üst (Y)' },
+      { name: 'width', label: 'Genişlik' },
+      { name: 'height', label: 'Yükseklik' }
+    ].forEach(function (f) {
+      var cell = document.createElement('label');
+      cell.className = 'crop-rect-cell';
+      cell.innerHTML = '<span class="field-label">' + f.label + '</span>';
+      var inp = document.createElement('input');
+      inp.type = 'number';
+      inp.className = 'split-num-input';
+      inp.name = f.name;
+      inp.min = f.name === 'x' || f.name === 'y' ? '0' : '1';
+      inp.step = '0.1';
+      cell.appendChild(inp);
+      rectRow.appendChild(cell);
+      rectFields[f.name] = inp;
+    });
+    workspace.appendChild(rectRow);
+
+    wrap.appendChild(workspace);
+    body.appendChild(wrap);
+
+    var pageMeta = null;
+    var rect = SC ? SC.defaultRect(null) : { x: 0, y: 0, width: 595, height: 842 };
+    var loadToken = 0;
+    var syncing = false;
+    var dragState = null;
+
+    function pageSize() {
+      return pageMeta || (SC ? SC.DEFAULT_PAGE : { width: 595, height: 842 });
+    }
+
+    function displayScale() {
+      var ps = pageSize();
+      var maxW = 320;
+      return Math.min(1, maxW / ps.width);
+    }
+
+    function setRect(next, skipMargins) {
+      rect = SC ? SC.clampRect(next, pageSize()) : next;
+      syncAll(skipMargins ? 'rect' : null);
+    }
+
+    function syncHiddenFields() {
+      rectFields.x.value = String(rect.x);
+      rectFields.y.value = String(rect.y);
+      rectFields.width.value = String(rect.width);
+      rectFields.height.value = String(rect.height);
+    }
+
+    function syncMarginsFromRect() {
+      if (!SC) return;
+      var m = SC.rectToMargins(rect, pageSize());
+      marginFields.top.value = String(m.top);
+      marginFields.right.value = String(m.right);
+      marginFields.bottom.value = String(m.bottom);
+      marginFields.left.value = String(m.left);
+    }
+
+    function syncRectFromMargins() {
+      if (!SC) return;
+      setRect(SC.marginsToRect({
+        top: marginFields.top.value,
+        right: marginFields.right.value,
+        bottom: marginFields.bottom.value,
+        left: marginFields.left.value
+      }, pageSize()), true);
+    }
+
+    function updateVisual() {
+      var scale = displayScale();
+      var ps = pageSize();
+      pageEl.style.width = Math.round(ps.width * scale) + 'px';
+      pageEl.style.height = Math.round(ps.height * scale) + 'px';
+      pageSizeLbl.textContent = 'Sayfa boyutu: ' + Math.round(ps.width) + ' × ' + Math.round(ps.height) + ' pt';
+
+      var left = rect.x * scale;
+      var top = rect.y * scale;
+      var w = rect.width * scale;
+      var h = rect.height * scale;
+      var pw = ps.width * scale;
+      var ph = ps.height * scale;
+
+      cropBox.style.left = left + 'px';
+      cropBox.style.top = top + 'px';
+      cropBox.style.width = w + 'px';
+      cropBox.style.height = h + 'px';
+
+      shadeTop.style.height = top + 'px';
+      shadeLeft.style.top = top + 'px';
+      shadeLeft.style.width = left + 'px';
+      shadeLeft.style.height = h + 'px';
+      shadeRight.style.top = top + 'px';
+      shadeRight.style.left = (left + w) + 'px';
+      shadeRight.style.width = Math.max(0, pw - left - w) + 'px';
+      shadeRight.style.height = h + 'px';
+      shadeBottom.style.top = (top + h) + 'px';
+      shadeBottom.style.height = Math.max(0, ph - top - h) + 'px';
+
+      var lbl = cropBox.querySelector('.crop-box-label');
+      if (lbl) lbl.textContent = Math.round(rect.width) + ' × ' + Math.round(rect.height);
+    }
+
+    function syncAll(source) {
+      if (syncing) return;
+      syncing = true;
+      syncHiddenFields();
+      if (source !== 'margins') syncMarginsFromRect();
+      updateVisual();
+      syncing = false;
+    }
+
+    function applyPreset(id) {
+      if (!SC) return;
+      setRect(SC.presetRect(id, pageSize()));
+    }
+
+    function loadFromFile() {
+      var fileIn = form.querySelector('[name="fileInput"]');
+      if (!fileIn || !fileIn.files || !fileIn.files.length || !isPdfUpload(fileIn.files[0])) {
+        pageMeta = null;
+        emptyState.hidden = false;
+        workspace.hidden = true;
+        return;
+      }
+      var file = fileIn.files[0];
+      emptyState.hidden = true;
+      workspace.hidden = false;
+      pageSizeLbl.textContent = 'Sayfa boyutu okunuyor…';
+      var token = ++loadToken;
+      fetchPdfPageDimensions(file).then(function (meta) {
+        if (token !== loadToken) return;
+        if (meta) {
+          pageMeta = { width: meta.width, height: meta.height };
+          setRect(SC ? SC.defaultRect(pageMeta) : { x: 0, y: 0, width: meta.width, height: meta.height });
+        } else {
+          pageMeta = SC ? SC.DEFAULT_PAGE : { width: 595, height: 842 };
+          setRect(SC ? SC.defaultRect(pageMeta) : { x: 0, y: 0, width: 595, height: 842 });
+          pageSizeLbl.textContent = 'Sayfa boyutu alınamadı — A4 varsayıldı (595 × 842 pt)';
+        }
+      });
+    }
+
+    function pointerToPagePt(clientX, clientY) {
+      var box = pageEl.getBoundingClientRect();
+      var scale = displayScale();
+      return {
+        x: (clientX - box.left) / scale,
+        y: (clientY - box.top) / scale
+      };
+    }
+
+    function startDrag(mode, handle, clientX, clientY) {
+      dragState = {
+        mode: mode,
+        handle: handle,
+        startPt: pointerToPagePt(clientX, clientY),
+        startRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+      };
+    }
+
+    function onDragMove(clientX, clientY) {
+      if (!dragState || !SC) return;
+      var pt = pointerToPagePt(clientX, clientY);
+      var dx = pt.x - dragState.startPt.x;
+      var dy = pt.y - dragState.startPt.y;
+      var sr = dragState.startRect;
+      var ps = pageSize();
+      var next = { x: sr.x, y: sr.y, width: sr.width, height: sr.height };
+
+      if (dragState.mode === 'move') {
+        next.x = sr.x + dx;
+        next.y = sr.y + dy;
+      } else {
+        var h = dragState.handle;
+        if (h.indexOf('e') >= 0) next.width = sr.width + dx;
+        if (h.indexOf('s') >= 0) next.height = sr.height + dy;
+        if (h.indexOf('w') >= 0) {
+          next.x = sr.x + dx;
+          next.width = sr.width - dx;
+        }
+        if (h.indexOf('n') >= 0) {
+          next.y = sr.y + dy;
+          next.height = sr.height - dy;
+        }
+      }
+      setRect(SC.clampRect(next, ps));
+    }
+
+    function endDrag() {
+      dragState = null;
+    }
+
+    cropBox.addEventListener('mousedown', function (e) {
+      if (e.target.classList.contains('crop-handle')) return;
+      e.preventDefault();
+      startDrag('move', null, e.clientX, e.clientY);
+    });
+    cropBox.querySelectorAll('.crop-handle').forEach(function (handle) {
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        startDrag('resize', handle.getAttribute('data-handle'), e.clientX, e.clientY);
+      });
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragState) return;
+      onDragMove(e.clientX, e.clientY);
+    });
+    document.addEventListener('mouseup', endDrag);
+
+    presetRow.querySelectorAll('.crop-preset-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        applyPreset(btn.getAttribute('data-preset'));
+      });
+    });
+
+    Object.keys(marginFields).forEach(function (key) {
+      marginFields[key].addEventListener('input', function () {
+        if (syncing) return;
+        syncRectFromMargins();
+      });
+    });
+
+    Object.keys(rectFields).forEach(function (key) {
+      rectFields[key].addEventListener('input', function () {
+        if (syncing) return;
+        setRect({
+          x: Number(rectFields.x.value) || 0,
+          y: Number(rectFields.y.value) || 0,
+          width: Number(rectFields.width.value) || 1,
+          height: Number(rectFields.height.value) || 1
+        });
+      });
+    });
+
+    var prevRefresh = form._refreshPdfPageMeta;
+    form._refreshPdfPageMeta = function () {
+      if (typeof prevRefresh === 'function') prevRefresh();
+      loadFromFile();
+    };
+
+    form._validateCrop = function () {
+      if (!pageMeta && workspace.hidden) return 'Kırpma için PDF seçin.';
+      if (!rect.width || !rect.height) return 'Kırpma genişliği ve yüksekliği girin.';
+      var ps = pageSize();
+      if (rect.x + rect.width > ps.width + 0.5 || rect.y + rect.height > ps.height + 0.5) {
+        return 'Kırpma alanı sayfa sınırlarını aşıyor.';
+      }
+      return '';
+    };
+
+    loadFromFile();
+    syncAll();
+  }
+
   function appendGenericField(form, input) {
     var body = input.sectionTitle ? appendToolSection(form, input.sectionTitle) : form;
     var wrap = document.createElement('div');
@@ -4395,6 +4782,10 @@
     }
     if (input.type === 'addPageNumbers') {
       appendAddPageNumbersInput(form, input);
+      return;
+    }
+    if (input.type === 'crop') {
+      appendCropInput(form, input);
       return;
     }
     if (input.type === 'file') {
@@ -4749,11 +5140,12 @@
       }
     }
     if (state.currentTool.id === 'crop') {
-      var cw = form.querySelector('[name="width"]');
-      var ch = form.querySelector('[name="height"]');
-      if (!cw || !parseFloat(cw.value) || !ch || !parseFloat(ch.value)) {
-        setToolStatus('Kırpma genişliği ve yüksekliği girin.', false);
-        return;
+      if (typeof form._validateCrop === 'function') {
+        var cropErr = form._validateCrop();
+        if (cropErr) {
+          setToolStatus(cropErr, false);
+          return;
+        }
       }
     }
     if (state.currentTool.id === 'overlay-pdf') {

@@ -710,7 +710,7 @@ tools:
 
   - id: crop
     title: Kırp
-    description: PDF sayfalarını belirtilen koordinatlara göre kırpar.
+    description: PDF sayfalarını görsel olarak veya kenar boşluğu ile kırpın.
     category: pages
     icon: pages
     apiPath: /api/v1/general/crop
@@ -722,26 +722,9 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: x
-        label: Sol (X)
-        type: number
-        default: 0
-        min: 0
-      - name: y
-        label: Üst (Y)
-        type: number
-        default: 0
-        min: 0
-      - name: width
-        label: Genişlik
-        type: number
-        required: true
-        min: 1
-      - name: height
-        label: Yükseklik
-        type: number
-        required: true
-        min: 1
+      - name: cropSettings
+        type: crop
+        sectionTitle: Kırpma alanı
 
   - id: multi-page-layout
     title: Çoklu Sayfa Düzeni
