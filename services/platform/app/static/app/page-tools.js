@@ -84,14 +84,53 @@
     var minKeep = options.minKeep != null ? options.minKeep : 0;
     if (maxPages && minKeep > 0 && parsed.pages.length > maxPages - minKeep) {
       var maxDel = maxPages - minKeep;
-      return 'En az ' + minKeep + ' sayfa kalmalı — en fazla ' + maxDel + ' sayfa seçebilirsiniz (toplu: örn. 1-' + maxDel + ').';
+      return 'En az ' + minKeep + ' sayfa kalmalı — en fazla ' + maxDel + ' sayfa seçebilirsiniz.';
     }
     return '';
+  }
+
+  function modeLabels(mode) {
+    if (mode === 'remove') {
+      return {
+        action: 'silinecek',
+        keep: 'kalacak',
+        pickHint: 'Silmek istediğiniz sayfalara tıklayın',
+        tileTitle: 'Sayfa {n} — silmek için tıklayın',
+        selectedClass: 'is-remove'
+      };
+    }
+    if (mode === 'extract') {
+      return {
+        action: 'çıkarılacak',
+        keep: 'dokümanda kalacak',
+        pickHint: 'Çıkarmak istediğiniz sayfalara tıklayın',
+        tileTitle: 'Sayfa {n} — çıkarmak için tıklayın',
+        selectedClass: 'is-extract'
+      };
+    }
+    return {
+      action: 'seçili',
+      keep: 'dışarıda',
+      pickHint: 'Sayfalara tıklayarak seçin',
+      tileTitle: 'Sayfa {n}',
+      selectedClass: 'is-pick'
+    };
+  }
+
+  function pagesMatching(predicate, maxPages) {
+    var out = [];
+    for (var p = 1; p <= maxPages; p++) {
+      if (predicate(p)) out.push(p);
+    }
+    return out;
   }
 
   global.SecuriPages = {
     parse: parse,
     formatList: formatList,
-    validate: validate
+    validate: validate,
+    modeLabels: modeLabels,
+    pagesMatching: pagesMatching,
+    MAX_VISUAL: 120
   };
 })(typeof window !== 'undefined' ? window : this);
