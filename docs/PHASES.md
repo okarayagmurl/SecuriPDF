@@ -18,8 +18,8 @@ cd docker
 | 4 | Orchestration | `vault-archive.js`, `vault-signatures.js` |
 | 5 | Admin UI | `/admin` — kota, LDAP test, araç override, audit, **operasyon/yedek**, **genel bakış**, **lisans/profil** |
 | 6 | License | `config/license.yml` + paketler — **tamamlandı** (profil tabanlı araç erişimi) |
-| 7 | **Kullanıcı UI** | `/` — SecuriPDF arayüzü; Stirling yalnızca `/api/pdf` proxy |
-| 8 | **Admin Faz 8** | Genel bakış, audit tablosu/CSV, kota listesi — **devam ediyor** |
+| 7 | **Kullanıcı UI** | `/` — SecuriPDF arayüzü; 69 araç formu, Tier 2 UX (tooltip, önizleme) — **tamamlandı** |
+| 8 | **Admin Faz 8** | Genel bakış, audit tablosu/CSV, kota listesi, profil kullanım istatistikleri — **kalan** |
 | 9 | **Upgrade Faz 1** | Admin Operasyon: kurulu sürüm, staging MANIFEST, CLI upgrade yolu — **tamamlandı** |
 | 10 | **Upgrade Faz 2** | Host updater agent (`scripts/securipdf-updater/`) + Admin tek tık güncelleme — **tamamlandı** |
 

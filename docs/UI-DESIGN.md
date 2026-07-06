@@ -62,6 +62,30 @@ Stirling-PDF kullanıcıya **gösterilmez**; yalnızca `/api/pdf` proxy üzerind
 
 ## Sonraki fazlar
 
-1. **Faz 7b** — Araç formlarını tek tek bağlama (`ui-tools.yml`)
-2. **Faz 8** — İş kuyruğu, istatistikler, gelişmiş audit filtreleri
+1. ~~**Faz 7b** — Araç formlarını tek tek bağlama (`ui-tools.yml`)~~ **Tamamlandı**
+2. **Faz 8** — İş kuyruğu istatistikleri, gelişmiş audit filtreleri, profil kullanım özeti
 3. **Faz 9** — Keycloak login temasında müşteri logosu otomatik senkron
+
+## Faz 7b — Araç form UX (Tier 2)
+
+**Durum: tamamlandı**
+
+Tüm 69 araç `ui-tools.yml` üzerinden bağlı. Legacy özel formlar (birleştir, böl, OCR, filigran vb.) **işlem adımları**, **bağlamsal ipuçları (tooltip)** ve gerektiğinde **PDF önizleme** ile güncellendi.
+
+### Paylaşılan modüller
+
+| Modül | Dosya | API |
+|-------|-------|-----|
+| İpuçları | `ui-tooltips.js` | `SecuriTips.attach`, `wrapLabel`, `processSteps` |
+| PDF önizleme | `pdf-preview-nav.js` | `SecuriPdfPreview.mount(container, form, opts)` |
+
+### Tooltip ve işlem adımı UX
+
+- **İşlem adımları** (`ui-process-steps`): Form üstünde `1 → 2 → 3` şeridi; kullanıcıya akışı gösterir (ör. birleştir, böl, OCR, parola ekle).
+- **Tooltip** (`ui-tip`): `?` simgesi; hover/focus ile Türkçe açıklama. Etiketlere `wrapLabel`, düğmelere `attach` ile eklenir.
+- **PDF önizleme** (`ui-pdf-preview-wrap`): Seçilen PDF blob URL ile iframe'de gösterilir (`#page=N&zoom=page-width`); sayfa gezinme ve temizleme fonksiyonu döner.
+- **Önbellek**: Statik dosya sürümleri `index.html` içinde `?v=` ile artırılır; deploy sonrası hard refresh gerekebilir.
+
+### Tier 2 kapsamı
+
+Özel formlu araçların tamamı Tier 2'ye yükseltildi: process steps + tooltip + (uygun olanlarda) PDF preview. Sayfa seçimi / kırpma / numaralandırma araçları önceki sprintte tamamlanmıştı.

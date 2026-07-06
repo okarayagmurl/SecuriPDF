@@ -365,6 +365,28 @@ docker compose -f docker/docker-compose.yml logs -f nginx
 
 Volume: `entera-pdf_entera_logs`
 
+## UI değişiklikleri görünmüyor (önbellek)
+
+Statik dosyalar tarayıcıda agresif önbelleklenebilir.
+
+1. `index.html` içindeki `?v=` sürüm numaralarını kontrol edin (`app.css`, `app.js`, `tool-panels.js`, `ui-tooltips.js`, `pdf-preview-nav.js`).
+2. Tarayıcıda **Ctrl+Shift+R** (hard refresh) veya gizli pencere deneyin.
+3. Platform container'ı statik dosyaları image içinden sunar; host mount kullanıyorsanız dosyaların güncel olduğundan emin olun.
+
+**Platform image yeniden derleme (statik dosya güncellemesi):**
+
+```bash
+cd docker
+docker compose -f docker-compose.yml -f docker-compose.auth.yml build securipdf-platform
+docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d securipdf-platform
+```
+
+Dev ortamında `services/platform/app/static/app/` doğrudan mount ediliyorsa yalnızca container restart yeterli olabilir:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.auth.yml restart securipdf-platform
+```
+
 ## Destek
 
 1. `./scripts/backup.sh` ile yedek alın

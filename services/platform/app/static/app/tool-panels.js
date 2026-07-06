@@ -206,7 +206,22 @@
 
   /* ── Panel renderers ── */
 
-  function panelScalePages(body, form) {
+  function panelResultDownloadNote(body, outputDesc, introHtml) {
+    var T = global.SecuriTips;
+    var box = infoBox(
+      (introHtml || '') +
+      '<p class="tp-result-note"><strong>Not:</strong> İşlem tamamlandığında sonuç dosyası otomatik indirilir.</p>' +
+      '<p><strong>Çıktı:</strong> ' + outputDesc + '</p>'
+    );
+    body.appendChild(box);
+    var note = box.querySelector('.tp-result-note');
+    if (T && note) {
+      T.attach(note, 'İndirme tarayıcı ayarlarınıza bağlıdır; engellenirse İşlerim sayfasından tekrar deneyin.');
+    }
+  }
+
+  function panelScalePages(body, form, cleanups) {
+    var P = global.SecuriPdfPreview;
     var sizes = tileGroup('pageSize', [
       { value: 'KEEP', label: 'Koru', sub: 'Mevcut boyut' },
       { value: 'A4', label: 'A4', sub: '210×297 mm' },
@@ -217,9 +232,32 @@
     ], 'A4', 'Hedef sayfa boyutu');
     mount(body, [label('Hedef sayfa boyutu'), sizes.wrap, sizes.hidden]);
 
+    var previewHost = document.createElement('div');
+    previewHost.className = 'tp-scale-preview-host';
+    body.appendChild(previewHost);
+
     var previewBar = document.createElement('div');
     previewBar.className = 'tp-preview-bar';
     previewBar.innerHTML = '<div class="tp-preview-bar-inner" style="width:100%"></div>';
+    var scaleOverlay = document.createElement('div');
+    scaleOverlay.className = 'tp-scale-overlay';
+    scaleOverlay.hidden = true;
+
+    if (P) {
+      var previewCleanup = P.mount(previewHost, form, { showNav: true, minHeight: 200 });
+      if (previewCleanup) cleanups.push(previewCleanup);
+      bindMetaRefresh(form, function () {
+        var has = meta(form) && meta(form).fileName;
+        scaleOverlay.hidden = !has;
+        previewHost.hidden = !has;
+      });
+      var stage = previewHost.querySelector('.ui-pdf-preview-stage');
+      if (stage) {
+        stage.style.position = 'relative';
+        stage.appendChild(scaleOverlay);
+      }
+    }
+
     var scaleRow = sliderField('scaleFactor', 'İçerik ölçeği', {
       min: 0.1, max: 5, step: 0.05, default: 1,
       format: function (v) { return '×' + v.toFixed(2); },
@@ -227,6 +265,8 @@
       onChange: function (v) {
         var pct = Math.min(100, Math.round(v * 100));
         previewBar.querySelector('.tp-preview-bar-inner').style.width = pct + '%';
+        scaleOverlay.style.width = pct + '%';
+        scaleOverlay.style.height = pct + '%';
       }
     });
     mount(body, [previewBar, scaleRow]);
@@ -291,20 +331,22 @@
     ]);
   }
 
-  function panelAddImage(body, form) {
+  function panelAddImage(body, form, cleanups) {
+    var P = global.SecuriPdfPreview;
     var empty = infoBox('<p>PDF seçtikten sonra görselin yerleşim noktasını sayfa önizlemesinde tıklayarak belirleyin.</p>');
     var workspace = document.createElement('div');
     workspace.className = 'tp-pos-workspace';
     workspace.hidden = true;
     var stage = document.createElement('div');
-    stage.className = 'tp-pos-stage';
-    var pageEl = document.createElement('div');
-    pageEl.className = 'tp-pos-page';
+    stage.className = 'tp-pos-stage tp-pos-stage-pdf';
+    var markerLayer = document.createElement('div');
+    markerLayer.className = 'tp-pos-marker-layer';
+    markerLayer.style.cssText = 'position:absolute;inset:0;z-index:2;cursor:crosshair;';
     var marker = document.createElement('div');
     marker.className = 'tp-pos-marker';
     marker.hidden = true;
-    pageEl.appendChild(marker);
-    stage.appendChild(pageEl);
+    markerLayer.appendChild(marker);
+    stage.appendChild(markerLayer);
     workspace.appendChild(stage);
     workspace.appendChild(hint('Sayfa üzerinde tıklayarak X/Y konumunu ayarlayın (pt).'));
 
@@ -332,18 +374,23 @@
 
     function placeMarker() {
       var ps = pageSize();
-      var scale = Math.min(1, 280 / ps.width);
+      var previewFrame = stage.querySelector('.ui-pdf-preview-frame');
+      var refEl = previewFrame || stage;
+      var rect = refEl.getBoundingClientRect();
+      if (!rect.width) return;
+      var scale = ps.width / rect.width;
       var x = parseInt(coordRow.querySelector('[name=x]').value, 10) || 0;
       var y = parseInt(coordRow.querySelector('[name=y]').value, 10) || 0;
-      pageEl.style.width = Math.round(ps.width * scale) + 'px';
-      pageEl.style.height = Math.round(ps.height * scale) + 'px';
       marker.hidden = false;
-      marker.style.left = Math.round(x * scale) + 'px';
-      marker.style.top = Math.round(y * scale) + 'px';
+      marker.style.left = Math.round(x / scale) + 'px';
+      marker.style.top = Math.round(y / scale) + 'px';
     }
 
-    stage.addEventListener('click', function (ev) {
-      var rect = pageEl.getBoundingClientRect();
+    markerLayer.addEventListener('click', function (ev) {
+      if (ev.target.closest('.ui-pdf-preview-nav')) return;
+      var previewFrame = stage.querySelector('.ui-pdf-preview-frame');
+      var refEl = previewFrame || stage;
+      var rect = refEl.getBoundingClientRect();
       var ps = pageSize();
       var scale = ps.width / rect.width;
       var x = Math.max(0, Math.round((ev.clientX - rect.left) * scale));
@@ -352,6 +399,14 @@
       coordRow.querySelector('[name=y]').value = String(y);
       placeMarker();
     });
+
+    if (P) {
+      stage.style.position = 'relative';
+      var previewCleanup = P.mount(stage, form, { showNav: true, minHeight: 220 });
+      if (previewCleanup) cleanups.push(previewCleanup);
+      var previewWrap = stage.querySelector('.ui-pdf-preview-wrap');
+      if (previewWrap) stage.insertBefore(previewWrap, markerLayer);
+    }
 
     bindMetaRefresh(form, function () {
       var has = meta(form) && meta(form).fileName;
@@ -670,19 +725,23 @@
   }
 
   function panelRepair(body) {
-    panelInfoOnly(body, '<p>Bozuk veya açılmayan PDF dosyalarını onarmayı dener. Yapı hataları düzeltilir; içerik mümkün olduğunca korunur.</p><p><strong>Çıktı:</strong> Onarılmış PDF dosyası.</p>');
+    panelResultDownloadNote(body, 'Onarılmış PDF dosyası.',
+      '<p>Bozuk veya açılmayan PDF dosyalarını onarmayı dener. Yapı hataları düzeltilir; içerik mümkün olduğunca korunur.</p>');
   }
 
   function panelGetInfo(body) {
-    panelInfoOnly(body, '<p>Belge meta verisi, sayfa sayısı, güvenlik özellikleri ve gömülü dosyalar hakkında ayrıntılı JSON raporu üretilir.</p><p><strong>Çıktı:</strong> JSON raporu (indirilebilir).</p>');
+    panelResultDownloadNote(body, 'JSON raporu (indirilebilir).',
+      '<p>Belge meta verisi, sayfa sayısı, güvenlik özellikleri ve gömülü dosyalar hakkında ayrıntılı rapor üretilir.</p>');
   }
 
   function panelVerify(body) {
-    panelInfoOnly(body, '<p>PDF bütünlüğü, şifreleme durumu ve yapısal geçerlilik kontrol edilir.</p><p><strong>Çıktı:</strong> Doğrulama JSON raporu.</p>');
+    panelResultDownloadNote(body, 'Doğrulama JSON raporu.',
+      '<p>PDF bütünlüğü, şifreleme durumu ve yapısal geçerlilik kontrol edilir.</p>');
   }
 
   function panelValidateSignature(body) {
-    panelInfoOnly(body, '<p>PDF üzerindeki dijital imza doğrulanır; sertifika geçerliliği ve imza durumu raporlanır.</p><p><strong>Çıktı:</strong> İmza doğrulama JSON raporu.</p>');
+    panelResultDownloadNote(body, 'İmza doğrulama JSON raporu.',
+      '<p>PDF üzerindeki dijital imza doğrulanır; sertifika geçerliliği ve imza durumu raporlanır.</p>');
   }
 
   function panelRemoveCertSign(body) {
@@ -763,7 +822,7 @@
     form._toolPanelCleanup = function () {
       cleanups.forEach(function (c) { if (typeof c === 'function') c(); });
     };
-    fn(body, form, input);
+    fn(body, form, cleanups);
   }
 
   global.SecuriToolPanels = { render: render };

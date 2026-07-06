@@ -1096,6 +1096,59 @@
     '9': 'En yüksek sıkıştırma — maksimum boyut azaltma'
   };
 
+  var PERMISSION_TIPS = {
+    preventPrinting: 'Kullanıcı PDF\'i yazdıramaz.',
+    preventPrintingFaithful: 'Yüksek çözünürlüklü baskı engellenir.',
+    preventModify: 'Sayfa düzenleme, birleştirme ve kırpma engellenir.',
+    preventModifyAnnotations: 'Not, vurgu ve damga ekleme engellenir.',
+    preventExtractContent: 'Metin ve görsel kopyalama engellenir.',
+    preventExtractForAccessibility: 'Ekran okuyucu metin çıkarma engellenir.',
+    preventFillInForm: 'Form alanları doldurulamaz.',
+    preventAssembly: 'Sayfa ekleme, silme ve döndürme engellenir.'
+  };
+
+  function tipsMod() { return window.SecuriTips; }
+
+  function pdfPreviewMod() { return window.SecuriPdfPreview; }
+
+  function insertProcessSteps(parent, steps) {
+    var T = tipsMod();
+    if (!T || !steps || !steps.length || !parent) return;
+    parent.insertBefore(T.processSteps(steps), parent.firstChild);
+  }
+
+  function chainPdfPreviewCleanup(form, cleanup) {
+    if (!cleanup) return;
+    var prev = form._pdfPreviewCleanup;
+    form._pdfPreviewCleanup = function () {
+      if (typeof prev === 'function') prev();
+      cleanup();
+    };
+  }
+
+  function mountToolPdfPreview(container, form, opts) {
+    var P = pdfPreviewMod();
+    if (!P || !container) return;
+    chainPdfPreviewCleanup(form, P.mount(container, form, opts || {}));
+  }
+
+  function tipWrapFieldLabel(field, text) {
+    var T = tipsMod();
+    if (!T || !field || !text) return;
+    var lbl = field.querySelector('.field-label');
+    if (lbl) T.wrapLabel(lbl, text);
+  }
+
+  function tipPermissionLabels(section) {
+    if (!section || !tipsMod()) return;
+    section.querySelectorAll('.check-option.compress-check').forEach(function (label) {
+      var cb = label.querySelector('input[type="checkbox"]');
+      if (!cb || !cb.name) return;
+      var tip = PERMISSION_TIPS[cb.name];
+      if (tip) tipsMod().attach(label.querySelector('span') || label, tip, { placement: 'left' });
+    });
+  }
+
   function appendToolSection(form, title) {
     var section = document.createElement('div');
     section.className = 'tool-section';
@@ -1302,6 +1355,11 @@
       var mergeList = document.createElement('div');
       mergeList.className = 'tp-merge-list';
       mergeList.hidden = true;
+      insertProcessSteps(mergeList, [
+        'PDF dosyalarını seçin',
+        'Sıralamayı sürükleyerek ayarlayın',
+        'Birleştir ve indirin'
+      ]);
       body.appendChild(mergeList);
 
       function reorderFiles(order) {
@@ -1313,13 +1371,17 @@
       }
 
       function renderMergeList(files) {
+        var stepsEl = mergeList.querySelector('.ui-process-steps');
         mergeList.innerHTML = '';
+        if (stepsEl) mergeList.appendChild(stepsEl);
         if (!files || files.length < 2) {
           mergeList.hidden = true;
           return;
         }
         mergeList.hidden = false;
-        mergeList.appendChild(hint('Sıralamayı değiştirmek için dosyaları sürükleyin. Birleştirme bu sırayla yapılır.'));
+        var mergeHint = hint('Sıralamayı değiştirmek için dosyaları sürükleyin. Birleştirme bu sırayla yapılır.');
+        mergeList.appendChild(mergeHint);
+        if (tipsMod()) tipsMod().attach(mergeHint, 'Dosya sırası birleştirme sonucunu belirler; ilk dosya belgenin başında yer alır.');
         var items = Array.prototype.slice.call(files);
         items.forEach(function (f, idx) {
           var row = document.createElement('div');
@@ -1377,6 +1439,11 @@
 
   function appendCompressInput(form, input) {
     var body = appendToolSection(form, 'Ayarlar');
+    insertProcessSteps(body, [
+      'PDF dosyasını seçin',
+      'Sıkıştırma yöntemini belirleyin',
+      'Kalite ayarını yapın ve işleyin'
+    ]);
     var defaultLevel = String(input.defaultLevel || 5);
 
     var optimizeLevel = document.createElement('input');
@@ -1448,6 +1515,10 @@
     levelRow.appendChild(slider);
     levelRow.appendChild(levelNum);
     levelField.appendChild(levelRow);
+    var qualityLabels = document.createElement('div');
+    qualityLabels.className = 'compress-quality-labels';
+    qualityLabels.innerHTML = '<span>Düşük</span><span>Orta</span><span>Yüksek</span>';
+    levelField.appendChild(qualityLabels);
     levelField.appendChild(levelHint);
     qualityPanel.appendChild(levelField);
 
@@ -1538,8 +1609,8 @@
     }
 
     [
-      { id: 'quality', label: 'Kalite' },
-      { id: 'size', label: 'Dosya boyutu' }
+      { id: 'quality', label: 'Kalite', tip: '1–9 arası kalite kaybı; düşük değer daha küçük dosya üretir.' },
+      { id: 'size', label: 'Dosya boyutu', tip: 'Hedef boyuta ulaşmak için kalite otomatik ayarlanır (örn. 25MB).' }
     ].forEach(function (m) {
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -1548,6 +1619,7 @@
       btn.textContent = m.label;
       btn.addEventListener('click', function () { setMode(m.id); });
       modeToggle.appendChild(btn);
+      if (tipsMod() && m.tip) tipsMod().attach(btn, m.tip);
     });
 
     sizeInput.addEventListener('input', function () {
@@ -1555,6 +1627,7 @@
     });
 
     modeField.appendChild(modeToggle);
+    tipWrapFieldLabel(modeField, 'Kalite modu görsel kaliteyi korur; dosya boyutu modu hedef MB/KB değerine yaklaştırır.');
     body.appendChild(modeField);
     body.appendChild(qualityPanel);
     body.appendChild(sizePanel);
@@ -1582,11 +1655,12 @@
     form.querySelectorAll('.convert-api-param').forEach(function (el) { el.remove(); });
   }
 
-  function appendConvertField(panel, label, innerHtml) {
+  function appendConvertField(panel, label, innerHtml, tipText) {
     var field = document.createElement('div');
     field.className = 'convert-field';
     field.innerHTML = '<span class="field-label">' + escapeHtml(label) + '</span>' + innerHtml;
     panel.appendChild(field);
+    if (tipText) tipWrapFieldLabel(field, tipText);
     return field;
   }
 
@@ -1600,12 +1674,15 @@
       appendConvertField(panel, 'Görsel formatı', '<p class="compress-level-hint">Çıktı: ' + escapeHtml(toExt.toUpperCase()) + '</p>');
       appendConvertField(panel, 'Renk modu',
         '<select class="convert-opt" data-param="colorType">' +
-        '<option value="color">Renkli</option><option value="grayscale">Gri ton</option><option value="blackwhite">Siyah-beyaz</option></select>');
+        '<option value="color">Renkli</option><option value="grayscale">Gri ton</option><option value="blackwhite">Siyah-beyaz</option></select>',
+        'Renkli tam kalite; gri ton veya siyah-beyaz daha küçük dosya üretir.');
       appendConvertField(panel, 'Çözünürlük (DPI)',
-        '<input type="number" class="convert-opt compress-level-num" data-param="dpi" min="72" max="600" step="1" value="300">');
+        '<input type="number" class="convert-opt compress-level-num" data-param="dpi" min="72" max="600" step="1" value="300">',
+        'DPI arttıkça görsel kalite artar, dosya boyutu büyür.');
       appendConvertField(panel, 'Çıktı yapısı',
         '<select class="convert-opt" data-param="singleOrMultiple">' +
-        '<option value="multiple">Her sayfa ayrı dosya (ZIP)</option><option value="single">Tek dosya</option></select>');
+        '<option value="multiple">Her sayfa ayrı dosya (ZIP)</option><option value="single">Tek dosya</option></select>',
+        'ZIP her sayfayı ayrı dosya olarak verir; tek dosya tüm sayfaları birleştirir.');
       setConvertParam(form, 'imageFormat', toExt);
       setConvertParam(form, 'colorType', 'color');
       setConvertParam(form, 'dpi', '300');
@@ -1624,10 +1701,12 @@
         '<select class="convert-opt" data-param="fitOption">' +
         '<option value="maintainAspectRatio">En-boy oranını koru</option>' +
         '<option value="fitDocumentToPage">Belgeyi sayfaya sığdır</option>' +
-        '<option value="fillPage">Sayfayı doldur</option></select>');
+        '<option value="fillPage">Sayfayı doldur</option></select>',
+        'Oranı koru kenar boşluğu bırakır; doldur kırparak sayfayı kaplar.');
       appendConvertField(panel, 'Renk modu',
         '<select class="convert-opt" data-param="colorType">' +
-        '<option value="color">Renkli</option><option value="grayscale">Gri ton</option><option value="blackwhite">Siyah-beyaz</option></select>');
+        '<option value="color">Renkli</option><option value="grayscale">Gri ton</option><option value="blackwhite">Siyah-beyaz</option></select>',
+        'Görsel PDF\'e dönüştürülürken renk modu dosya boyutunu etkiler.');
       appendConvertField(panel, 'Otomatik döndür',
         '<label class="check-option compress-check"><input type="checkbox" class="convert-opt-bool" data-param="autoRotate" checked> EXIF yönelimine göre döndür</label>');
       appendConvertField(panel, 'Çoklu görsel',
@@ -1730,6 +1809,11 @@
     var SC = window.SecuriConvert;
     if (!SC) return;
     var body = appendToolSection(form, 'Ayarlar');
+    insertProcessSteps(body, [
+      'Kaynak dosyayı seçin',
+      'Format çiftini belirleyin',
+      'Seçenekleri ayarlayıp dönüştürün'
+    ]);
     var fromExt = 'pdf';
     var toExt = 'docx';
 
@@ -1830,6 +1914,11 @@
 
   function appendOcrInput(form) {
     var body = appendToolSection(form, 'Ayarlar');
+    insertProcessSteps(body, [
+      'Taranmış PDF seçin',
+      'Dil ve OCR modunu ayarlayın',
+      'Metin aranabilir PDF indirin'
+    ]);
 
     var langField = document.createElement('div');
     langField.className = 'convert-field ocr-lang-field';
@@ -1846,6 +1935,7 @@
     });
     langField.appendChild(langGrid);
     body.appendChild(langField);
+    tipWrapFieldLabel(langField, 'Belgedeki tüm dilleri işaretleyin; yanlış dil seçimi OCR kalitesini düşürür.');
 
     var modeField = document.createElement('div');
     modeField.className = 'convert-field';
@@ -1855,6 +1945,7 @@
       '<option value="force-ocr">Zorla — tüm sayfaları yeniden OCR yap</option>' +
       '<option value="Normal">Katı — metin varsa hata ver</option></select>';
     body.appendChild(modeField);
+    tipWrapFieldLabel(modeField, 'Otomatik mod metinli sayfaları atlar; zorla tüm sayfaları yeniden tarar.');
 
     var renderField = document.createElement('div');
     renderField.className = 'convert-field';
@@ -2075,6 +2166,11 @@
     applyWmPreset('tiled');
     setWmMode('text');
     form._applyWmPreset = applyWmPreset;
+
+    var wmPreviewHost = document.createElement('div');
+    wmPreviewHost.className = 'wm-preview-host';
+    body.appendChild(wmPreviewHost);
+    mountToolPdfPreview(wmPreviewHost, form, { minHeight: 240, showNav: true });
   }
 
   function setPanelFieldNames(container, enabled) {
@@ -2176,6 +2272,7 @@
       btn.setAttribute('data-pos', pos.id);
       btn.title = pos.label;
       btn.textContent = pos.id;
+      if (tipsMod()) tipsMod().attach(btn, pos.label + ' konumuna damga yerleştirilir.');
       btn.addEventListener('click', function () {
         posHidden.value = pos.id;
         posGrid.querySelectorAll('.stamp-pos-btn').forEach(function (b) {
@@ -2225,11 +2322,22 @@
     form.appendChild(stampType);
     bindOpacitySlider(textPanel);
     setStampMode('text');
+
+    var stampPreviewHost = document.createElement('div');
+    stampPreviewHost.className = 'stamp-preview-host';
+    body.appendChild(stampPreviewHost);
+    mountToolPdfPreview(stampPreviewHost, form, { minHeight: 240, showNav: true });
   }
 
   function appendAddPasswordInput(form) {
     var body = appendToolSection(form, 'Parola');
-    body.innerHTML =
+    insertProcessSteps(body, [
+      'PDF dosyasını seçin',
+      'Parola ve izinleri ayarlayın',
+      'Korumalı PDF indirin'
+    ]);
+    var fieldsWrap = document.createElement('div');
+    fieldsWrap.innerHTML =
       '<div class="convert-field"><span class="field-label">Açma parolası</span>' +
       '<input type="password" class="compress-size-input" name="password" required autocomplete="new-password"></div>' +
       '<div class="convert-field"><span class="field-label">Sahip parolası (isteğe bağlı)</span>' +
@@ -2239,6 +2347,9 @@
       '<select class="convert-format-select" name="keyLength">' +
       '<option value="256" selected>256 bit (AES, önerilen)</option>' +
       '<option value="128">128 bit</option><option value="40">40 bit (eski)</option></select></div>';
+    body.appendChild(fieldsWrap);
+
+    tipWrapFieldLabel(fieldsWrap.querySelector('.convert-field:last-of-type') || fieldsWrap, '256 bit AES modern PDF okuyucular için önerilir.');
 
     var permSection = appendToolSection(form, 'İzin kısıtlamaları');
     var permHint = document.createElement('p');
@@ -2260,6 +2371,7 @@
       label.innerHTML = '<input type="checkbox" name="' + opt.name + '" value="true"> ' + escapeHtml(opt.label);
       permSection.appendChild(label);
     });
+    tipPermissionLabels(permSection);
   }
 
   function appendChangePermissionsInput(form) {
@@ -2289,10 +2401,16 @@
       label.innerHTML = '<input type="checkbox" name="' + opt.name + '" value="true"> ' + escapeHtml(opt.label);
       permSection.appendChild(label);
     });
+    tipPermissionLabels(permSection);
   }
 
   function appendCertSignInput(form) {
     var body = appendToolSection(form, 'Sertifika');
+    insertProcessSteps(body, [
+      'PDF dosyasını seçin',
+      'Sertifika dosyasını yükleyin',
+      'İmza görünümünü ayarlayıp imzalayın'
+    ]);
     var typeField = document.createElement('div');
     typeField.className = 'convert-field';
     typeField.innerHTML =
@@ -2302,6 +2420,7 @@
       '<option value="PEM">PEM (ayrı anahtar + sertifika)</option>' +
       '<option value="JKS">Java Keystore (.jks)</option></select>';
     body.appendChild(typeField);
+    tipWrapFieldLabel(typeField, 'PKCS#12 tek dosyada anahtar+sertifika içerir; PEM ayrı dosyalar gerektirir.');
 
     var pkcsPanel = document.createElement('div');
     pkcsPanel.className = 'cert-type-panel';
@@ -2352,6 +2471,9 @@
       '<div class="convert-field"><span class="field-label">İmzalayan</span>' +
       '<input type="text" class="compress-size-input" name="name" value=""></div>';
 
+    var showSigLabel = opts.querySelector('.check-option');
+    if (showSigLabel && tipsMod()) tipsMod().attach(showSigLabel, 'İşaretlendiğinde imza görseli PDF sayfasında görünür.');
+
     var certSelect = typeField.querySelector('#certTypeSelect');
     if (certSelect) {
       certSelect.addEventListener('change', function () {
@@ -2390,18 +2512,36 @@
         picker.querySelectorAll('.rotation-option').forEach(function (b) {
           b.classList.toggle('active', b === btn);
         });
+        hidden.dispatchEvent(new Event('change'));
       });
+      if (tipsMod() && ROTATION_HINTS[String(opt.value)]) {
+        tipsMod().attach(btn, ROTATION_HINTS[String(opt.value)]);
+      }
       picker.appendChild(btn);
     });
     wrap.appendChild(picker);
     wrap.appendChild(hidden);
+
+    var rotPreviewHost = document.createElement('div');
+    rotPreviewHost.className = 'rotation-preview-host';
+    wrap.appendChild(rotPreviewHost);
     form.appendChild(wrap);
+    mountToolPdfPreview(rotPreviewHost, form, {
+      minHeight: 220,
+      showNav: true,
+      rotationSelector: '[name="' + input.name + '"]'
+    });
   }
 
   function appendSplitInput(form) {
     var SS = window.SecuriSplit;
     if (!SS) return;
     var body = appendToolSection(form, 'Bölme yöntemi');
+    insertProcessSteps(body, [
+      'PDF dosyasını seçin',
+      'Bölme yöntemini seçin',
+      'Parametreleri girin ve işleyin'
+    ]);
     var modeId = 'byPages';
 
     var pageCountBar = document.createElement('div');
@@ -2566,6 +2706,7 @@
       btn.setAttribute('role', 'option');
       btn.setAttribute('aria-selected', mode.id === modeId ? 'true' : 'false');
       btn.innerHTML = 'Böl <strong>' + escapeHtml(mode.shortLabel) + '</strong>';
+      if (tipsMod() && mode.hint) tipsMod().attach(btn, mode.hint);
       btn.addEventListener('click', function () {
         modeId = mode.id;
         modeList.querySelectorAll('.split-mode-btn').forEach(function (b) {
@@ -2610,6 +2751,11 @@
 
   function appendCompareInput(form) {
     var body = appendToolSection(form, 'Vurgu renkleri');
+    insertProcessSteps(body, [
+      'İki PDF belgesini seçin',
+      'Vurgu renklerini ayarlayın',
+      'Karşılaştır — HTML raporu indirilir'
+    ]);
     var colors = document.createElement('div');
     colors.className = 'compare-colors';
     colors.innerHTML =
@@ -2618,6 +2764,8 @@
       '<label class="compare-color-field"><span class="field-label">Belge 2 vurgusu</span>' +
       '<input type="color" name="highlightColor2" value="#ccffcc" aria-label="Belge 2 vurgu rengi"></label>';
     body.appendChild(colors);
+    tipWrapFieldLabel(colors.querySelector('.compare-color-field'), 'İlk belgedeki farklar bu renkle vurgulanır.');
+    tipWrapFieldLabel(colors.querySelectorAll('.compare-color-field')[1], 'İkinci belgedeki farklar bu renkle vurgulanır.');
     var hint = document.createElement('p');
     hint.className = 'compress-level-hint';
     hint.textContent = 'Taranmış PDF\'lerde önce OCR uygulayın. Çıktı HTML rapor olarak indirilir.';
@@ -2851,6 +2999,12 @@
     var scanStatus = mount.querySelector('.rs-status');
     var scanBtn = mount.querySelector('[data-act="scan"]');
     var drawToggle = mount.querySelector('.rw-draw-toggle');
+    if (tipsMod() && scanBtn) {
+      tipsMod().attach(scanBtn, 'Seçili desenleri belgede arar; eşleşmeler önizlemede gösterilir.');
+    }
+    if (tipsMod() && drawToggle) {
+      tipsMod().attach(drawToggle, 'Manuel sansür alanı çizmek için etkinleştirin; sürükleyerek dikdörtgen seçin.');
+    }
     var pageNumEl = mount.querySelector('.rw-page-num');
     var pageTotalEl = mount.querySelector('.rw-page-total');
     var searchInput = mount.querySelector('.rp-search');
@@ -5012,6 +5166,10 @@
     if (form._toolPanelCleanup) {
       form._toolPanelCleanup();
       form._toolPanelCleanup = null;
+    }
+    if (form._pdfPreviewCleanup) {
+      form._pdfPreviewCleanup();
+      form._pdfPreviewCleanup = null;
     }
     form.innerHTML = '';
     form._pageSelectionFields = [];
