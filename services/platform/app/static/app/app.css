@@ -1750,7 +1750,22 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.crop-page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.crop-page-nav-label {
+  font-size: 0.88rem;
+  color: var(--muted, #64748b);
+  min-width: 10rem;
+  text-align: center;
 }
 
 .crop-preview-wrap {
@@ -1765,12 +1780,28 @@ body {
 
 .crop-preview-page {
   position: relative;
-  background: #fff;
+  background: #e2e8f0;
   border: 2px solid var(--border, #94a3b8);
   border-radius: 0.25rem;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
   overflow: hidden;
   user-select: none;
+}
+
+.crop-pdf-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+  background: #fff;
+}
+
+.crop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }
 
 .crop-shade {
@@ -1779,15 +1810,15 @@ body {
   pointer-events: none;
 }
 
-.crop-shade-top,
-.crop-shade-bottom {
+.crop-shade-top {
+  top: 0;
   left: 0;
   right: 0;
 }
 
-.crop-shade-left,
-.crop-shade-right {
-  position: absolute;
+.crop-shade-bottom {
+  left: 0;
+  right: 0;
 }
 
 .crop-box {

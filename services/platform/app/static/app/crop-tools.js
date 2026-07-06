@@ -7,68 +7,76 @@
     return Math.max(min, Math.min(max, n));
   }
 
-  function roundPt(n) {
-    return Math.round(n * 10) / 10;
+  function intPt(n) {
+    return Math.round(Number(n) || 0);
+  }
+
+  function pageDims(page) {
+    return {
+      width: intPt((page && page.width) || DEFAULT_PAGE.width),
+      height: intPt((page && page.height) || DEFAULT_PAGE.height)
+    };
   }
 
   function defaultRect(page) {
-    var pw = (page && page.width) || DEFAULT_PAGE.width;
-    var ph = (page && page.height) || DEFAULT_PAGE.height;
-    return { x: 0, y: 0, width: pw, height: ph };
+    var ps = pageDims(page);
+    return { x: 0, y: 0, width: ps.width, height: ps.height };
   }
 
   function clampRect(rect, page) {
-    var pw = (page && page.width) || DEFAULT_PAGE.width;
-    var ph = (page && page.height) || DEFAULT_PAGE.height;
-    var w = clamp(rect.width, 1, pw);
-    var h = clamp(rect.height, 1, ph);
-    var x = clamp(rect.x, 0, pw - w);
-    var y = clamp(rect.y, 0, ph - h);
-    return { x: roundPt(x), y: roundPt(y), width: roundPt(w), height: roundPt(h) };
+    var ps = pageDims(page);
+    var w = clamp(intPt(rect.width), 1, ps.width);
+    var h = clamp(intPt(rect.height), 1, ps.height);
+    var x = clamp(intPt(rect.x), 0, ps.width - w);
+    var y = clamp(intPt(rect.y), 0, ps.height - h);
+    return { x: x, y: y, width: w, height: h };
   }
 
   function rectToMargins(rect, page) {
-    var pw = (page && page.width) || DEFAULT_PAGE.width;
-    var ph = (page && page.height) || DEFAULT_PAGE.height;
+    var ps = pageDims(page);
+    var r = clampRect(rect, page);
     return {
-      top: roundPt(rect.y),
-      right: roundPt(pw - rect.x - rect.width),
-      bottom: roundPt(ph - rect.y - rect.height),
-      left: roundPt(rect.x)
+      top: r.y,
+      right: ps.width - r.x - r.width,
+      bottom: ps.height - r.y - r.height,
+      left: r.x
     };
   }
 
   function marginsToRect(margins, page) {
-    var pw = (page && page.width) || DEFAULT_PAGE.width;
-    var ph = (page && page.height) || DEFAULT_PAGE.height;
-    var left = clamp(Number(margins.left) || 0, 0, pw - 1);
-    var top = clamp(Number(margins.top) || 0, 0, ph - 1);
-    var right = clamp(Number(margins.right) || 0, 0, pw - left - 1);
-    var bottom = clamp(Number(margins.bottom) || 0, 0, ph - top - 1);
+    var ps = pageDims(page);
+    var left = clamp(intPt(margins.left), 0, ps.width - 1);
+    var top = clamp(intPt(margins.top), 0, ps.height - 1);
+    var right = clamp(intPt(margins.right), 0, ps.width - left - 1);
+    var bottom = clamp(intPt(margins.bottom), 0, ps.height - top - 1);
     return clampRect({
       x: left,
       y: top,
-      width: pw - left - right,
-      height: ph - top - bottom
+      width: ps.width - left - right,
+      height: ps.height - top - bottom
     }, page);
   }
 
   function presetRect(id, page) {
-    var pw = (page && page.width) || DEFAULT_PAGE.width;
-    var ph = (page && page.height) || DEFAULT_PAGE.height;
-    if (id === 'full') return { x: 0, y: 0, width: pw, height: ph };
+    var ps = pageDims(page);
+    if (id === 'full') return { x: 0, y: 0, width: ps.width, height: ps.height };
     if (id === 'margin5') {
-      var m5 = Math.min(pw, ph) * 0.05;
+      var m5 = Math.round(Math.min(ps.width, ps.height) * 0.05);
       return marginsToRect({ top: m5, right: m5, bottom: m5, left: m5 }, page);
     }
     if (id === 'margin10') {
-      var m10 = Math.min(pw, ph) * 0.1;
+      var m10 = Math.round(Math.min(ps.width, ps.height) * 0.1);
       return marginsToRect({ top: m10, right: m10, bottom: m10, left: m10 }, page);
     }
     if (id === 'center80') {
-      var w = pw * 0.8;
-      var h = ph * 0.8;
-      return clampRect({ x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h }, page);
+      var w = Math.round(ps.width * 0.8);
+      var h = Math.round(ps.height * 0.8);
+      return clampRect({
+        x: Math.round((ps.width - w) / 2),
+        y: Math.round((ps.height - h) / 2),
+        width: w,
+        height: h
+      }, page);
     }
     return defaultRect(page);
   }
@@ -80,6 +88,7 @@
     rectToMargins: rectToMargins,
     marginsToRect: marginsToRect,
     presetRect: presetRect,
-    roundPt: roundPt
+    intPt: intPt,
+    pageDims: pageDims
   };
 })(typeof window !== 'undefined' ? window : this);

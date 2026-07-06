@@ -4269,7 +4269,7 @@
     renderScopeGrid();
   }
 
-  function fetchPdfPageDimensions(file) {
+  function fetchPdfDocumentMeta(file) {
     var fd = new FormData();
     fd.append('fileInput', file);
     return fetch(APP + '/redaction/metadata', { method: 'POST', body: fd, credentials: 'same-origin' })
@@ -4279,12 +4279,16 @@
       })
       .then(function (data) {
         var pages = data && data.pages;
-        var first = pages && pages.length ? pages[0] : null;
-        if (!first) return null;
+        if (!pages || !pages.length) return null;
         return {
           pageCount: Number(data.pageCount) || pages.length,
-          width: Number(first.width) || 595,
-          height: Number(first.height) || 842
+          pages: pages.map(function (p, i) {
+            return {
+              page: Number(p.page) || (i + 1),
+              width: Math.round(Number(p.width) || 595),
+              height: Math.round(Number(p.height) || 842)
+            };
+          })
         };
       })
       .catch(function () { return null; });
@@ -4322,6 +4326,18 @@
     });
     workspace.appendChild(presetRow);
 
+    var pageNav = document.createElement('div');
+    pageNav.className = 'crop-page-nav';
+    pageNav.innerHTML =
+      '<button type="button" class="btn btn-secondary btn-sm crop-nav-btn" data-act="prev" disabled aria-label="Önceki sayfa">‹</button>' +
+      '<span class="crop-page-nav-label">Önizleme: Sayfa <strong class="crop-page-num">1</strong> / <span class="crop-page-total">1</span></span>' +
+      '<button type="button" class="btn btn-secondary btn-sm crop-nav-btn" data-act="next" disabled aria-label="Sonraki sayfa">›</button>';
+    workspace.appendChild(pageNav);
+    var pageNumEl = pageNav.querySelector('.crop-page-num');
+    var pageTotalEl = pageNav.querySelector('.crop-page-total');
+    var prevPageBtn = pageNav.querySelector('[data-act="prev"]');
+    var nextPageBtn = pageNav.querySelector('[data-act="next"]');
+
     var previewWrap = document.createElement('div');
     previewWrap.className = 'crop-preview-wrap';
     var pageSizeLbl = document.createElement('p');
@@ -4333,6 +4349,11 @@
     stage.className = 'crop-preview-stage';
     var pageEl = document.createElement('div');
     pageEl.className = 'crop-preview-page';
+    var pdfIframe = document.createElement('iframe');
+    pdfIframe.className = 'crop-pdf-iframe';
+    pdfIframe.title = 'Kırpma önizlemesi';
+    var overlayEl = document.createElement('div');
+    overlayEl.className = 'crop-overlay';
     var shadeTop = document.createElement('div');
     shadeTop.className = 'crop-shade crop-shade-top';
     var shadeRight = document.createElement('div');
@@ -4353,16 +4374,18 @@
       '<span class="crop-handle crop-handle-w" data-handle="w"></span>' +
       '<span class="crop-handle crop-handle-e" data-handle="e"></span>' +
       '<span class="crop-box-label"></span>';
-    pageEl.appendChild(shadeTop);
-    pageEl.appendChild(shadeRight);
-    pageEl.appendChild(shadeBottom);
-    pageEl.appendChild(shadeLeft);
-    pageEl.appendChild(cropBox);
+    overlayEl.appendChild(shadeTop);
+    overlayEl.appendChild(shadeRight);
+    overlayEl.appendChild(shadeBottom);
+    overlayEl.appendChild(shadeLeft);
+    overlayEl.appendChild(cropBox);
+    pageEl.appendChild(pdfIframe);
+    pageEl.appendChild(overlayEl);
     stage.appendChild(pageEl);
     previewWrap.appendChild(stage);
     var previewHint = document.createElement('p');
     previewHint.className = 'compress-level-hint';
-    previewHint.textContent = 'Kırpma kutusunu sürükleyin veya köşelerden boyutlandırın. Koordinatlar pt cinsindendir (sol üst köşe).';
+    previewHint.textContent = 'PDF üzerinde kırpma alanını ayarlayın. Sayfalar arasında gezinerek sonucu kontrol edin. Tüm değerler tam sayı (pt) olmalıdır.';
     previewWrap.appendChild(previewHint);
     workspace.appendChild(previewWrap);
 
@@ -4412,7 +4435,7 @@
       inp.className = 'split-num-input';
       inp.name = f.name;
       inp.min = f.name === 'x' || f.name === 'y' ? '0' : '1';
-      inp.step = '0.1';
+      inp.step = '1';
       cell.appendChild(inp);
       rectRow.appendChild(cell);
       rectFields[f.name] = inp;
@@ -4422,14 +4445,29 @@
     wrap.appendChild(workspace);
     body.appendChild(wrap);
 
-    var pageMeta = null;
+    var documentMeta = null;
+    var previewPage = 1;
+    var blobUrl = '';
     var rect = SC ? SC.defaultRect(null) : { x: 0, y: 0, width: 595, height: 842 };
     var loadToken = 0;
     var syncing = false;
     var dragState = null;
 
+    function pageCount() {
+      return documentMeta && documentMeta.pageCount ? documentMeta.pageCount : 1;
+    }
+
+    function currentPageInfo() {
+      if (!documentMeta || !documentMeta.pages || !documentMeta.pages.length) {
+        return SC ? SC.DEFAULT_PAGE : { width: 595, height: 842 };
+      }
+      var idx = Math.max(0, Math.min(documentMeta.pages.length - 1, previewPage - 1));
+      return documentMeta.pages[idx];
+    }
+
     function pageSize() {
-      return pageMeta || (SC ? SC.DEFAULT_PAGE : { width: 595, height: 842 });
+      var p = currentPageInfo();
+      return { width: Math.round(p.width || 595), height: Math.round(p.height || 842) };
     }
 
     function displayScale() {
@@ -4444,10 +4482,10 @@
     }
 
     function syncHiddenFields() {
-      rectFields.x.value = String(rect.x);
-      rectFields.y.value = String(rect.y);
-      rectFields.width.value = String(rect.width);
-      rectFields.height.value = String(rect.height);
+      rectFields.x.value = String(Math.round(rect.x));
+      rectFields.y.value = String(Math.round(rect.y));
+      rectFields.width.value = String(Math.round(rect.width));
+      rectFields.height.value = String(Math.round(rect.height));
     }
 
     function syncMarginsFromRect() {
@@ -4474,33 +4512,56 @@
       var ps = pageSize();
       pageEl.style.width = Math.round(ps.width * scale) + 'px';
       pageEl.style.height = Math.round(ps.height * scale) + 'px';
-      pageSizeLbl.textContent = 'Sayfa boyutu: ' + Math.round(ps.width) + ' × ' + Math.round(ps.height) + ' pt';
+      pageSizeLbl.textContent = 'Sayfa ' + previewPage + ' boyutu: ' + ps.width + ' × ' + ps.height + ' pt';
 
-      var left = rect.x * scale;
-      var top = rect.y * scale;
-      var w = rect.width * scale;
-      var h = rect.height * scale;
-      var pw = ps.width * scale;
-      var ph = ps.height * scale;
+      var pct = function (val, total) {
+        return (val / total * 100) + '%';
+      };
 
-      cropBox.style.left = left + 'px';
-      cropBox.style.top = top + 'px';
-      cropBox.style.width = w + 'px';
-      cropBox.style.height = h + 'px';
+      cropBox.style.left = pct(rect.x, ps.width);
+      cropBox.style.top = pct(rect.y, ps.height);
+      cropBox.style.width = pct(rect.width, ps.width);
+      cropBox.style.height = pct(rect.height, ps.height);
 
-      shadeTop.style.height = top + 'px';
-      shadeLeft.style.top = top + 'px';
-      shadeLeft.style.width = left + 'px';
-      shadeLeft.style.height = h + 'px';
-      shadeRight.style.top = top + 'px';
-      shadeRight.style.left = (left + w) + 'px';
-      shadeRight.style.width = Math.max(0, pw - left - w) + 'px';
-      shadeRight.style.height = h + 'px';
-      shadeBottom.style.top = (top + h) + 'px';
-      shadeBottom.style.height = Math.max(0, ph - top - h) + 'px';
+      shadeTop.style.height = pct(rect.y, ps.height);
+      shadeLeft.style.top = pct(rect.y, ps.height);
+      shadeLeft.style.width = pct(rect.x, ps.width);
+      shadeLeft.style.height = pct(rect.height, ps.height);
+      shadeRight.style.top = pct(rect.y, ps.height);
+      shadeRight.style.left = pct(rect.x + rect.width, ps.width);
+      shadeRight.style.width = pct(Math.max(0, ps.width - rect.x - rect.width), ps.width);
+      shadeRight.style.height = pct(rect.height, ps.height);
+      shadeBottom.style.top = pct(rect.y + rect.height, ps.height);
+      shadeBottom.style.height = pct(Math.max(0, ps.height - rect.y - rect.height), ps.height);
 
       var lbl = cropBox.querySelector('.crop-box-label');
       if (lbl) lbl.textContent = Math.round(rect.width) + ' × ' + Math.round(rect.height);
+    }
+
+    function updatePageNav() {
+      var total = pageCount();
+      pageNumEl.textContent = String(previewPage);
+      pageTotalEl.textContent = String(total);
+      prevPageBtn.disabled = previewPage <= 1;
+      nextPageBtn.disabled = previewPage >= total;
+    }
+
+    function syncIframePage() {
+      if (!blobUrl) {
+        pdfIframe.removeAttribute('src');
+        return;
+      }
+      var base = blobUrl.split('#')[0];
+      pdfIframe.src = base + '#page=' + previewPage + '&zoom=page-width';
+    }
+
+    function goPreviewPage(nextPage) {
+      var total = pageCount();
+      previewPage = Math.max(1, Math.min(total, nextPage));
+      if (SC) setRect(SC.clampRect(rect, pageSize()));
+      updatePageNav();
+      syncIframePage();
+      syncAll('page');
     }
 
     function syncAll(source) {
@@ -4517,10 +4578,20 @@
       setRect(SC.presetRect(id, pageSize()));
     }
 
+    function revokeBlob() {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = '';
+      }
+    }
+
     function loadFromFile() {
       var fileIn = form.querySelector('[name="fileInput"]');
       if (!fileIn || !fileIn.files || !fileIn.files.length || !isPdfUpload(fileIn.files[0])) {
-        pageMeta = null;
+        documentMeta = null;
+        previewPage = 1;
+        revokeBlob();
+        pdfIframe.removeAttribute('src');
         emptyState.hidden = false;
         workspace.hidden = true;
         return;
@@ -4529,26 +4600,34 @@
       emptyState.hidden = true;
       workspace.hidden = false;
       pageSizeLbl.textContent = 'Sayfa boyutu okunuyor…';
+      revokeBlob();
+      blobUrl = URL.createObjectURL(file);
+      previewPage = 1;
       var token = ++loadToken;
-      fetchPdfPageDimensions(file).then(function (meta) {
+      fetchPdfDocumentMeta(file).then(function (meta) {
         if (token !== loadToken) return;
         if (meta) {
-          pageMeta = { width: meta.width, height: meta.height };
-          setRect(SC ? SC.defaultRect(pageMeta) : { x: 0, y: 0, width: meta.width, height: meta.height });
+          documentMeta = meta;
+          setRect(SC ? SC.defaultRect(pageSize()) : { x: 0, y: 0, width: pageSize().width, height: pageSize().height });
         } else {
-          pageMeta = SC ? SC.DEFAULT_PAGE : { width: 595, height: 842 };
-          setRect(SC ? SC.defaultRect(pageMeta) : { x: 0, y: 0, width: 595, height: 842 });
+          documentMeta = {
+            pageCount: 1,
+            pages: [{ page: 1, width: 595, height: 842 }]
+          };
+          setRect(SC ? SC.defaultRect(pageSize()) : { x: 0, y: 0, width: 595, height: 842 });
           pageSizeLbl.textContent = 'Sayfa boyutu alınamadı — A4 varsayıldı (595 × 842 pt)';
         }
+        updatePageNav();
+        syncIframePage();
       });
     }
 
     function pointerToPagePt(clientX, clientY) {
       var box = pageEl.getBoundingClientRect();
-      var scale = displayScale();
+      var ps = pageSize();
       return {
-        x: (clientX - box.left) / scale,
-        y: (clientY - box.top) / scale
+        x: Math.round((clientX - box.left) / box.width * ps.width),
+        y: Math.round((clientY - box.top) / box.height * ps.height)
       };
     }
 
@@ -4617,6 +4696,13 @@
       });
     });
 
+    prevPageBtn.addEventListener('click', function () {
+      goPreviewPage(previewPage - 1);
+    });
+    nextPageBtn.addEventListener('click', function () {
+      goPreviewPage(previewPage + 1);
+    });
+
     Object.keys(marginFields).forEach(function (key) {
       marginFields[key].addEventListener('input', function () {
         if (syncing) return;
@@ -4628,10 +4714,10 @@
       rectFields[key].addEventListener('input', function () {
         if (syncing) return;
         setRect({
-          x: Number(rectFields.x.value) || 0,
-          y: Number(rectFields.y.value) || 0,
-          width: Number(rectFields.width.value) || 1,
-          height: Number(rectFields.height.value) || 1
+          x: Math.round(Number(rectFields.x.value) || 0),
+          y: Math.round(Number(rectFields.y.value) || 0),
+          width: Math.round(Number(rectFields.width.value) || 1),
+          height: Math.round(Number(rectFields.height.value) || 1)
         });
       });
     });
@@ -4643,13 +4729,22 @@
     };
 
     form._validateCrop = function () {
-      if (!pageMeta && workspace.hidden) return 'Kırpma için PDF seçin.';
+      if (!documentMeta && workspace.hidden) return 'Kırpma için PDF seçin.';
       if (!rect.width || !rect.height) return 'Kırpma genişliği ve yüksekliği girin.';
       var ps = pageSize();
-      if (rect.x + rect.width > ps.width + 0.5 || rect.y + rect.height > ps.height + 0.5) {
+      if (rect.x + rect.width > ps.width || rect.y + rect.height > ps.height) {
         return 'Kırpma alanı sayfa sınırlarını aşıyor.';
       }
+      if (rect.x !== Math.round(rect.x) || rect.y !== Math.round(rect.y) ||
+          rect.width !== Math.round(rect.width) || rect.height !== Math.round(rect.height)) {
+        return 'Kırpma değerleri tam sayı olmalıdır.';
+      }
       return '';
+    };
+
+    form._cropCleanup = function () {
+      revokeBlob();
+      endDrag();
     };
 
     loadFromFile();
@@ -4827,6 +4922,10 @@
     if (form._redactCleanup) {
       form._redactCleanup();
       form._redactCleanup = null;
+    }
+    if (form._cropCleanup) {
+      form._cropCleanup();
+      form._cropCleanup = null;
     }
     form.innerHTML = '';
     form._pageSelectionFields = [];
