@@ -1297,6 +1297,82 @@
         applyFileSelection(file.files);
       });
     }
+
+    if (state.currentTool && state.currentTool.id === 'merge-pdfs' && input.multiple && input.name === 'fileInput') {
+      var mergeList = document.createElement('div');
+      mergeList.className = 'tp-merge-list';
+      mergeList.hidden = true;
+      body.appendChild(mergeList);
+
+      function reorderFiles(order) {
+        try {
+          var dt = new DataTransfer();
+          order.forEach(function (f) { dt.items.add(f); });
+          file.files = dt.files;
+        } catch (e) { /* eski tarayıcı */ }
+      }
+
+      function renderMergeList(files) {
+        mergeList.innerHTML = '';
+        if (!files || files.length < 2) {
+          mergeList.hidden = true;
+          return;
+        }
+        mergeList.hidden = false;
+        mergeList.appendChild(hint('Sıralamayı değiştirmek için dosyaları sürükleyin. Birleştirme bu sırayla yapılır.'));
+        var items = Array.prototype.slice.call(files);
+        items.forEach(function (f, idx) {
+          var row = document.createElement('div');
+          row.className = 'tp-merge-item';
+          row.draggable = true;
+          row.setAttribute('data-idx', String(idx));
+          row.innerHTML =
+            '<span class="tp-merge-grip" aria-hidden="true">⠿</span>' +
+            '<span class="tp-merge-num">' + (idx + 1) + '</span>' +
+            '<span class="tp-merge-name">' + escapeHtml(f.name) + '</span>';
+          row.addEventListener('dragstart', function (ev) {
+            ev.dataTransfer.setData('text/plain', String(idx));
+            row.classList.add('dragging');
+          });
+          row.addEventListener('dragend', function () {
+            row.classList.remove('dragging');
+          });
+          row.addEventListener('dragover', function (ev) {
+            ev.preventDefault();
+            row.classList.add('drag-over');
+          });
+          row.addEventListener('dragleave', function () {
+            row.classList.remove('drag-over');
+          });
+          row.addEventListener('drop', function (ev) {
+            ev.preventDefault();
+            row.classList.remove('drag-over');
+            var from = parseInt(ev.dataTransfer.getData('text/plain'), 10);
+            var to = idx;
+            if (isNaN(from) || from === to) return;
+            var next = items.slice();
+            var moved = next.splice(from, 1)[0];
+            next.splice(to, 0, moved);
+            items = next;
+            reorderFiles(items);
+            renderMergeList(items);
+          });
+          mergeList.appendChild(row);
+        });
+      }
+
+      file.addEventListener('change', function () {
+        if (file.files && file.files.length > 1) renderMergeList(Array.prototype.slice.call(file.files));
+        else mergeList.hidden = true;
+      });
+    }
+  }
+
+  function hint(text) {
+    var el = document.createElement('p');
+    el.className = 'tp-hint compress-level-hint';
+    el.textContent = text;
+    return el;
   }
 
   function appendCompressInput(form, input) {
@@ -4883,6 +4959,12 @@
       appendCropInput(form, input);
       return;
     }
+    if (input.type === 'toolPanel') {
+      if (window.SecuriToolPanels && SecuriToolPanels.render) {
+        SecuriToolPanels.render(form, state.currentTool.id, input);
+      }
+      return;
+    }
     if (input.type === 'file') {
       appendFileInput(form, input);
       return;
@@ -4926,6 +5008,10 @@
     if (form._cropCleanup) {
       form._cropCleanup();
       form._cropCleanup = null;
+    }
+    if (form._toolPanelCleanup) {
+      form._toolPanelCleanup();
+      form._toolPanelCleanup = null;
     }
     form.innerHTML = '';
     form._pageSelectionFields = [];

@@ -96,15 +96,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: outputFormat
-        label: Çıktı formatı
-        type: select
-        default: docx
-        options:
-          - value: docx
-            label: DOCX (Microsoft Word)
-          - value: odt
-            label: ODT (LibreOffice)
+      - type: toolPanel
+        sectionTitle: Çıktı formatı
 
   - id: file-to-pdf
     title: Word / Office → PDF
@@ -120,6 +113,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: convert
     title: Dönüştür
@@ -325,31 +320,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: pageSize
-        label: Hedef sayfa boyutu
-        type: select
-        default: A4
-        options:
-          - value: KEEP
-            label: Mevcut boyutu koru
-          - value: A4
-            label: A4
-          - value: LETTER
-            label: Letter
-          - value: LEGAL
-            label: Legal
-          - value: A3
-            label: A3
-          - value: A5
-            label: A5
-      - name: scaleFactor
-        label: İçerik ölçeği
-        type: number
-        default: 1
-        min: 0.1
-        max: 5
-        step: 0.05
-        hint: "1 = orijinal boyut; 0.9 küçültür, 1.1 büyütür."
+      - type: toolPanel
+        sectionTitle: Ölçekleme
 
   - id: add-page-numbers
     title: Sayfa Numarası Ekle
@@ -383,11 +355,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: flattenOnlyForms
-        label: Yalnızca formları düzleştir
-        type: checkbox
-        default: false
-        checkboxLabel: Yalnızca form alanlarını düzleştir (tüm sayfayı görsele çevirme)
+      - type: toolPanel
+        sectionTitle: Düzleştirme
 
   - id: repair
     title: Onar
@@ -403,6 +372,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: remove-blanks
     title: Boş Sayfaları Kaldır
@@ -418,21 +389,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: threshold
-        label: Beyazlık eşiği (0–255)
-        type: number
-        default: 10
-        min: 0
-        max: 255
-        hint: "Pikselin beyaz sayılması için gereken minimum değer."
-      - name: whitePercent
-        label: Beyaz yüzde (%)
-        type: number
-        default: 99.9
-        min: 50
-        max: 100
-        step: 0.1
-        hint: "Sayfanın bu kadar yüzdesi beyazsa boş kabul edilir."
+      - type: toolPanel
+        sectionTitle: Hassasiyet
 
   - id: sanitize-pdf
     title: PDF Temizle
@@ -448,36 +406,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: removeJavaScript
-        label: JavaScript kaldır
-        type: checkbox
-        default: true
-        checkboxLabel: JavaScript işlemlerini kaldır
-      - name: removeEmbeddedFiles
-        label: Gömülü dosyalar
-        type: checkbox
-        default: true
-        checkboxLabel: Gömülü dosyaları kaldır
-      - name: removeXMPMetadata
-        label: XMP meta verisi
-        type: checkbox
-        default: false
-        checkboxLabel: XMP meta verisini kaldır
-      - name: removeMetadata
-        label: Belge bilgisi
-        type: checkbox
-        default: false
-        checkboxLabel: Belge bilgisi meta verisini kaldır
-      - name: removeLinks
-        label: Bağlantılar
-        type: checkbox
-        default: false
-        checkboxLabel: Bağlantıları kaldır
-      - name: removeFonts
-        label: Fontlar
-        type: checkbox
-        default: false
-        checkboxLabel: Fontları kaldır
+      - type: toolPanel
+        sectionTitle: Temizleme seçenekleri
 
   - id: remove-password
     title: Parola Kaldır
@@ -493,10 +423,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: password
-        label: Mevcut parola
-        type: text
-        required: true
+      - type: toolPanel
+        sectionTitle: Parola
 
   - id: pdf-to-img
     title: PDF → Görsel
@@ -512,45 +440,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: imageFormat
-        label: Görsel formatı
-        type: select
-        default: png
-        options:
-          - value: png
-            label: PNG
-          - value: jpeg
-            label: JPEG
-          - value: webp
-            label: WebP
-          - value: tiff
-            label: TIFF
-      - name: dpi
-        label: Çözünürlük (DPI)
-        type: number
-        default: 300
-        min: 72
-        max: 600
-      - name: colorType
-        label: Renk modu
-        type: select
-        default: color
-        options:
-          - value: color
-            label: Renkli
-          - value: grayscale
-            label: Gri ton
-          - value: blackwhite
-            label: Siyah-beyaz
-      - name: singleOrMultiple
-        label: Çıktı yapısı
-        type: select
-        default: multiple
-        options:
-          - value: multiple
-            label: Her sayfa ayrı dosya (ZIP)
-          - value: single
-            label: Tek dosya
+      - type: toolPanel
+        sectionTitle: Görsel ayarları
 
   - id: img-to-pdf
     title: Görsel → PDF
@@ -567,22 +458,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: fitOption
-        label: Sayfaya sığdırma
-        type: select
-        default: maintainAspectRatio
-        options:
-          - value: maintainAspectRatio
-            label: En-boy oranını koru
-          - value: fitDocumentToPage
-            label: Belgeyi sayfaya sığdır
-          - value: fillPage
-            label: Sayfayı doldur
-      - name: autoRotate
-        label: Otomatik döndür
-        type: checkbox
-        default: true
-        checkboxLabel: EXIF yönelimine göre döndür
+      - type: toolPanel
+        sectionTitle: Sayfaya sığdırma
 
   - id: pdf-to-presentation
     title: PDF → Sunum
@@ -598,15 +475,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: outputFormat
-        label: Çıktı formatı
-        type: select
-        default: pptx
-        options:
-          - value: pptx
-            label: PPTX
-          - value: odp
-            label: ODP
+      - type: toolPanel
+        sectionTitle: Çıktı formatı
 
   - id: pdf-to-text
     title: PDF → Metin
@@ -622,15 +492,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: outputFormat
-        label: Çıktı formatı
-        type: select
-        default: txt
-        options:
-          - value: txt
-            label: TXT (düz metin)
-          - value: rtf
-            label: RTF
+      - type: toolPanel
+        sectionTitle: Çıktı formatı
 
   - id: pdf-to-html
     title: PDF → HTML
@@ -646,6 +509,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: pdf-to-pdfa
     title: PDF → PDF/A
@@ -661,17 +526,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: outputFormat
-        label: PDF/A seviyesi
-        type: select
-        default: pdfa-2b
-        options:
-          - value: pdfa-1b
-            label: PDF/A-1b
-          - value: pdfa-2b
-            label: PDF/A-2b
-          - value: pdfa-3b
-            label: PDF/A-3b
+      - type: toolPanel
+        sectionTitle: PDF/A seviyesi
 
   - id: html-to-pdf
     title: HTML → PDF
@@ -686,13 +542,8 @@ tools:
         accept: .html,.htm,.zip,text/html
         required: true
         sectionTitle: Dosyalar
-      - name: zoom
-        label: Yakınlaştırma
-        type: number
-        default: 1
-        min: 0.1
-        max: 3
-        step: 0.1
+      - type: toolPanel
+        sectionTitle: Yakınlaştırma
 
   - id: markdown-to-pdf
     title: Markdown → PDF
@@ -707,6 +558,8 @@ tools:
         accept: .md,.markdown,text/markdown
         required: true
         sectionTitle: Dosyalar
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: crop
     title: Kırp
@@ -740,24 +593,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: pagesPerSheet
-        label: Sayfa / yaprak
-        type: select
-        default: "4"
-        options:
-          - value: "2"
-            label: 2-up (1×2)
-          - value: "4"
-            label: 4-up (2×2)
-          - value: "9"
-            label: 9-up (3×3)
-          - value: "16"
-            label: 16-up (4×4)
-      - name: addBorder
-        label: Kenarlık
-        type: checkbox
-        default: false
-        checkboxLabel: Sayfalar arası kenarlık ekle
+      - type: toolPanel
+        sectionTitle: Düzen
 
   - id: overlay-pdf
     title: PDF Katmanlama
@@ -780,26 +617,8 @@ tools:
         multiple: true
         required: true
         showSelection: true
-      - name: overlayMode
-        label: Katman modu
-        type: select
-        default: SequentialOverlay
-        options:
-          - value: SequentialOverlay
-            label: Sıralı
-          - value: InterleavedOverlay
-            label: Dönüşümlü
-          - value: FixedRepeatOverlay
-            label: Sabit tekrar
-      - name: overlayPosition
-        label: Konum
-        type: select
-        default: "0"
-        options:
-          - value: "0"
-            label: Ön plan (üstte)
-          - value: "1"
-            label: Arka plan (altta)
+      - type: toolPanel
+        sectionTitle: Katman ayarları
 
   - id: pdf-to-single-page
     title: Tek Uzun Sayfa
@@ -815,6 +634,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: extract-images
     title: Görselleri Çıkar
@@ -830,22 +651,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: format
-        label: Görsel formatı
-        type: select
-        default: png
-        options:
-          - value: png
-            label: PNG
-          - value: jpeg
-            label: JPEG
-          - value: gif
-            label: GIF
-      - name: allowDuplicates
-        label: Yinelenen görseller
-        type: checkbox
-        default: false
-        checkboxLabel: Yinelenen görselleri de kaydet
+      - type: toolPanel
+        sectionTitle: Çıkarma ayarları
 
   - id: get-info-on-pdf
     title: PDF Bilgisi
@@ -861,6 +668,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: remove-cert-sign
     title: Sertifika İmzasını Kaldır
@@ -876,6 +685,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: cert-sign
     title: Sertifika ile İmzala
@@ -908,6 +719,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: update-metadata
     title: Meta Veri Düzenle
@@ -923,24 +736,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: deleteAll
-        label: Tüm meta veriyi sil
-        type: checkbox
-        default: false
-        checkboxLabel: Mevcut tüm meta veriyi sil
-      - name: title
-        label: Başlık
-        type: text
-        placeholder: Belge başlığı
-      - name: author
-        label: Yazar
-        type: text
-      - name: subject
-        label: Konu
-        type: text
-      - name: keywords
-        label: Anahtar kelimeler
-        type: text
+      - type: toolPanel
+        sectionTitle: Meta veri
 
   - id: remove-image-pdf
     title: Görselleri Kaldır
@@ -956,6 +753,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: pdf-to-xml
     title: PDF → XML
@@ -971,6 +770,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: pdf-to-csv
     title: PDF → CSV
@@ -986,11 +787,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: pageNumbers
-        label: Sayfa aralığı
-        type: text
-        default: all
-        placeholder: all veya 1,3,5-9
+      - type: toolPanel
+        sectionTitle: Sayfa aralığı
 
   - id: pdf-to-xlsx
     title: PDF → Excel
@@ -1006,10 +804,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: pageNumbers
-        label: Sayfa aralığı
-        type: text
-        default: all
+      - type: toolPanel
+        sectionTitle: Sayfa aralığı
 
   - id: pdf-to-markdown
     title: PDF → Markdown
@@ -1025,6 +821,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: eml-to-pdf
     title: E-posta → PDF
@@ -1039,11 +837,8 @@ tools:
         accept: .eml,.msg,message/rfc822
         required: true
         sectionTitle: Dosyalar
-      - name: includeAttachments
-        label: Ekler
-        type: checkbox
-        default: true
-        checkboxLabel: E-posta eklerini dahil et
+      - type: toolPanel
+        sectionTitle: E-posta ayarları
 
   - id: scanner-effect
     title: Tarayıcı Efekti
@@ -1059,22 +854,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: quality
-        label: Kalite ön ayarı
-        type: select
-        default: medium
-        options:
-          - value: low
-            label: Düşük (hızlı)
-          - value: medium
-            label: Orta
-          - value: high
-            label: Yüksek
-      - name: yellowish
-        label: Sararmış kağıt
-        type: checkbox
-        default: true
-        checkboxLabel: Hafif sarı kağıt tonu uygula
+      - type: toolPanel
+        sectionTitle: Efekt ayarları
 
   - id: pdf-to-epub
     title: PDF → EPUB
@@ -1090,29 +871,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: outputFormat
-        label: Çıktı formatı
-        type: select
-        default: EPUB
-        options:
-          - value: EPUB
-            label: EPUB
-          - value: AZW3
-            label: AZW3 (Kindle)
-      - name: targetDevice
-        label: Hedef cihaz
-        type: select
-        default: TABLET_PHONE_IMAGES
-        options:
-          - value: TABLET_PHONE_IMAGES
-            label: Tablet / telefon (görselli)
-          - value: KINDLE_EINK_TEXT
-            label: Kindle e-mürekkep (metin odaklı)
-      - name: detectChapters
-        label: Bölüm algılama
-        type: checkbox
-        default: true
-        checkboxLabel: PDF başlıklarından bölüm oluştur
+      - type: toolPanel
+        sectionTitle: e-Kitap ayarları
 
   - id: pdf-to-cbz
     title: PDF → CBZ
@@ -1128,12 +888,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: dpi
-        label: Görsel çözünürlüğü (DPI)
-        type: number
-        default: 150
-        min: 72
-        max: 600
+      - type: toolPanel
+        sectionTitle: Çözünürlük
 
   - id: pdf-to-cbr
     title: PDF → CBR
@@ -1149,12 +905,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: dpi
-        label: Görsel çözünürlüğü (DPI)
-        type: number
-        default: 150
-        min: 72
-        max: 600
+      - type: toolPanel
+        sectionTitle: Çözünürlük
 
   - id: cbz-to-pdf
     title: CBZ → PDF
@@ -1169,11 +921,8 @@ tools:
         accept: .cbz,application/x-cbz,application/zip
         required: true
         sectionTitle: Dosyalar
-      - name: optimizeForEbook
-        label: e-Kitap optimizasyonu
-        type: checkbox
-        default: false
-        checkboxLabel: e-Kitap okuyucular için optimize et
+      - type: toolPanel
+        sectionTitle: Dönüşüm ayarları
 
   - id: cbr-to-pdf
     title: CBR → PDF
@@ -1188,11 +937,8 @@ tools:
         accept: .cbr,application/x-cbr
         required: true
         sectionTitle: Dosyalar
-      - name: optimizeForEbook
-        label: e-Kitap optimizasyonu
-        type: checkbox
-        default: false
-        checkboxLabel: e-Kitap okuyucular için optimize et
+      - type: toolPanel
+        sectionTitle: Dönüşüm ayarları
 
   - id: url-to-pdf
     title: URL → PDF
@@ -1207,6 +953,8 @@ tools:
         required: true
         placeholder: "https://ornek.com/sayfa"
         hint: "Tam URL girin (http:// veya https://)."
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: booklet-imposition
     title: Kitapçık Baskısı
@@ -1222,36 +970,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: spineLocation
-        label: Cilt konumu
-        type: select
-        default: LEFT
-        options:
-          - value: LEFT
-            label: Sol
-          - value: RIGHT
-            label: Sağ
-      - name: addGutter
-        label: Orta boşluk (cilt payı)
-        type: checkbox
-        default: true
-        checkboxLabel: Cilt payı ekle
-      - name: gutterSize
-        label: Cilt payı (pt)
-        type: number
-        default: 12
-        min: 0
-        max: 72
-      - name: doubleSided
-        label: Çift taraflı baskı
-        type: checkbox
-        default: true
-        checkboxLabel: Çift taraflı baskı düzeni uygula
-      - name: addBorder
-        label: Kenarlık
-        type: checkbox
-        default: false
-        checkboxLabel: Sayfalar arası kenarlık ekle
+      - type: toolPanel
+        sectionTitle: Baskı düzeni
 
   - id: add-image
     title: Görsel Ekle
@@ -1272,21 +992,8 @@ tools:
         type: file
         accept: .jpg,.jpeg,.png,.gif,.bmp,.webp,image/*
         required: true
-      - name: x
-        label: X konumu (pt)
-        type: number
-        default: 0
-        min: 0
-      - name: y
-        label: Y konumu (pt)
-        type: number
-        default: 0
-        min: 0
-      - name: everyPage
-        label: Tüm sayfalar
-        type: checkbox
-        default: false
-        checkboxLabel: Görseli her sayfaya ekle
+      - type: toolPanel
+        sectionTitle: Konum
 
   - id: auto-rename
     title: Otomatik Yeniden Adlandır
@@ -1302,11 +1009,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: useFirstTextAsFallback
-        label: Yedek ad kaynağı
-        type: checkbox
-        default: false
-        checkboxLabel: Başlık yoksa ilk metin satırını kullan
+      - type: toolPanel
+        sectionTitle: Adlandırma
 
   - id: replace-invert-pdf
     title: Renk Değiştir / Ters Çevir
@@ -1322,40 +1026,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: replaceAndInvertOption
-        label: İşlem modu
-        type: select
-        default: HIGH_CONTRAST_COLOR
-        options:
-          - value: HIGH_CONTRAST_COLOR
-            label: Yüksek kontrast renk
-          - value: CUSTOM_COLOR
-            label: Özel renk
-          - value: FULL_INVERSION
-            label: Tam renk ters çevirme
-          - value: COLOR_SPACE_CONVERSION
-            label: Renk uzayı dönüşümü
-      - name: highContrastColorCombination
-        label: Kontrast kombinasyonu
-        type: select
-        default: WHITE_TEXT_ON_BLACK
-        options:
-          - value: WHITE_TEXT_ON_BLACK
-            label: Beyaz metin / siyah zemin
-          - value: BLACK_TEXT_ON_WHITE
-            label: Siyah metin / beyaz zemin
-          - value: YELLOW_TEXT_ON_BLACK
-            label: Sarı metin / siyah zemin
-          - value: GREEN_TEXT_ON_BLACK
-            label: Yeşil metin / siyah zemin
-      - name: backGroundColor
-        label: Arka plan rengi (hex)
-        type: text
-        placeholder: "#000000"
-      - name: textColor
-        label: Metin rengi (hex)
-        type: text
-        placeholder: "#FFFFFF"
+      - type: toolPanel
+        sectionTitle: Renk ayarları
 
   - id: change-permissions
     title: İzinleri Değiştir
@@ -1388,6 +1060,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: extract-attachments
     title: Ekleri Çıkar
@@ -1403,6 +1077,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: add-attachments
     title: Ek Dosya Ekle
@@ -1424,11 +1100,8 @@ tools:
         multiple: true
         required: true
         showSelection: true
-      - name: convertToPdfA3b
-        label: PDF/A-3b
-        type: checkbox
-        default: false
-        checkboxLabel: Ekleri PDF/A-3b uyumlu formata dönüştür
+      - type: toolPanel
+        sectionTitle: Ek ayarları
 
   - id: extract-image-scans
     title: Tarama Görseli Çıkar
@@ -1444,23 +1117,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: angleThreshold
-        label: Eğim eşiği (°)
-        type: number
-        default: 5
-        min: 0
-        max: 45
-      - name: tolerance
-        label: Tolerans
-        type: number
-        default: 20
-        min: 1
-        max: 100
-      - name: minArea
-        label: Minimum alan (px²)
-        type: number
-        default: 8000
-        min: 100
+      - type: toolPanel
+        sectionTitle: Algılama ayarları
 
   - id: vector-to-pdf
     title: Vektör → PDF
@@ -1475,19 +1133,8 @@ tools:
         accept: .eps,.ps,.pcl,.xps
         required: true
         sectionTitle: Dosyalar
-      - name: outputFormat
-        label: Kaynak formatı
-        type: select
-        default: eps
-        options:
-          - value: eps
-            label: EPS
-          - value: ps
-            label: PostScript (PS)
-          - value: pcl
-            label: PCL
-          - value: xps
-            label: XPS
+      - type: toolPanel
+        sectionTitle: Kaynak formatı
 
   - id: pdf-to-vector
     title: PDF → Vektör
@@ -1503,24 +1150,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: outputFormat
-        label: Çıktı formatı
-        type: select
-        default: eps
-        options:
-          - value: eps
-            label: EPS
-          - value: ps
-            label: PostScript (PS)
-          - value: pcl
-            label: PCL
-          - value: xps
-            label: XPS
-      - name: prepress
-        label: Baskı ön işleme
-        type: checkbox
-        default: false
-        checkboxLabel: Baskı ön işleme (prepress) modu
+      - type: toolPanel
+        sectionTitle: Vektör ayarları
 
   - id: ebook-to-pdf
     title: e-Kitap → PDF
@@ -1535,21 +1166,8 @@ tools:
         accept: .epub,.mobi,.azw3,.fb2
         required: true
         sectionTitle: Dosyalar
-      - name: optimizeForEbook
-        label: e-Kitap optimizasyonu
-        type: checkbox
-        default: false
-        checkboxLabel: e-Kitap okuma düzeni için optimize et
-      - name: includeTableOfContents
-        label: İçindekiler
-        type: checkbox
-        default: false
-        checkboxLabel: İçindekiler tablosu ekle
-      - name: includePageNumbers
-        label: Sayfa numaraları
-        type: checkbox
-        default: false
-        checkboxLabel: Sayfa numaraları ekle
+      - type: toolPanel
+        sectionTitle: Dönüşüm ayarları
 
   - id: verify-pdf
     title: PDF Doğrula
@@ -1565,6 +1183,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
+      - type: toolPanel
+        sectionTitle: Bilgi
 
   - id: edit-table-of-contents
     title: İçindekiler Düzenle
@@ -1580,17 +1200,8 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: bookmarkData
-        label: Yer imi JSON
-        type: textarea
-        required: true
-        placeholder: '[{"title":"Bölüm 1","page":1,"children":[]}]'
-        hint: "Stirling bookmarkData JSON dizisi. Mevcut yapıyı PDF Bilgisi aracından alabilirsiniz."
-      - name: replaceExisting
-        label: Mevcut yer imlerini değiştir
-        type: checkbox
-        default: true
-        checkboxLabel: Var olan içindekileri sil ve yenisiyle değiştir
+      - type: toolPanel
+        sectionTitle: İçindekiler
 
   - id: auto-split-pdf
     title: Otomatik Ayır (Ayraç)
@@ -1606,8 +1217,5 @@ tools:
         required: true
         sectionTitle: Dosyalar
         showSelection: true
-      - name: duplexMode
-        label: Dubleks tarama
-        type: checkbox
-        default: false
-        checkboxLabel: Dubleks taranmış belge modu
+      - type: toolPanel
+        sectionTitle: Ayırma modu
