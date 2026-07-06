@@ -9,8 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from sqlalchemy.orm import Session
+
 from ..auth import AuthUser, get_current_user
 from ..config import Settings, get_settings
+from ..database import get_db
+from ..ops import get_user_usage_stats
 from ..settings_store import SettingsStore
 from ..tools_catalog import _load_ui_catalog, list_ui_tools
 from ..user_prefs import load_user_prefs, save_user_prefs
@@ -84,6 +88,14 @@ def app_me(user: AuthUser = Depends(get_current_user), settings: Settings = Depe
         "favoriteTools": prefs.get("favoriteTools", []),
         "locale": prefs.get("locale", "tr-TR"),
     }
+
+
+@router.get("/stats/usage")
+def app_usage_stats(
+    user: AuthUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return get_user_usage_stats(db, user.user_id)
 
 
 @router.get("/profile")

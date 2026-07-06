@@ -2,6 +2,8 @@
 
 69 PDF aracı için manuel smoke / regresyon kontrolü. Her araç için: form yüklenir, dosya seçilir, işlem gönderilir, indirme alınır.
 
+**Sabah test sırası:** [TEST-RUNBOOK.md](TEST-RUNBOOK.md) — smoke → top-20 → full checklist.
+
 **Sütunlar:** Form | Dosya | Gönder | İndir
 
 ---
@@ -185,5 +187,6 @@ Form → Stirling proxy eşlemesi için sık kullanılan alanlar:
 ## Notlar
 
 - ZIP çıktısı üreten araçlar (split, extract-images vb.): indirilen dosya `.zip` olmalı.
-- JSON rapor araçları: indirme `application/json` veya dosya indirme tetiklemeli.
+- JSON rapor araçları: indirme + panelde JSON önizleme (`get-info-on-pdf`, `verify-pdf`, `validate-signature`).
+- **compare**: HTML rapor iframe önizlemesi.
 - Deploy sonrası statik önbellek için `?v=` sürüm kontrolü — bkz. [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

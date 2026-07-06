@@ -31,7 +31,7 @@ Stirling-PDF kullanıcıya **gösterilmez**; yalnızca `/api/pdf` proxy üzerind
 | 10 | SMTP admin | Admin → mevcut | Mevcut |
 | 11 | AD admin | Admin → LDAP | Mevcut |
 | 12 | Müşteri logosu | Header + Keycloak tema | `customer_logo` base64 |
-| 13 | Kullanım istatistikleri | Admin + Profil özet | **Faz 8** (kuyruk + metrik) |
+| 13 | Kullanım istatistikleri | Admin + Profil özet | `GET /api/app/v1/stats/usage`, admin dashboard job özeti |
 | 14 | HTML mail şablonları | Admin → mevcut | Mevcut |
 | 15 | İş kuyruğu | İşlerim + progress bar | Merkezi DB kuyruk + worker (`/api/app/v1/jobs`) |
 | 16 | Denetim kayıtları | Admin → Audit | Mevcut + iş tipi filtresi **Faz 8** |
@@ -45,7 +45,7 @@ Stirling-PDF kullanıcıya **gösterilmez**; yalnızca `/api/pdf` proxy üzerind
 ├── #/arsiv         — arşivlenmiş belgeler (ayrı depo)
 ├── #/araclar       — kategorize araç kataloğu
 ├── #/favoriler     — kullanıcı favori araçları
-├── #/isler         — iş kuyruğu (yakında)
+├── #/isler         — iş kuyruğu (aktif iş + geçmiş tablo)
 ├── #/profil        — profil + kota + tercihler
 └── #/arac/:id      — tek araç formu (araçlar eklendikçe)
 ```
@@ -63,7 +63,7 @@ Stirling-PDF kullanıcıya **gösterilmez**; yalnızca `/api/pdf` proxy üzerind
 ## Sonraki fazlar
 
 1. ~~**Faz 7b** — Araç formlarını tek tek bağlama (`ui-tools.yml`)~~ **Tamamlandı**
-2. **Faz 8** — İş kuyruğu istatistikleri, gelişmiş audit filtreleri, profil kullanım özeti
+2. ~~**Faz 8** — İş kuyruğu istatistikleri, gelişmiş audit filtreleri, profil kullanım özeti~~ **Tamamlandı**
 3. **Faz 9** — Keycloak login temasında müşteri logosu otomatik senkron
 
 ## Faz 7b — Araç form UX (Tier 2)

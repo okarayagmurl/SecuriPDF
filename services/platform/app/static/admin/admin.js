@@ -539,6 +539,7 @@
     var lic = data.license || {};
     var jobs = data.jobs || {};
     var byStatus = jobs.byStatus || {};
+    var jobSummary = jobs.summary || {};
     var setup = data.setup || {};
     var readiness = data.readiness || {};
     var profiles = data.accessProfiles || {};
@@ -552,6 +553,8 @@
         '<div class="dash-stat"><span class="dash-stat-label">Disk boş</span><strong>%' + (disk.freePercent || 0) + '</strong><span class="dash-stat-meta">' + formatBytes(disk.freeBytes) + ' boş</span></div>' +
         '<div class="dash-stat"><span class="dash-stat-label">Yedekler</span><strong>' + (backups.count || 0) + '</strong><span class="dash-stat-meta">Son: ' + formatDate(backups.latestAt) + '</span></div>' +
         '<div class="dash-stat"><span class="dash-stat-label">Aktif iş</span><strong>' + ((byStatus.queued || 0) + (byStatus.running || 0)) + '</strong><span class="dash-stat-meta">Tamamlanan: ' + (byStatus.completed || 0) + '</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Son 24 saat</span><strong>' + (jobSummary.last24Hours || 0) + '</strong><span class="dash-stat-meta">Başarısız: ' + (jobSummary.failedLast24Hours || 0) + '</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat-label">Başarısız (toplam)</span><strong>' + (jobSummary.failed != null ? jobSummary.failed : (byStatus.failed || 0)) + '</strong><span class="dash-stat-meta">Son 7 gün: ' + (jobSummary.last7Days || 0) + ' iş</span></div>' +
         '<div class="dash-stat"><span class="dash-stat-label">Profiller</span><strong>' + (profiles.profileCount || 0) + '</strong><span class="dash-stat-meta">' + (profiles.assignmentCount || 0) + ' kullanıcı ataması</span></div>';
     }
 

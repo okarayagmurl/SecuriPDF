@@ -149,18 +149,35 @@
       STIRLING_OCR_UNAVAILABLE: 'OCR motoru yanıt vermedi. Türkçe dil paketi (tur.traineddata) kurulu mu? scripts/setup-tessdata.sh çalıştırın.',
       STIRLING_REQUEST_FAILED: 'PDF motoruna istek gönderilemedi. Sayfayı yenileyip tekrar deneyin.',
       STIRLING_UNREACHABLE: 'PDF motoruna bağlanılamadı (entera-pdf çalışıyor mu?)',
-      STIRLING_HTTP_400: 'PDF motoru isteği reddetti (400) — filigran metninde geçersiz karakter olabilir',
+      STIRLING_HTTP_400: 'PDF motoru isteği reddetti (400) — geçersiz parametre veya dosya',
+      STIRLING_HTTP_401: 'PDF motoru kimlik doğrulama hatası (401)',
       STIRLING_HTTP_403: 'PDF motorunda bu araç devre dışı (403). Yönetici: config/custom_settings.yml içinde ilgili endpoint\'i etkinleştirin.',
-      STIRLING_HTTP_502: 'PDF motoru geçici olarak kullanılamıyor (502)',
+      STIRLING_HTTP_404: 'PDF motoru endpoint bulunamadı (404)',
+      STIRLING_HTTP_413: 'Dosya boyutu limiti aşıldı (413)',
+      STIRLING_HTTP_415: 'Desteklenmeyen dosya türü (415)',
+      STIRLING_HTTP_422: 'PDF motoru isteği işleyemedi (422)',
       STIRLING_HTTP_500: 'PDF motoru işlemi tamamlayamadı (500)',
+      STIRLING_HTTP_502: 'PDF motoru geçici olarak kullanılamıyor (502)',
+      STIRLING_HTTP_503: 'PDF motoru geçici olarak kapalı (503)',
+      STIRLING_HTTP_504: 'PDF motoru zaman aşımına uğradı (504)',
       WATERMARK_RENDER_FAILED: 'Filigran uygulanamadı — dosyayı yeniden deneyin',
       COMPARE_INPUT_MISSING: 'Karşılaştırma için iki PDF gerekli',
       COMPARE_NO_TEXT: 'PDF\'lerde metin bulunamadı — taranmış belgeler için önce OCR uygulayın',
       COMPARE_FAILED: 'Karşılaştırma raporu oluşturulamadı',
       REDACTION_NO_MATCHES: 'Seçilen desenlerle eşleşme bulunamadı — önce Belgede tara veya OCR uygulayın',
       REDACTION_FAILED: 'Karartma uygulanamadı',
-      REDACTION_NO_PATTERNS: 'Karartma deseni seçilmedi'
+      REDACTION_NO_PATTERNS: 'Karartma deseni seçilmedi',
+      META_MISSING: 'İş meta verisi kayboldu — işi yeniden başlatın',
+      INPUT_MISSING: 'Girdi dosyası bulunamadı — formu yeniden gönderin',
+      JOB_INTERRUPTED: 'İş sunucu yeniden başlatması nedeniyle yarıda kaldı',
+      EMAIL_META_MISSING: 'E-posta işi meta verisi eksik',
+      EMAIL_SEND_FAILED: 'E-posta gönderilemedi — SMTP ayarlarını kontrol edin',
+      DOCUMENT_NOT_FOUND: 'Belge bulunamadı',
+      STORAGE_READ_FAILED: 'Belge okunamadı'
     };
+    if (code && code.indexOf('STIRLING_HTTP_') === 0 && !map[code]) {
+      return 'PDF motoru hatası (HTTP ' + code.replace('STIRLING_HTTP_', '') + ')';
+    }
     return map[code] || code || 'İş başarısız';
   }
 
@@ -265,6 +282,111 @@
     }).catch(function () {
       applyLicense(null);
     });
+  }
+
+  function toolTitleById(toolId) {
+    var t = state.tools.find(function (x) { return x.id === toolId; });
+    return t ? t.title : toolId;
+  }
+
+  function renderUsageStats(data) {
+    if (!data) return;
+    $('usageTotal').textContent = String(data.total != null ? data.total : 0);
+    $('usageCompleted').textContent = String(data.completed != null ? data.completed : 0);
+    $('usageFailed').textContent = String(data.failed != null ? data.failed : 0);
+    $('usageLast7').textContent = String(data.last7Days != null ? data.last7Days : 0);
+    var toolsEl = $('profileUsageTools');
+    if (!toolsEl) return;
+    var tools = data.topTools || [];
+    if (!tools.length) {
+      toolsEl.innerHTML = '<p class="hint">Henüz iş kaydı yok.</p>';
+      return;
+    }
+    toolsEl.innerHTML = '<p class="profile-usage-tools-title">En çok kullanılan araçlar</p><ul class="profile-usage-tool-list">' +
+      tools.map(function (row) {
+        return '<li><span>' + escapeHtml(toolTitleById(row.toolId)) + '</span><strong>' + row.count + '</strong></li>';
+      }).join('') + '</ul>';
+  }
+
+  function loadUsageStats() {
+    return fetchJson(APP + '/stats/usage').then(renderUsageStats).catch(function () {
+      var toolsEl = $('profileUsageTools');
+      if (toolsEl) toolsEl.innerHTML = '<p class="hint">Kullanım istatistikleri yüklenemedi.</p>';
+    });
+  }
+
+  var JSON_PREVIEW_TOOLS = { 'get-info-on-pdf': true, 'validate-signature': true, 'verify-pdf': true };
+  var HTML_PREVIEW_TOOLS = { compare: true };
+  var _toolResultBlobUrl = null;
+
+  function clearToolResultPreview() {
+    var panel = $('toolResultPreview');
+    var jsonEl = $('toolResultJson');
+    var htmlEl = $('toolResultHtml');
+    if (_toolResultBlobUrl) {
+      URL.revokeObjectURL(_toolResultBlobUrl);
+      _toolResultBlobUrl = null;
+    }
+    if (jsonEl) {
+      jsonEl.hidden = true;
+      jsonEl.textContent = '';
+    }
+    if (htmlEl) {
+      htmlEl.hidden = true;
+      htmlEl.removeAttribute('src');
+    }
+    if (panel) panel.hidden = true;
+  }
+
+  function showToolJsonPreview(text, title) {
+    clearToolResultPreview();
+    var panel = $('toolResultPreview');
+    var jsonEl = $('toolResultJson');
+    if (!panel || !jsonEl) return;
+    $('toolResultTitle').textContent = title || 'JSON raporu';
+    try {
+      jsonEl.textContent = JSON.stringify(JSON.parse(text), null, 2);
+    } catch (e) {
+      jsonEl.textContent = text;
+    }
+    jsonEl.hidden = false;
+    panel.hidden = false;
+  }
+
+  function showToolHtmlPreview(blob, title) {
+    clearToolResultPreview();
+    var panel = $('toolResultPreview');
+    var htmlEl = $('toolResultHtml');
+    if (!panel || !htmlEl) return;
+    $('toolResultTitle').textContent = title || 'HTML raporu';
+    _toolResultBlobUrl = URL.createObjectURL(blob);
+    htmlEl.src = _toolResultBlobUrl;
+    htmlEl.hidden = false;
+    panel.hidden = false;
+  }
+
+  function fetchJobResultBlob(jobId) {
+    return fetch(JOBS_API + '/' + encodeURIComponent(jobId) + '/result', { credentials: 'same-origin' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    });
+  }
+
+  function maybeShowToolResultPreview(job, toolId) {
+    if (!job || !toolId) return Promise.resolve();
+    if (JSON_PREVIEW_TOOLS[toolId]) {
+      return fetchJobResultBlob(job.id).then(function (blob) {
+        return blob.text().then(function (text) {
+          showToolJsonPreview(text, toolTitleById(toolId) + ' — sonuç');
+        });
+      }).catch(function () {});
+    }
+    if (HTML_PREVIEW_TOOLS[toolId]) {
+      return fetchJobResultBlob(job.id).then(function (blob) {
+        showToolHtmlPreview(blob, 'Karşılaştırma raporu');
+      }).catch(function () {});
+    }
+    return Promise.resolve();
   }
 
   var DOC_ICONS = {
@@ -1020,8 +1142,6 @@
       fetchJson(VAULT + '/documents/' + encodeURIComponent(docId) + '/restore', { method: 'POST' })
         .then(function () { toast('Belge belgelere geri alındı'); closeDocumentActivity(); loadDocuments(); })
         .catch(function () { toast('Geri alma başarısız', true); });
-    } else if (action === 'share') {
-      toast('Paylaşım özelliği yakında. Şimdilik e-posta ile gönderebilirsiniz.');
     } else if (action === 'history') {
       if (doc) showDocumentActivity(doc);
     } else if (action === 'delete') {
@@ -5152,6 +5272,7 @@
   function buildToolForm() {
     var tool = state.currentTool;
     if (!tool) return;
+    clearToolResultPreview();
     $('toolTitle').textContent = tool.title;
     $('toolDesc').textContent = tool.description;
     var form = $('toolForm');
@@ -5617,6 +5738,9 @@
       });
     }).then(function (job) {
       setProgressBar('toolProgressBar', 100);
+      var toolId = state.currentTool && state.currentTool.id;
+      return maybeShowToolResultPreview(job, toolId).then(function () { return job; });
+    }).then(function (job) {
       var tasks = [];
       if (doSave) {
         setToolStatus('Tamamlandı — belgelere kaydediliyor…', true);
@@ -5734,6 +5858,7 @@
       fetchJson(VAULT + '/quota').then(function (q) {
         $('profileQuota').textContent = 'Depolama: ' + formatBytes(q.usedBytes) + ' / ' + formatBytes(q.maxBytes);
       }).catch(function () {});
+      loadUsageStats();
       return;
     }
     location.hash = '#/belgeler';
@@ -5770,6 +5895,7 @@
   });
 
   bindOptional('btnRefreshJobs', 'click', loadJobs);
+  bindOptional('btnCloseToolResult', 'click', clearToolResultPreview);
 
   var toolForm = $('toolForm');
   if (toolForm) toolForm.addEventListener('submit', onToolSubmit);

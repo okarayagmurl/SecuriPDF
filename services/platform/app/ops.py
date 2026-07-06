@@ -337,6 +337,33 @@ def get_prod_readiness(settings: Settings, db: Session) -> dict[str, Any]:
     }
 
 
+def get_user_usage_stats(db: Session, user_id: str) -> dict[str, Any]:
+    base = db.query(JobRecord).filter(JobRecord.user_id == user_id)
+    total = base.count()
+    status_counts = dict(
+        base.with_entities(JobRecord.status, func.count(JobRecord.id)).group_by(JobRecord.status).all()
+    )
+    cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
+    last_7d = base.filter(JobRecord.created_at >= cutoff_7d).count()
+    tool_rows = (
+        db.query(JobRecord.tool_id, func.count(JobRecord.id))
+        .filter(JobRecord.user_id == user_id)
+        .group_by(JobRecord.tool_id)
+        .order_by(func.count(JobRecord.id).desc())
+        .limit(5)
+        .all()
+    )
+    return {
+        "total": total,
+        "completed": int(status_counts.get("completed", 0)),
+        "failed": int(status_counts.get("failed", 0)),
+        "queued": int(status_counts.get("queued", 0)),
+        "running": int(status_counts.get("running", 0)),
+        "last7Days": int(last_7d),
+        "topTools": [{"toolId": row[0], "count": int(row[1])} for row in tool_rows],
+    }
+
+
 def get_admin_dashboard(settings: Settings, db: Session) -> dict[str, Any]:
     from .license import LicenseService
 
@@ -347,6 +374,18 @@ def get_admin_dashboard(settings: Settings, db: Session) -> dict[str, Any]:
 
     status_counts = dict(
         db.query(JobRecord.status, func.count(JobRecord.id)).group_by(JobRecord.status).all()
+    )
+    cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
+    last_24h = (
+        db.query(func.count(JobRecord.id)).filter(JobRecord.created_at >= cutoff_24h).scalar() or 0
+    )
+    last_7d = db.query(func.count(JobRecord.id)).filter(JobRecord.created_at >= cutoff_7d).scalar() or 0
+    failed_24h = (
+        db.query(func.count(JobRecord.id))
+        .filter(JobRecord.status == "failed", JobRecord.created_at >= cutoff_24h)
+        .scalar()
+        or 0
     )
     tool_rows = (
         db.query(JobRecord.tool_id, func.count(JobRecord.id))
@@ -394,6 +433,13 @@ def get_admin_dashboard(settings: Settings, db: Session) -> dict[str, Any]:
         },
         "jobs": {
             "byStatus": status_counts,
+            "summary": {
+                "total": int(sum(int(v) for v in status_counts.values())),
+                "failed": int(status_counts.get("failed", 0)),
+                "last24Hours": int(last_24h),
+                "failedLast24Hours": int(failed_24h),
+                "last7Days": int(last_7d),
+            },
             "topTools": [{"toolId": row[0], "count": int(row[1])} for row in tool_rows],
             "active": [
                 {

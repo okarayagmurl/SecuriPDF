@@ -1,12 +1,19 @@
 (function (global) {
   'use strict';
 
+  function closeAllTips(except) {
+    document.querySelectorAll('.ui-tip-trigger.is-open').forEach(function (btn) {
+      if (btn !== except) btn.classList.remove('is-open');
+    });
+  }
+
   function createTrigger(text, opts) {
     opts = opts || {};
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ui-tip-trigger' + (opts.inline ? ' ui-tip-trigger-inline' : '');
     btn.setAttribute('aria-label', opts.ariaLabel || 'Bilgi');
+    btn.setAttribute('aria-expanded', 'false');
     btn.innerHTML = '<span class="ui-tip-icon" aria-hidden="true">?</span>';
     var tip = document.createElement('span');
     tip.className = 'ui-tip';
@@ -14,6 +21,17 @@
     tip.textContent = text;
     if (opts.placement) tip.setAttribute('data-placement', opts.placement);
     btn.appendChild(tip);
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = btn.classList.contains('is-open');
+      closeAllTips(btn);
+      if (!open) {
+        btn.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
     return btn;
   }
 
@@ -57,6 +75,25 @@
       bar.appendChild(item);
     });
     return bar;
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.ui-tip-trigger')) {
+        closeAllTips(null);
+        document.querySelectorAll('.ui-tip-trigger[aria-expanded="true"]').forEach(function (btn) {
+          btn.setAttribute('aria-expanded', 'false');
+        });
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeAllTips(null);
+        document.querySelectorAll('.ui-tip-trigger[aria-expanded="true"]').forEach(function (btn) {
+          btn.setAttribute('aria-expanded', 'false');
+        });
+      }
+    });
   }
 
   global.SecuriTips = {
