@@ -230,6 +230,7 @@
         <label><input id="compAnalytics" type="checkbox"> Analytics</label>
         <label><input id="compGoogle" type="checkbox"> Google görünürlük</label>
         <label><input id="compSurvey" type="checkbox"> Anket kapalı</label>
+        <label><input id="sysDebugMode" type="checkbox"> Debug modu (hata raporlarına teknik detay)</label>
         <button id="btnSaveSystem">Sistem kaydet</button>
         <button id="btnSaveCompliance">Uyumluluk kaydet</button>
         <pre id="systemResult"></pre>
@@ -648,6 +649,7 @@ cd docker
             </select>
           </label>
           <label>Araç <input id="jobsToolId" type="text" placeholder="merge-pdfs"></label>
+          <label>Kayıt No <input id="jobsReportId" type="text" placeholder="RPT-20260707-ABC123"></label>
           <button id="btnLoadJobs">Yükle</button>
         </div>
         <p id="jobsSummary" class="hint"></p>
@@ -656,6 +658,7 @@ cd docker
             <thead>
               <tr>
                 <th>İş</th>
+                <th>Kayıt No</th>
                 <th>Kullanıcı</th>
                 <th>Araç</th>
                 <th>Durum</th>
@@ -666,7 +669,7 @@ cd docker
               </tr>
             </thead>
             <tbody id="jobsTableBody">
-              <tr><td colspan="8" class="muted-cell">Filtreleyip Yükle'ye basın.</td></tr>
+              <tr><td colspan="9" class="muted-cell">Filtreleyip Yükle'ye basın.</td></tr>
             </tbody>
           </table>
         </div>
@@ -680,6 +683,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=18"></script>
+  <script src="/admin/static/admin.js?v=19"></script>
 </body>
 </html>

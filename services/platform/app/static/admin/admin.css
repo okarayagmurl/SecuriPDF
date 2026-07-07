@@ -930,6 +930,11 @@ button.danger:hover {
   padding: 1rem !important;
 }
 
+.muted-inline {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
 .nowrap { white-space: nowrap; }
 
 .detail-snippet {

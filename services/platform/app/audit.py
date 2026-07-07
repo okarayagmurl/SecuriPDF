@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from .audit_privacy import sanitize_audit_detail
 from .audit_privacy import sanitize_audit_entry
 from .config import Settings
+from .user_directory import resolve_user_labels
 
 USER_ACTION_LABELS: dict[str, str] = {
     "document.job_import": "Araç çıktısı belgelere eklendi",
@@ -142,4 +143,10 @@ def read_audit(
     total = len(items)
     start = (page - 1) * size
     end = start + size
-    return {"items": items[start:end], "total": total, "page": page, "size": size}
+    page_items = items[start:end]
+    user_ids = {str(i.get("userId")) for i in page_items if i.get("userId")}
+    labels = resolve_user_labels(settings, user_ids)
+    for item in page_items:
+        uid = str(item.get("userId") or "")
+        item["userLabel"] = labels.get(uid, uid or "—")
+    return {"items": page_items, "total": total, "page": page, "size": size}

@@ -97,6 +97,7 @@ class JobRecord(Base):
     input_refs = Column(String, nullable=False, default="[]")
     output_ref = Column(String, nullable=True)
     error_code = Column(String, nullable=True)
+    report_id = Column(String, index=True, nullable=True)
     created_at = Column(DateTime, nullable=False)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
@@ -123,6 +124,10 @@ def _migrate_schema(engine) -> None:
                 conn.execute(text("UPDATE documents SET active_since = created_at WHERE active_since IS NULL"))
         if "folders" in table_names:
             conn.execute(text("UPDATE folders SET parent_id = NULL WHERE parent_id = ''"))
+        if "jobs" in table_names:
+            job_cols = {c["name"] for c in insp.get_columns("jobs")}
+            if "report_id" not in job_cols:
+                conn.execute(text("ALTER TABLE jobs ADD COLUMN report_id VARCHAR"))
 
 
 def init_db(settings: Settings) -> sessionmaker[Session]:

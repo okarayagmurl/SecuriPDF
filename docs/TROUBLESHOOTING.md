@@ -387,6 +387,26 @@ Dev ortamında `services/platform/app/static/app/` doğrudan mount ediliyorsa ya
 docker compose -f docker-compose.yml -f docker-compose.auth.yml restart securipdf-platform
 ```
 
+## Audit logda kullanıcı adı görünmüyor
+
+Audit kayıtları `userId` (teknik kimlik) ile yazılır. Admin panel **Denetim** sekmesinde artık `userLabel` (görünen ad / e-posta) gösterilir. Kullanıcı dizini, oturum açan kullanıcıların `/api/app/v1/me` çağrısında güncellenir — mevcut kullanıcıların bir kez uygulamaya girmesi gerekir.
+
+## Hatalı işler ve destek raporu (Kayıt No)
+
+Her işe `RPT-YYYYMMDD-XXXXXX` formatında **Kayıt No** atanır.
+
+| Rol | Ne yapılır |
+|-----|------------|
+| Kullanıcı | `#/isler` → hatalı satırda **Raporu kopyala** veya **Yalnızca hatalı** filtresi |
+| Admin | **Merkezi iş kuyruğu** → Kayıt No ile filtre veya `GET /api/admin/v1/support-reports/{reportId}` |
+
+**Debug modu** (Admin → Sistem / Uyumluluk): Açıkken hata raporlarına Stirling HTTP yanıt özeti ve form alan adları eklenir (dosya içeriği veya şifre yok). Test sürecinde geçici olarak açın; üretimde kapalı tutun.
+
+```bash
+# Örnek: sunucuda rapor dosyası
+ls /vault-data/debug-reports/
+```
+
 ## Destek
 
 1. `./scripts/backup.sh` ile yedek alın

@@ -17,6 +17,7 @@ from ..database import get_db
 from ..ops import get_user_usage_stats
 from ..settings_store import SettingsStore
 from ..tools_catalog import _load_ui_catalog, list_ui_tools
+from ..user_directory import touch_user_directory
 from ..user_prefs import load_user_prefs, save_user_prefs
 from ..license import LicenseService
 
@@ -79,6 +80,7 @@ class ProfileUpdate(BaseModel):
 def app_me(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
     prefs = load_user_prefs(settings, user.user_id)
     display = _friendly_display_name(user, prefs)
+    touch_user_directory(settings, user.user_id, email=user.email, display_name=display)
     return {
         "userId": user.user_id,
         "email": user.email,
@@ -130,6 +132,12 @@ def update_profile(
     if body.favoriteTools is not None:
         payload["favoriteTools"] = body.favoriteTools
     saved = save_user_prefs(settings, user.user_id, payload)
+    touch_user_directory(
+        settings,
+        user.user_id,
+        email=user.email,
+        display_name=(saved.get("displayName") or "").strip() or None,
+    )
     return {"ok": True, "profile": saved}
 
 

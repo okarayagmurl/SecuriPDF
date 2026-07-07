@@ -13,6 +13,7 @@ from .audit import write_audit
 from .auth import decrypt_bytes, encrypt_bytes, new_id
 from .config import Settings
 from .database import DocumentRecord, JobRecord
+from .debug_report import new_report_id, write_job_debug_report
 from .compare_renderer import CompareError, compare_pdfs_to_html
 from .redaction_renderer import RedactionError, apply_pdf_redactions_from_form
 from .job_refs import load_labels, new_ref_id, save_label
@@ -121,6 +122,7 @@ def enqueue_tool_job(
         input_refs=json.dumps(input_refs),
         output_ref=None,
         error_code=None,
+        report_id=new_report_id(),
         created_at=utcnow(),
         started_at=None,
         completed_at=None,
@@ -133,7 +135,12 @@ def enqueue_tool_job(
         user_id,
         "job.queued",
         job_id,
-        {"toolId": tool_id, "inputRefs": input_refs, "inputCount": len(input_refs)},
+        {
+            "toolId": tool_id,
+            "inputRefs": input_refs,
+            "inputCount": len(input_refs),
+            "reportId": row.report_id,
+        },
     )
     return row
 
@@ -169,6 +176,7 @@ def enqueue_email_job(
         input_refs=json.dumps([ref_id]),
         output_ref=None,
         error_code=None,
+        report_id=new_report_id(),
         created_at=utcnow(),
         started_at=None,
         completed_at=None,
@@ -181,7 +189,12 @@ def enqueue_email_job(
         user_id,
         "job.queued",
         job_id,
-        {"toolId": "document-email", "documentRef": doc_id, "channel": "email"},
+        {
+            "toolId": "document-email",
+            "documentRef": doc_id,
+            "channel": "email",
+            "reportId": row.report_id,
+        },
     )
     return row
 
@@ -192,17 +205,13 @@ def _process_email_job(settings: Settings, db: Session, row: JobRecord, meta: di
     doc_id = meta.get("docId")
     to_addr = meta.get("toAddr")
     if not doc_id or not to_addr:
-        row.status = "failed"
-        row.error_code = "EMAIL_META_MISSING"
-        row.completed_at = utcnow()
+        _finalize_failed_row(settings, row, "EMAIL_META_MISSING")
         db.commit()
         return
 
     doc_row = db.get(DocumentRecord, doc_id)
     if not doc_row or doc_row.deleted_at or doc_row.user_id != row.user_id:
-        row.status = "failed"
-        row.error_code = "DOCUMENT_NOT_FOUND"
-        row.completed_at = utcnow()
+        _finalize_failed_row(settings, row, "DOCUMENT_NOT_FOUND")
         db.commit()
         return
 
@@ -215,10 +224,7 @@ def _process_email_job(settings: Settings, db: Session, row: JobRecord, meta: di
         payload = Path(doc_row.storage_path).read_bytes()
         data = decrypt_bytes(settings, payload)
     except OSError:
-        row.status = "failed"
-        row.error_code = "STORAGE_READ_FAILED"
-        row.progress = 0
-        row.completed_at = utcnow()
+        _finalize_failed_row(settings, row, "STORAGE_READ_FAILED")
         db.commit()
         return
 
@@ -234,18 +240,8 @@ def _process_email_job(settings: Settings, db: Session, row: JobRecord, meta: di
             user_id=row.user_id,
         )
     except Exception:
-        row.status = "failed"
-        row.error_code = "EMAIL_SEND_FAILED"
-        row.progress = 0
-        row.completed_at = utcnow()
+        _finalize_failed_row(settings, row, "EMAIL_SEND_FAILED")
         db.commit()
-        write_audit(
-            settings,
-            row.user_id,
-            "job.failed",
-            row.id,
-            {"toolId": "document-email", "documentRef": doc_id, "errorCode": row.error_code},
-        )
         return
 
     row.status = "completed"
@@ -275,6 +271,62 @@ def _set_progress(db: Session, row: JobRecord, progress: int, status: str | None
     db.commit()
 
 
+def _parse_input_refs(row: JobRecord) -> list[str]:
+    try:
+        data = json.loads(row.input_refs or "[]")
+        return data if isinstance(data, list) else []
+    except json.JSONDecodeError:
+        return []
+
+
+def _ensure_report_id(row: JobRecord) -> str:
+    if not row.report_id:
+        row.report_id = new_report_id()
+    return row.report_id
+
+
+def _finalize_failed_row(
+    settings: Settings,
+    row: JobRecord,
+    error_code: str,
+    *,
+    stirling_status: int | None = None,
+    stirling_body: bytes | None = None,
+    form_data: dict | None = None,
+) -> str:
+    report_id = _ensure_report_id(row)
+    row.status = "failed"
+    row.error_code = error_code
+    row.progress = 0
+    row.completed_at = utcnow()
+    refs = _parse_input_refs(row)
+    write_job_debug_report(
+        settings,
+        report_id=report_id,
+        job_id=row.id,
+        user_id=row.user_id,
+        tool_id=row.tool_id,
+        status="failed",
+        error_code=error_code,
+        created_at=row.created_at.isoformat() if row.created_at else None,
+        completed_at=row.completed_at.isoformat() if row.completed_at else None,
+        stirling_status=stirling_status,
+        stirling_body=stirling_body,
+        form_fields=list(form_data.keys()) if isinstance(form_data, dict) else None,
+        input_ref_count=len(refs),
+    )
+    detail: dict = {
+        "toolId": row.tool_id,
+        "inputRefs": refs,
+        "errorCode": error_code,
+        "reportId": report_id,
+    }
+    if row.tool_id == "document-email":
+        detail.pop("inputRefs", None)
+    write_audit(settings, row.user_id, "job.failed", row.id, detail)
+    return report_id
+
+
 def _fail_job(
     session_factory,
     job_id: str,
@@ -289,18 +341,8 @@ def _fail_job(
         row = db.get(JobRecord, job_id)
         if not row:
             return
-        row.status = "failed"
-        row.error_code = error_code
-        row.progress = 0
-        row.completed_at = utcnow()
+        _finalize_failed_row(settings, row, error_code)
         db.commit()
-        write_audit(
-            settings,
-            user_id,
-            "job.failed",
-            job_id,
-            {"toolId": tool_id, "inputRefs": input_refs, "errorCode": error_code},
-        )
     finally:
         db.close()
 
@@ -318,9 +360,7 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
     job_path = _job_dir(settings, row.id)
     meta_path = job_path / "meta.json"
     if not meta_path.is_file():
-        row.status = "failed"
-        row.error_code = "META_MISSING"
-        row.completed_at = utcnow()
+        _finalize_failed_row(settings, row, "META_MISSING")
         db.commit()
         return
 
@@ -349,9 +389,7 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         meta_file = inputs_dir / f"{ref_id}.meta"
         bin_file = inputs_dir / f"{ref_id}.bin"
         if not meta_file.is_file() or not bin_file.is_file():
-            row.status = "failed"
-            row.error_code = "INPUT_MISSING"
-            row.completed_at = utcnow()
+            _finalize_failed_row(settings, row, "INPUT_MISSING", form_data=form_data)
             db.commit()
             return
         file_meta = json.loads(meta_file.read_text(encoding="utf-8"))
@@ -483,18 +521,16 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         db.commit()
 
         if result_content is None:
-            row.status = "failed"
-            row.error_code = _stirling_error_code(stirling_status or 500, stirling_body)
-            row.progress = 0
-            row.completed_at = utcnow()
-            db.commit()
-            write_audit(
+            error_code = _stirling_error_code(stirling_status or 500, stirling_body or b"")
+            _finalize_failed_row(
                 settings,
-                user_id,
-                "job.failed",
-                job_id,
-                {"toolId": tool_id, "inputRefs": input_refs, "errorCode": row.error_code},
+                row,
+                error_code,
+                stirling_status=stirling_status,
+                stirling_body=stirling_body,
+                form_data=form_data,
             )
+            db.commit()
             return
 
         output_ref = new_ref_id()
@@ -564,18 +600,14 @@ class JobWorker:
             db.close()
 
 
-def recover_stale_jobs(session_factory) -> int:
+def recover_stale_jobs(settings: Settings, session_factory) -> int:
     db = session_factory()
     try:
         rows = db.query(JobRecord).filter(JobRecord.status == "running").all()
         if not rows:
             return 0
-        now = utcnow()
         for row in rows:
-            row.status = "failed"
-            row.error_code = "JOB_INTERRUPTED"
-            row.progress = 0
-            row.completed_at = now
+            _finalize_failed_row(settings, row, "JOB_INTERRUPTED")
         db.commit()
         return len(rows)
     finally:
@@ -584,7 +616,7 @@ def recover_stale_jobs(session_factory) -> int:
 
 def start_job_worker(settings: Settings, session_factory) -> JobWorker:
     global _worker
-    recovered = recover_stale_jobs(session_factory)
+    recovered = recover_stale_jobs(settings, session_factory)
     if recovered:
         print(f"[job-worker] {recovered} yarida kalan is iptal edildi (JOB_INTERRUPTED)")
     _worker = JobWorker(settings, session_factory)

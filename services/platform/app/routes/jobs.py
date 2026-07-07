@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..auth import AuthUser, decrypt_bytes, get_current_user, new_id
 from ..config import Settings, get_settings
 from ..database import JobRecord, get_db
+from ..debug_report import read_job_debug_report, write_job_debug_report
 from ..document_store import store_document_bytes
 from ..job_queue import _job_dir, enqueue_tool_job
 from ..job_refs import load_labels
@@ -41,6 +42,7 @@ def _job_payload(row: JobRecord, settings: Settings, user: AuthUser, include_lab
         "inputRefs": refs,
         "outputRef": row.output_ref,
         "errorCode": row.error_code,
+        "reportId": row.report_id,
         "createdAt": row.created_at.isoformat() if row.created_at else None,
         "startedAt": row.started_at.isoformat() if row.started_at else None,
         "completedAt": row.completed_at.isoformat() if row.completed_at else None,
@@ -64,11 +66,14 @@ def _get_user_job(job_id: str, db: Session, user: AuthUser) -> JobRecord:
 def list_jobs(
     page: int = 1,
     size: int = 50,
+    status: str | None = None,
     db: Session = Depends(get_db),
     user: AuthUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
 ):
     query = db.query(JobRecord).filter(JobRecord.user_id == user.user_id)
+    if status:
+        query = query.filter(JobRecord.status == status)
     total = query.count()
     rows = query.order_by(JobRecord.created_at.desc()).offset((page - 1) * size).limit(size).all()
     return {
@@ -88,6 +93,36 @@ def get_job(
 ):
     row = _get_user_job(job_id, db, user)
     return _job_payload(row, settings, user, include_labels=True)
+
+
+@router.get("/jobs/{job_id}/support-report")
+def job_support_report(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    row = _get_user_job(job_id, db, user)
+    if row.status != "failed":
+        raise HTTPException(status_code=400, detail="Destek raporu yalnizca basarisiz isler icin")
+    report_id = row.report_id
+    if report_id:
+        stored = read_job_debug_report(settings, report_id)
+        if stored:
+            return stored
+    refs = _parse_refs(row.input_refs)
+    return write_job_debug_report(
+        settings,
+        report_id=report_id or job_id[:8].upper(),
+        job_id=row.id,
+        user_id=row.user_id,
+        tool_id=row.tool_id,
+        status=row.status,
+        error_code=row.error_code,
+        created_at=row.created_at.isoformat() if row.created_at else None,
+        completed_at=row.completed_at.isoformat() if row.completed_at else None,
+        input_ref_count=len(refs),
+    )
 
 
 @router.post("/jobs", status_code=202)

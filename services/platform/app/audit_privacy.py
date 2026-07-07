@@ -23,7 +23,7 @@ def sanitize_audit_detail(detail: dict | None) -> dict:
     for key, value in detail.items():
         if key in _SENSITIVE_KEYS:
             continue
-        if key.endswith("Ref") or key.endswith("Refs") or key in ("toolId", "scope", "size", "inputCount", "errorCode", "outputRef"):
+        if key.endswith("Ref") or key.endswith("Refs") or key in ("toolId", "scope", "size", "inputCount", "errorCode", "outputRef", "reportId"):
             out[key] = value
         elif isinstance(value, (int, float, bool)):
             out[key] = value

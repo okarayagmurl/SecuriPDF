@@ -24,6 +24,8 @@ Ortam ve kritik yollar:
 | 6 | `#/isler` | İş tablosu yüklenir, aktif iş paneli |
 | 7 | `#/profil` | Kota + kullanım özeti (toplam/başarılı/başarısız/7 gün) |
 | 8 | Admin `/admin` (pdf-admin) | Genel bakış: son 24s iş, başarısız sayıları |
+| 8b | Admin Denetim | Kullanıcı sütununda görünen ad / e-posta |
+| 8c | Bilerek hatalı iş (ör. boş dosya) | `#/isler` → Kayıt No + **Raporu kopyala** |
 | 9 | Tek araç: merge-pdfs | Kuyruk → indirme |
 | 10 | JSON rapor: get-info-on-pdf | Panelde JSON önizleme + indirme |
 

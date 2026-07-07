@@ -159,6 +159,8 @@ class SettingsStore:
             "client_max_body_size": os.getenv("CLIENT_MAX_BODY_SIZE", "500M"),
             "proxy_read_timeout": int(os.getenv("PROXY_READ_TIMEOUT", "3600")),
             "proxy_send_timeout": int(os.getenv("PROXY_SEND_TIMEOUT", "3600")),
+            "debug_mode": os.getenv("PLATFORM_DEBUG_MODE", "false").strip().lower()
+            in {"1", "true", "yes", "on"},
         }
         override = self._override().get("system", {})
         return _deep_merge(defaults, override)

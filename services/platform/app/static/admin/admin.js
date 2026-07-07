@@ -676,9 +676,12 @@
       tbody.innerHTML = '<tr><td colspan="5" class="muted-cell">Kayıt bulunamadı.</td></tr>';
     } else {
       tbody.innerHTML = items.map(function (row) {
+        var userCell = row.userLabel && row.userLabel !== row.userId
+          ? esc(row.userLabel) + ' <span class="muted-inline">(' + esc(row.userId) + ')</span>'
+          : esc(row.userLabel || row.userId);
         return '<tr>' +
           '<td class="nowrap">' + formatDate(row.timestamp) + '</td>' +
-          '<td>' + esc(row.userId) + '</td>' +
+          '<td>' + userCell + '</td>' +
           '<td><code>' + esc(row.action) + '</code></td>' +
           '<td><code>' + esc(row.resource) + '</code></td>' +
           '<td>' + formatAuditDetail(row.detail) + '</td>' +
@@ -797,12 +800,16 @@
     if (!tbody) return;
     var items = data.items || [];
     if (!items.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="muted-cell">Kayıt bulunamadı.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="muted-cell">Kayıt bulunamadı.</td></tr>';
     } else {
       tbody.innerHTML = items.map(function (j) {
+        var userCell = j.userLabel && j.userLabel !== j.userId
+          ? esc(j.userLabel) + ' <span class="muted-inline">(' + esc(j.userId) + ')</span>'
+          : esc(j.userLabel || j.userId);
         return '<tr>' +
           '<td><code>' + esc(j.id) + '</code></td>' +
-          '<td>' + esc(j.userId) + '</td>' +
+          '<td><code>' + esc(j.reportId || '—') + '</code></td>' +
+          '<td>' + userCell + '</td>' +
           '<td>' + esc(j.toolId) + '</td>' +
           '<td>' + jobStatusBadge(j.status) + '</td>' +
           '<td>' + (j.progress != null ? j.progress + '%' : '—') + '</td>' +
@@ -824,6 +831,7 @@
     if (val('jobsUserId')) qs.set('userId', val('jobsUserId'));
     if (val('jobsStatus')) qs.set('status', val('jobsStatus'));
     if (val('jobsToolId')) qs.set('toolId', val('jobsToolId'));
+    if (val('jobsReportId')) qs.set('reportId', val('jobsReportId'));
     qs.set('page', String(jobsPage));
     qs.set('size', String(jobsPageSize));
     try {
@@ -1380,6 +1388,7 @@
     document.getElementById('sysMaxFileMb').value = sys.max_filesize_mb || '';
     document.getElementById('sysBodySize').value = sys.client_max_body_size || '';
     document.getElementById('sysProxyTimeout').value = sys.proxy_read_timeout || '';
+    document.getElementById('sysDebugMode').checked = !!sys.debug_mode;
 
     const comp = data.compliance || {};
     document.getElementById('compAnalytics').checked = !!comp.analytics_enabled;
@@ -1617,7 +1626,8 @@
       max_filesize_mb: num('sysMaxFileMb'),
       client_max_body_size: val('sysBodySize') || undefined,
       proxy_read_timeout: num('sysProxyTimeout'),
-      proxy_send_timeout: num('sysProxyTimeout')
+      proxy_send_timeout: num('sysProxyTimeout'),
+      debug_mode: document.getElementById('sysDebugMode').checked
     };
     try {
       const data = await api('/settings/system', {

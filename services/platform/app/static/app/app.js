@@ -611,10 +611,24 @@
     if (el) el.style.width = Math.max(0, Math.min(100, pct)) + '%';
   }
 
+  function copyJobSupportReport(jobId) {
+    return fetchJson(JOBS_API + '/' + encodeURIComponent(jobId) + '/support-report').then(function (report) {
+      var text = JSON.stringify(report, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      window.prompt('Destek raporunu kopyalayın:', text);
+    }).then(function () {
+      toast('Destek raporu panoya kopyalandı.');
+    }).catch(function (e) {
+      toast('Rapor kopyalanamadı: ' + formatFetchError(e), true);
+    });
+  }
+
   function renderJobsTable(items) {
     var tbody = $('jobsTableBody');
     if (!items.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">Henüz iş yok.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">Henüz iş yok.</td></tr>';
       return;
     }
     tbody.innerHTML = items.map(function (job) {
@@ -622,9 +636,17 @@
       var dl = job.status === 'completed'
         ? '<button type="button" class="btn btn-sm" data-dl-job="' + escapeHtml(job.id) + '">İndir</button>'
         : '';
+      var reportCell = '—';
+      if (job.reportId) {
+        reportCell = '<code class="report-id">' + escapeHtml(job.reportId) + '</code>';
+        if (job.status === 'failed') {
+          reportCell += ' <button type="button" class="btn btn-sm" data-copy-report="' + escapeHtml(job.id) + '">Raporu kopyala</button>';
+        }
+      }
       return '<tr data-job-id="' + escapeHtml(job.id) + '">' +
         '<td>' + escapeHtml(title) + '</td>' +
         '<td>' + escapeHtml(jobStatusLabel(job.status)) + '</td>' +
+        '<td class="report-id-cell">' + reportCell + '</td>' +
         '<td class="job-progress-cell"><div class="progress-wrap"><div class="progress-bar" style="width:' + (job.progress || 0) + '%"></div></div></td>' +
         '<td>' + formatDate(job.createdAt) + '</td>' +
         '<td>' + dl + '</td></tr>';
@@ -634,10 +656,18 @@
         window.location.href = JOBS_API + '/' + encodeURIComponent(btn.getAttribute('data-dl-job')) + '/result';
       });
     });
+    tbody.querySelectorAll('[data-copy-report]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        copyJobSupportReport(btn.getAttribute('data-copy-report'));
+      });
+    });
   }
 
   function loadJobs() {
-    return fetchJson(JOBS_API + '?size=30').then(function (data) {
+    var url = JOBS_API + '?size=30';
+    var failedOnly = $('jobsFailedOnly') && $('jobsFailedOnly').checked;
+    if (failedOnly) url += '&status=failed';
+    return fetchJson(url).then(function (data) {
       renderJobsTable(data.items || []);
       var active = (data.items || []).find(function (j) {
         return j.status === 'queued' || j.status === 'running';
@@ -650,7 +680,7 @@
         stopJobsPoll();
       }
     }).catch(function () {
-      $('jobsTableBody').innerHTML = '<tr><td colspan="5" class="empty-cell">İşler yüklenemedi.</td></tr>';
+      $('jobsTableBody').innerHTML = '<tr><td colspan="6" class="empty-cell">İşler yüklenemedi.</td></tr>';
     });
   }
 
@@ -659,7 +689,9 @@
     panel.hidden = false;
     $('activeJobTitle').textContent = jobTitle(job) + ' — ' + jobStatusLabel(job.status);
     setProgressBar('activeJobProgress', job.progress || 0);
-    $('activeJobStatus').textContent = 'İş kimliği: ' + job.id;
+    var statusLine = 'İş kimliği: ' + job.id;
+    if (job.reportId) statusLine += ' — Kayıt No: ' + job.reportId;
+    $('activeJobStatus').textContent = statusLine;
   }
 
   function stopJobsPoll() {
@@ -683,7 +715,9 @@
           loadJobs();
         } else if (job.status === 'failed') {
           stopJobsPoll();
-          toast('İş başarısız: ' + (job.errorCode || ''), true);
+          var failMsg = jobErrorLabel(job.errorCode);
+          if (job.reportId) failMsg += ' — Kayıt No: ' + job.reportId;
+          toast('İş başarısız: ' + failMsg, true);
           loadJobs();
         }
       }).catch(function () { stopJobsPoll(); });
@@ -696,7 +730,11 @@
         fetchJsonRetry(JOBS_API + '/' + encodeURIComponent(jobId)).then(function (job) {
           if (onProgress) onProgress(job);
           if (job.status === 'completed') resolve(job);
-          else if (job.status === 'failed') reject(new Error(jobErrorLabel(job.errorCode)));
+          else if (job.status === 'failed') {
+            var err = new Error(jobErrorLabel(job.errorCode));
+            err.reportId = job.reportId;
+            reject(err);
+          }
           else setTimeout(tick, 1000);
         }).catch(reject);
       }
@@ -5793,7 +5831,10 @@
       loadJobs();
       if (doSave) loadDocuments();
     }).catch(function (err) {
-      setToolStatus('Hata: ' + formatFetchError(err).slice(0, 300), false);
+      var msg = formatFetchError(err);
+      if (err && err.reportId) msg += ' — Kayıt No: ' + err.reportId;
+      setToolStatus('Hata: ' + msg.slice(0, 400), false);
+      loadJobs();
     }).finally(function () {
       btn.disabled = false;
     });
@@ -5895,6 +5936,7 @@
   });
 
   bindOptional('btnRefreshJobs', 'click', loadJobs);
+  bindOptional('jobsFailedOnly', 'change', loadJobs);
   bindOptional('btnCloseToolResult', 'click', clearToolResultPreview);
 
   var toolForm = $('toolForm');

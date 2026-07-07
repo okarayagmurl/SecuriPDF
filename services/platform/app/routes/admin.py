@@ -15,6 +15,7 @@ from ..audit import read_audit, write_audit
 from ..auth import AuthUser, get_current_user, require_admin
 from ..config import Settings, get_settings
 from ..database import JobRecord, UserQuotaRecord, get_db
+from ..debug_report import read_job_debug_report
 from ..keycloak_branding import sync_keycloak_login_logo
 from ..keycloak_ldap import KeycloakLdapApplier
 from ..maintenance import load_tools_config, save_tools_override
@@ -53,6 +54,7 @@ from ..updater_client import UpdaterError, updater_apply, updater_get_job, updat
 from ..version_info import get_installed_version, get_upgrade_available, save_staging_manifest
 from ..mail import test_smtp_connection
 from ..settings_store import SettingsStore
+from ..user_directory import resolve_user_labels
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -158,6 +160,7 @@ class SystemSettingsUpdate(BaseModel):
     client_max_body_size: str | None = None
     proxy_read_timeout: int | None = None
     proxy_send_timeout: int | None = None
+    debug_mode: bool | None = None
 
 
 class DeploymentSettingsUpdate(BaseModel):
@@ -336,12 +339,13 @@ def admin_audit_export(
     )
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["timestamp", "userId", "action", "resource", "detail"])
+    writer.writerow(["timestamp", "userId", "userLabel", "action", "resource", "detail"])
     for row in result.get("items") or []:
         writer.writerow(
             [
                 row.get("timestamp"),
                 row.get("userId"),
+                row.get("userLabel"),
                 row.get("action"),
                 row.get("resource"),
                 json.dumps(row.get("detail") or {}, ensure_ascii=False),
@@ -360,10 +364,12 @@ def admin_jobs(
     userId: str | None = None,
     status: str | None = None,
     toolId: str | None = None,
+    reportId: str | None = None,
     page: int = 1,
     size: int = 50,
     db: Session = Depends(get_db),
     user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
 ):
     """KVKK: belge adi yok — yalnizca is tipi, ref kimlikleri ve durum."""
     require_admin(user)
@@ -374,6 +380,8 @@ def admin_jobs(
         query = query.filter(JobRecord.status == status)
     if toolId:
         query = query.filter(JobRecord.tool_id == toolId)
+    if reportId:
+        query = query.filter(JobRecord.report_id == reportId.strip())
     total = query.count()
     rows = query.order_by(JobRecord.created_at.desc()).offset((page - 1) * size).limit(size).all()
 
@@ -384,11 +392,16 @@ def admin_jobs(
         except json.JSONDecodeError:
             return []
 
+    user_ids = {r.user_id for r in rows}
+    labels = resolve_user_labels(settings, user_ids)
+
     return {
         "items": [
             {
                 "id": r.id,
+                "reportId": r.report_id,
                 "userId": r.user_id,
+                "userLabel": labels.get(r.user_id, r.user_id),
                 "toolId": r.tool_id,
                 "operation": r.operation,
                 "status": r.status,
@@ -406,6 +419,35 @@ def admin_jobs(
         "size": size,
         "privacyNote": "Belge adlari loglanmaz; ref kimlikleri ile geriye donuk eslestirme yapilir.",
     }
+
+
+@router.get("/support-reports/{report_id}")
+def admin_support_report(
+    report_id: str,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+):
+    require_admin(user)
+    report = read_job_debug_report(settings, report_id)
+    row = db.query(JobRecord).filter(JobRecord.report_id == report_id).first()
+    if not report and not row:
+        raise HTTPException(status_code=404, detail="Destek raporu bulunamadi")
+    if not report and row:
+        report = {
+            "reportId": row.report_id,
+            "jobId": row.id,
+            "userId": row.user_id,
+            "toolId": row.tool_id,
+            "status": row.status,
+            "errorCode": row.error_code,
+            "createdAt": row.created_at.isoformat() if row.created_at else None,
+            "completedAt": row.completed_at.isoformat() if row.completed_at else None,
+        }
+    if row:
+        labels = resolve_user_labels(settings, {row.user_id})
+        report["userLabel"] = labels.get(row.user_id, row.user_id)
+    return report
 
 
 @router.get("/ldap/test")
