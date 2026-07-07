@@ -19,6 +19,8 @@ from .redaction_renderer import RedactionError, apply_pdf_redactions_from_form
 from .job_refs import load_labels, new_ref_id, save_label
 from .job_output import output_file_info
 from .license import LicenseService
+from .pdf_page_util import extract_single_page, replace_single_page
+from .stirling_form import normalize_stirling_form
 from .mail import send_document_email
 from .tools_catalog import get_tool_api_path
 from .watermark_presets import apply_watermark_style
@@ -400,6 +402,24 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         files.append((field, (orig_name, content, ctype)))
         field_ref[str(field)] = ref_id
 
+    if tool_id == "add-image":
+        scale = int(str(form_data.get("imageScalePercent", form_data.get("image_scale_percent", "100")) or 100))
+        if scale != 100 and 10 <= scale <= 200:
+            import fitz
+
+            for idx, item in enumerate(files):
+                if item[0] != "imageFile":
+                    continue
+                field, (name, img_bytes, ctype) = item
+                try:
+                    doc = fitz.open(stream=img_bytes, filetype="image")
+                    matrix = fitz.Matrix(scale / 100.0, scale / 100.0)
+                    pix = doc[0].get_pixmap(matrix=matrix)
+                    files[idx] = (field, (name, pix.tobytes("png"), "image/png"))
+                except Exception:
+                    pass
+                break
+
     row.progress = 25
     db.commit()
 
@@ -419,6 +439,31 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
     job_id = row.id
     user_id = row.user_id
     db.close()
+
+    add_image_original: bytes | None = None
+    add_image_page: int | None = None
+    if tool_id == "add-image":
+        every = str(form_data.get("everyPage", form_data.get("every_page", "false"))).lower() in (
+            "true",
+            "1",
+            "on",
+        )
+        page_num = int(str(form_data.get("pageNumber", form_data.get("page_number", "1")) or 1))
+        if not every and page_num > 1:
+            add_image_original = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+            add_image_page = page_num
+            try:
+                single_pdf = extract_single_page(add_image_original, page_num)
+            except Exception:
+                _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+                return
+            for idx, item in enumerate(files):
+                if item[0] == "fileInput":
+                    field, (name, _content, ctype) = item
+                    files[idx] = (field, (name, single_pdf, ctype))
+                    break
+
+    stirling_form_data = normalize_stirling_form(tool_id, form_data)
 
     result_content: bytes | None = None
     stirling_status: int | None = None
@@ -498,12 +543,28 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 resp = client.post(
                     target,
                     files=_encode_stirling_files(files),
-                    data=_encode_form_data(form_data),
+                    data=_encode_form_data(stirling_form_data),
                 )
             stirling_status = resp.status_code
             stirling_body = resp.content
             if resp.status_code < 400:
                 result_content = resp.content
+                if add_image_original and add_image_page and result_content:
+                    try:
+                        result_content = replace_single_page(
+                            add_image_original, add_image_page, result_content
+                        )
+                    except Exception:
+                        _fail_job(
+                            session_factory,
+                            job_id,
+                            settings,
+                            user_id,
+                            tool_id,
+                            input_refs,
+                            "STIRLING_REQUEST_FAILED",
+                        )
+                        return
         except httpx.RequestError:
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "STIRLING_UNREACHABLE")
             return
@@ -536,7 +597,12 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         output_ref = new_ref_id()
         out_path = job_path / f"{output_ref}.out"
         out_path.write_bytes(encrypt_bytes(settings, result_content))
-        save_label(settings, user_id, output_ref, output_file_info(result_content, tool_id)["default_name"])
+        save_label(
+            settings,
+            user_id,
+            output_ref,
+            output_file_info(result_content, tool_id, form_data)["default_name"],
+        )
 
         row.status = "completed"
         row.progress = 100

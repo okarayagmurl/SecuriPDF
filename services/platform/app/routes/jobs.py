@@ -16,7 +16,7 @@ from ..job_queue import _job_dir, enqueue_tool_job
 from ..job_refs import load_labels
 
 from ..http_util import content_disposition
-from ..job_output import output_file_info
+from ..job_output import ensure_filename_ext, output_file_info
 
 router = APIRouter(tags=["jobs"])
 
@@ -266,19 +266,24 @@ async def submit_job(
     if tool_id == "add-watermark":
         wm_style = str(form.get("watermarkStyle") or "tiled")
         extra_meta["watermarkStyle"] = wm_style
-        include_doc = form.get("includeDocumentNumber")
-        if include_doc and str(include_doc).lower() in ("true", "on", "1"):
-            reserved = new_id("doc")
-            extra_meta["reservedDocumentId"] = reserved
-            base = str(data.get("watermarkText", "")).strip()
-            data["watermarkText"] = format_watermark_with_document_number(base, reserved)
-        elif not str(data.get("watermarkText", "")).strip():
-            raise HTTPException(
-                status_code=400,
-                detail="Filigran metni veya belge numarası gerekli",
-            )
+        wm_type = str(data.get("watermarkType", "text")).lower()
+        if wm_type == "text":
+            include_doc = form.get("includeDocumentNumber")
+            if include_doc and str(include_doc).lower() in ("true", "on", "1"):
+                reserved = new_id("doc")
+                extra_meta["reservedDocumentId"] = reserved
+                base = str(data.get("watermarkText", "")).strip()
+                data["watermarkText"] = format_watermark_with_document_number(base, reserved)
+            elif not str(data.get("watermarkText", "")).strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Filigran metni veya belge numarası gerekli",
+                )
+        elif wm_type == "image":
+            if not any(field == "watermarkImage" for field, _, _, _ in files):
+                raise HTTPException(status_code=400, detail="Filigran görseli gerekli")
         pdf_bytes = next((content for field, _, content, _ in files if field == "fileInput"), files[0][2])
-        if str(data.get("watermarkType", "text")).lower() != "text":
+        if wm_type != "text":
             apply_watermark_style(data, wm_style, pdf_bytes)
 
     row = enqueue_tool_job(
@@ -302,10 +307,16 @@ def download_job_result(
         raise HTTPException(status_code=404, detail="Cikti bulunamadi")
     data = decrypt_bytes(settings, out_path.read_bytes())
     labels = load_labels(settings, user.user_id, [row.output_ref])
-    info = output_file_info(data, row.tool_id)
-    filename = labels.get(row.output_ref, info["default_name"])
-    if not any(filename.lower().endswith(ext) for ext in (".pdf", ".zip", ".html", ".htm")):
-        filename = f"{filename}{info['ext']}"
+    meta_path = _job_dir(settings, row.id) / "meta.json"
+    form_data: dict = {}
+    if meta_path.is_file():
+        try:
+            form_data = json.loads(meta_path.read_text(encoding="utf-8")).get("formData") or {}
+        except json.JSONDecodeError:
+            form_data = {}
+    info = output_file_info(data, row.tool_id, form_data)
+    filename = labels.get(row.output_ref) or info["default_name"]
+    filename = ensure_filename_ext(filename, info["ext"])
     return Response(
         content=data,
         media_type=info["mime"],
@@ -328,16 +339,19 @@ def import_job_to_documents(
         raise HTTPException(status_code=404, detail="Cikti bulunamadi")
     data = decrypt_bytes(settings, out_path.read_bytes())
     labels = load_labels(settings, user.user_id, [row.output_ref])
-    info = output_file_info(data, row.tool_id)
-    filename = labels.get(row.output_ref) or info["default_name"]
     meta_path = _job_dir(settings, row.id) / "meta.json"
+    form_data: dict = {}
     reserved_id: str | None = None
     if meta_path.is_file():
         try:
             job_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            form_data = job_meta.get("formData") or {}
             reserved_id = job_meta.get("reservedDocumentId")
         except json.JSONDecodeError:
+            form_data = {}
             reserved_id = None
+    info = output_file_info(data, row.tool_id, form_data)
+    filename = ensure_filename_ext(labels.get(row.output_ref) or info["default_name"], info["ext"])
     try:
         doc = store_document_bytes(
             db,

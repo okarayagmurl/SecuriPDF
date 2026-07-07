@@ -333,7 +333,12 @@
 
   function panelAddImage(body, form, cleanups) {
     var P = global.SecuriPdfPreview;
-    var empty = infoBox('<p>PDF seçtikten sonra görselin yerleşim noktasını sayfa önizlemesinde tıklayarak belirleyin.</p>');
+    var pageHidden = hidden('pageNumber', '1');
+    var scaleRow = sliderField('imageScalePercent', 'Görsel boyutu (%)', {
+      min: 10, max: 200, step: 5, default: 100,
+      hint: 'Orijinal görsel boyutuna göre ölçek (Stirling varsayılan boyut).'
+    });
+    var empty = infoBox('<p>PDF seçtikten sonra önizlemede sayfa değiştirip konumu tıklayarak belirleyin. Yalnızca seçili sayfaya eklemek için «Tüm sayfalara ekle» kapalı olmalıdır.</p>');
     var workspace = document.createElement('div');
     workspace.className = 'tp-pos-workspace';
     workspace.hidden = true;
@@ -386,23 +391,35 @@
       marker.style.top = Math.round(y / scale) + 'px';
     }
 
-    markerLayer.addEventListener('click', function (ev) {
-      if (ev.target.closest('.ui-pdf-preview-nav')) return;
-      var previewFrame = stage.querySelector('.ui-pdf-preview-frame');
-      var refEl = previewFrame || stage;
+    function clickCoords(ev) {
+      var iframe = stage.querySelector('.ui-pdf-preview-frame');
+      var refEl = iframe || stage.querySelector('.ui-pdf-preview-stage') || stage;
       var rect = refEl.getBoundingClientRect();
       var ps = pageSize();
+      if (!rect.width || !rect.height) return null;
       var scale = ps.width / rect.width;
       var x = Math.max(0, Math.round((ev.clientX - rect.left) * scale));
       var y = Math.max(0, Math.round((ev.clientY - rect.top) * scale));
-      coordRow.querySelector('[name=x]').value = String(x);
-      coordRow.querySelector('[name=y]').value = String(y);
+      return { x: x, y: y };
+    }
+
+    markerLayer.addEventListener('click', function (ev) {
+      if (ev.target.closest('.ui-pdf-preview-nav')) return;
+      var pt = clickCoords(ev);
+      if (!pt) return;
+      coordRow.querySelector('[name=x]').value = String(pt.x);
+      coordRow.querySelector('[name=y]').value = String(pt.y);
+      if (typeof form._pdfPreviewGetPage === 'function') {
+        pageHidden.value = String(form._pdfPreviewGetPage());
+      }
       placeMarker();
     });
 
     if (P) {
       stage.style.position = 'relative';
-      var previewCleanup = P.mount(stage, form, { showNav: true, minHeight: 220 });
+      var previewCleanup = P.mount(stage, form, { showNav: true, minHeight: 360, onPageChange: function (p) {
+        pageHidden.value = String(p);
+      } });
       if (previewCleanup) cleanups.push(previewCleanup);
       var previewWrap = stage.querySelector('.ui-pdf-preview-wrap');
       if (previewWrap) stage.insertBefore(previewWrap, markerLayer);
@@ -415,8 +432,9 @@
       if (has) placeMarker();
     });
 
-    mount(body, [empty, workspace, coordRow,
-      checkCard('everyPage', 'Tüm sayfalara ekle', false, 'Görseli yalnızca ilk sayfaya değil, her sayfaya yerleştirir.')]);
+    mount(body, [empty, workspace, coordRow, scaleRow,
+      checkCard('everyPage', 'Tüm sayfalara ekle', false, 'Kapalıyken yalnızca önizlemedeki seçili sayfaya eklenir.')]);
+    body.appendChild(pageHidden);
   }
 
   function panelPdfToSinglePage(body, form) {

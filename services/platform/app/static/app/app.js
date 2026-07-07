@@ -5397,6 +5397,43 @@
     return m ? decodeURIComponent(m[1]) : fb;
   }
 
+  function fixResultFilename(toolId, name, form) {
+    var n = name || downloadFallbackFilename(toolId);
+    var ext = '';
+    if (toolId === 'convert' && form && form._convertGetFormats) {
+      ext = (form._convertGetFormats().toExt || '').toLowerCase();
+    } else if (toolId === 'pdf-to-word') {
+      var wf = form && form.querySelector('[name="outputFormat"]');
+      ext = (wf && wf.value ? wf.value : 'docx').toLowerCase();
+    } else if (toolId === 'pdf-to-presentation') {
+      var pf = form && form.querySelector('[name="outputFormat"]');
+      ext = (pf && pf.value ? pf.value : 'pptx').toLowerCase();
+    } else if (toolId === 'pdf-to-text') {
+      var tf = form && form.querySelector('[name="outputFormat"]');
+      ext = (tf && tf.value ? tf.value : 'txt').toLowerCase();
+    } else if (toolId === 'pdf-to-img') {
+      var single = form && form.querySelector('[name="singleOrMultiple"]');
+      var imgFmt = form && form.querySelector('[name="imageFormat"]');
+      if (single && single.value === 'single') {
+        ext = (imgFmt && imgFmt.value ? imgFmt.value : 'png').toLowerCase();
+        if (ext === 'jpeg') ext = 'jpg';
+      }
+    }
+    if (ext && !new RegExp('\\.' + ext.replace('.', '') + '$', 'i').test(n)) {
+      n = n.replace(/\.[^.]+$/, '') + '.' + ext;
+    }
+    if (toolId === 'split-pages' && !/\.zip$/i.test(n)) {
+      n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
+    }
+    if (toolId === 'pdf-to-img' && ext && ext !== 'zip' && !new RegExp('\\.' + ext + '$', 'i').test(n)) {
+      n = n.replace(/\.(zip|pdf)$/i, '') + '.' + ext;
+    }
+    if (toolId === 'extract-images' && !/\.zip$/i.test(n)) {
+      n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
+    }
+    return n;
+  }
+
   function downloadFallbackFilename(toolId) {
     var names = {
       compare: 'karsilastirma-raporu.html',
@@ -5461,6 +5498,7 @@
     if (state.currentTool.id === 'compress-pdf') {
       var visibleSize = form.querySelector('.compress-size-input');
       var sizeField = form.querySelector('input[name="expectedOutputSize"]');
+      var levelField = form.querySelector('input[name="optimizeLevel"]');
       if (visibleSize && sizeField && sizeField.name === 'expectedOutputSize') {
         sizeField.value = visibleSize.value.trim();
       }
@@ -5728,6 +5766,26 @@
       });
     }
     fd.append('tool_id', state.currentTool.id);
+    if (state.currentTool.id === 'compress-pdf') {
+      ['grayscale', 'linearize', 'optimizeLevel', 'expectedOutputSize'].forEach(function (fname) {
+        var el = form.querySelector('input[name="' + fname + '"]');
+        if (!el || !el.name || el.disabled) {
+          fd.delete(fname);
+          return;
+        }
+        if (el.value !== '') fd.set(fname, el.value);
+      });
+    }
+    if (state.currentTool.id === 'add-image') {
+      var ep = form.querySelector('[name="everyPage"]');
+      fd.set('everyPage', ep && ep.checked ? 'true' : 'false');
+      var pnEl = form.querySelector('[name="pageNumber"]');
+      if (pnEl) {
+        fd.set('pageNumber', pnEl.value || '1');
+      } else if (typeof form._pdfPreviewGetPage === 'function') {
+        fd.set('pageNumber', String(form._pdfPreviewGetPage()));
+      }
+    }
     if (state.currentTool.id === 'convert' && form._convertGetFormats) {
       fd.append('_apiPath', form._convertGetFormats().apiPath);
     }
@@ -5793,16 +5851,7 @@
             var disp = r.headers.get('Content-Disposition');
             return r.blob().then(function (blob) {
               var fallback = downloadFallbackFilename(state.currentTool && state.currentTool.id);
-              var name = filenameFromDisposition(disp, fallback);
-              if (state.currentTool && state.currentTool.id === 'split-pages' && !/\.zip$/i.test(name)) {
-                name = name.replace(/\.(pdf|html?)$/i, '') + '.zip';
-              }
-              if (state.currentTool && state.currentTool.id === 'pdf-to-img' && !/\.(zip|png|jpe?g|webp|tiff?)$/i.test(name)) {
-                name = name.replace(/\.pdf$/i, '') + '.zip';
-              }
-              if (state.currentTool && state.currentTool.id === 'extract-images' && !/\.zip$/i.test(name)) {
-                name = name.replace(/\.(pdf|html?)$/i, '') + '.zip';
-              }
+              var name = fixResultFilename(state.currentTool && state.currentTool.id, filenameFromDisposition(disp, fallback), form);
               return { blob: blob, name: name };
             });
           })

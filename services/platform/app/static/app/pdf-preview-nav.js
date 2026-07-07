@@ -154,7 +154,10 @@
 
     loadFile();
 
+    form._pdfPreviewGetPage = function () { return pageNum; };
+
     return function cleanup() {
+      if (form._pdfPreviewGetPage) delete form._pdfPreviewGetPage;
       revoke();
       if (fileIn) fileIn.removeEventListener('change', loadFile);
       if (rotEl) {

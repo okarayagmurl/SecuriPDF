@@ -5,7 +5,7 @@ system:
   showUpdateOnlyAdmin: false
   googlevisibility: false
   defaultLocale: tr-TR
-  enableUrlToPDF: false
+  enableUrlToPDF: true
 legal:
   termsAndConditions: ''
   privacyPolicy: ''
@@ -13,7 +13,7 @@ legal:
   cookiePolicy: ''
   impressum: ''
 premium:
-  enabled: false
+  enabled: true
 metrics:
   enabled: false
 ui:

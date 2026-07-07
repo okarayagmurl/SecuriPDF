@@ -3900,8 +3900,14 @@ body {
 .tp-pos-stage-pdf {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: 520px;
   margin: 0 auto;
+}
+
+.tp-pos-workspace {
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding-right: 0.25rem;
 }
 
 .tp-pos-stage-pdf .ui-pdf-preview-wrap {
@@ -3909,15 +3915,17 @@ body {
   padding: 0;
   border: none;
   background: transparent;
+  min-height: 360px;
 }
 
 .tp-pos-stage-pdf .ui-pdf-preview-stage {
-  min-height: 10rem;
+  min-height: 20rem;
   background: transparent;
 }
 
 .tp-pos-stage-pdf .ui-pdf-preview-frame {
-  height: 14rem;
+  height: 22rem;
+  min-height: 320px;
 }
 
 .tp-pos-stage-pdf .tp-pos-marker {
