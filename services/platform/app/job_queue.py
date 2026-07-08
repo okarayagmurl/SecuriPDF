@@ -358,6 +358,54 @@ def _stirling_error_code(status: int, body: bytes) -> str:
     return f"STIRLING_HTTP_{status}"
 
 
+def _filename_from_disposition(header: str | None) -> str | None:
+    if not header:
+        return None
+    import re
+
+    match = re.search(r"filename\*?=(?:UTF-8''|utf-8'')?[\"']?([^\"';]+)", header, re.I)
+    if not match:
+        return None
+    from urllib.parse import unquote
+
+    name = unquote(match.group(1).strip()).strip("\"'")
+    return name or None
+
+
+def _adjust_add_image_coords(
+    stirling_form_data: dict[str, str | list[str]],
+    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
+) -> None:
+    """UI x/y tiklama noktasi = gorsel merkezi; Stirling sol-ust kose bekler."""
+    import fitz
+
+    x = int(str(stirling_form_data.get("x", "0")) or 0)
+    y = int(str(stirling_form_data.get("y", "0")) or 0)
+    img_item = next((item for item in files if item[0] == "imageFile"), None)
+    pdf_item = next((item for item in files if item[0] == "fileInput"), None)
+    if not img_item:
+        return
+    try:
+        img_doc = fitz.open(stream=img_item[1][1], filetype="image")
+        iw, ih = float(img_doc[0].rect.width), float(img_doc[0].rect.height)
+        img_doc.close()
+    except Exception:
+        return
+    stirling_form_data["x"] = str(max(0, int(round(x - iw / 2.0))))
+    # PDF koordinatlari: y asagidan; onizleme yukaridan
+    if pdf_item:
+        try:
+            pdf_doc = fitz.open(stream=pdf_item[1][1], filetype="pdf")
+            page_h = float(pdf_doc[0].rect.height)
+            pdf_doc.close()
+            y_top_left = max(0, int(round(y - ih / 2.0)))
+            stirling_form_data["y"] = str(max(0, int(round(page_h - y_top_left - ih))))
+            return
+        except Exception:
+            pass
+    stirling_form_data["y"] = str(max(0, int(round(y - ih / 2.0))))
+
+
 def _process_job(settings: Settings, session_factory, db: Session, row: JobRecord) -> None:
     job_path = _job_dir(settings, row.id)
     meta_path = job_path / "meta.json"
@@ -465,9 +513,16 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
 
     stirling_form_data = normalize_stirling_form(tool_id, form_data)
 
+    if tool_id == "add-image":
+        _adjust_add_image_coords(stirling_form_data, files)
+
+    if tool_id == "url-to-pdf":
+        files = []
+
     result_content: bytes | None = None
     stirling_status: int | None = None
     stirling_body: bytes = b""
+    stirling_output_name: str | None = None
 
     if tool_id == "add-watermark" and str(form_data.get("watermarkType", "text")).lower() == "text":
         try:
@@ -549,6 +604,7 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             stirling_body = resp.content
             if resp.status_code < 400:
                 result_content = resp.content
+                stirling_output_name = _filename_from_disposition(resp.headers.get("content-disposition"))
                 if add_image_original and add_image_page and result_content:
                     try:
                         result_content = replace_single_page(
@@ -597,11 +653,13 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         output_ref = new_ref_id()
         out_path = job_path / f"{output_ref}.out"
         out_path.write_bytes(encrypt_bytes(settings, result_content))
+        out_info = output_file_info(result_content, tool_id, form_data)
+        out_name = stirling_output_name or out_info["default_name"]
         save_label(
             settings,
             user_id,
             output_ref,
-            output_file_info(result_content, tool_id, form_data)["default_name"],
+            out_name,
         )
 
         row.status = "completed"

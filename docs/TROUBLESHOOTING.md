@@ -365,6 +365,16 @@ docker compose -f docker/docker-compose.yml logs -f nginx
 
 Volume: `entera-pdf_entera_logs`
 
+## PDF → CBR / CBR → PDF (403 premium)
+
+`config/custom_settings.yml` içinde `premium.enabled: true` olmalıdır. `pdf-to-cbr` ve `cbr-to-pdf` endpoint'leri `endpoints.toRemove` listesinde olmamalıdır (mount: `../config/custom_settings.yml:/configs/custom_settings.yml:ro`).
+
+Ayar değişikliğinden sonra Stirling container'ını yeniden başlatın:
+
+```bash
+cd docker && docker compose restart entera-pdf
+```
+
 ## UI değişiklikleri görünmüyor (önbellek)
 
 Statik dosyalar tarayıcıda agresif önbelleklenebilir.

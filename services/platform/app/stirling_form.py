@@ -1,51 +1,110 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
+# Platform tarafinda islenir; Stirling'e gonderilmez (araca ozel).
+_PLATFORM_ONLY_BY_TOOL: dict[str, frozenset[str]] = {
+    "add-image": frozenset({"pageNumber", "imageScalePercent"}),
+    "auto-redact": frozenset({"redactSelection", "redactPatternIds", "customRedactRegex"}),
+    "compress-pdf": frozenset({"lineArt"}),
+}
 
-def _camel_to_snake(name: str) -> str:
-    if "_" in name or name.islower():
-        return name
-    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+# Stirling 2.x multipart boolean alanlari.
+_BOOL_FIELDS = frozenset({
+    "autoRotate",
+    "combineImages",
+    "combineIntoSinglePdf",
+    "strict",
+    "detectChapters",
+    "includeAttachments",
+    "downloadHtml",
+    "includeAllRecipients",
+    "optimizeForEbook",
+    "embedAllFonts",
+    "includeTableOfContents",
+    "includePageNumbers",
+    "everyPage",
+    "convertPdfToImage",
+    "convertPDFToImage",
+    "linearize",
+    "grayscale",
+    "normalize",
+    "removeJavaScript",
+    "removeEmbeddedFiles",
+    "removeXMPMetadata",
+    "removeMetadata",
+    "removeLinks",
+    "removeFonts",
+    "useFirstTextAsFallback",
+    "showSignature",
+    "showLogo",
+    "flattenOnlyForms",
+    "deleteAll",
+    "replaceExisting",
+    "allowDuplicates",
+    "duplexMode",
+    "yellowish",
+    "prepress",
+    "convertToPdfA3b",
+})
+
+_SANITIZE_DEFAULTS: dict[str, str] = {
+    "removeJavaScript": "true",
+    "removeEmbeddedFiles": "true",
+    "removeXMPMetadata": "false",
+    "removeMetadata": "false",
+    "removeLinks": "false",
+    "removeFonts": "false",
+}
 
 
 def _as_bool_str(value: Any) -> str:
     return "true" if str(value).lower() in {"true", "1", "on", "yes"} else "false"
 
 
+def _drop_platform_fields(tool_id: str, out: dict[str, str | list[str]]) -> None:
+    for key in _PLATFORM_ONLY_BY_TOOL.get(tool_id, frozenset()):
+        out.pop(key, None)
+
+
+def _apply_tool_rules(tool_id: str, out: dict[str, str | list[str]]) -> None:
+    if tool_id == "vector-to-pdf":
+        fmt = out.pop("outputFormat", None) or out.pop("output_format", None)
+        if fmt:
+            out["inputFormat"] = str(fmt)
+
+    if tool_id == "sanitize-pdf":
+        for key, default in _SANITIZE_DEFAULTS.items():
+            out[key] = _as_bool_str(out.get(key, default))
+
+    if tool_id == "url-to-pdf":
+        for drop in ("fileInput", "tool_id", "toolId"):
+            out.pop(drop, None)
+
+
 def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str, str | list[str]]:
-    """Stirling multipart alanlari snake_case bekler; UI camelCase gonderir."""
+    """Stirling 2.x multipart alanlari camelCase bekler."""
     out: dict[str, str | list[str]] = {}
     for key, value in (form_data or {}).items():
         if value is None:
             continue
-        snake = _camel_to_snake(str(key))
         if isinstance(value, list):
-            out[snake] = [str(item) for item in value]
+            out[key] = [str(item) for item in value]
         else:
-            out[snake] = str(value)
+            out[key] = str(value)
 
-    # Stirling'de olmayan platform alanlari
-    for drop in ("line_art", "redact_selection", "redact_pattern_ids", "custom_redact_regex", "image_scale_percent"):
-        out.pop(drop, None)
+    _drop_platform_fields(tool_id, out)
+
+    for key in _BOOL_FIELDS:
+        if key in out:
+            out[key] = _as_bool_str(out[key])
 
     if tool_id == "compress-pdf":
-        target_size = (out.get("expected_output_size") or "").strip()
+        target_size = (out.get("expectedOutputSize") or "").strip()
         if target_size:
-            out.pop("optimize_level", None)
+            out.pop("optimizeLevel", None)
         else:
-            out.pop("expected_output_size", None)
-        for key in ("linearize", "grayscale", "normalize"):
-            if key in out:
-                out[key] = _as_bool_str(out[key])
+            out.pop("expectedOutputSize", None)
 
-    if tool_id in ("add-image", "pdf-to-img", "img-to-pdf"):
-        if "every_page" in out:
-            out["every_page"] = _as_bool_str(out["every_page"])
-
-    if tool_id == "add-watermark" and out.get("convert_pdf_to_image"):
-        out["convert_pdf_to_image"] = _as_bool_str(out["convert_pdf_to_image"])
-
+    _apply_tool_rules(tool_id, out)
     return out

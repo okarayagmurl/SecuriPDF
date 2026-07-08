@@ -1841,7 +1841,7 @@
         '<select class="convert-opt" data-param="singleOrMultiple">' +
         '<option value="multiple">Her sayfa ayrı dosya (ZIP)</option><option value="single">Tek dosya</option></select>',
         'ZIP her sayfayı ayrı dosya olarak verir; tek dosya tüm sayfaları birleştirir.');
-      setConvertParam(form, 'imageFormat', toExt);
+      setConvertParam(form, 'imageFormat', SC.toStirlingImageFormat(toExt));
       setConvertParam(form, 'colorType', 'color');
       setConvertParam(form, 'dpi', '300');
       setConvertParam(form, 'singleOrMultiple', 'multiple');
@@ -1906,6 +1906,7 @@
       setConvertParam(form, 'outputFormat', 'pdfx');
       appendConvertField(panel, 'PDF/X', '<p class="compress-level-hint">PDF/X arşiv formatına dönüştürülür.</p>');
     } else if (fromExt === 'pdf' && (toExt === 'csv' || toExt === 'xlsx')) {
+      setConvertParam(form, 'outputFormat', toExt);
       setConvertParam(form, 'pageNumbers', 'all');
       appendConvertField(panel, 'Sayfa kapsamı', '<p class="compress-level-hint">Tüm sayfalar işlenir.</p>');
     } else if (fromExt === 'cbr' && toExt === 'pdf') {
@@ -5418,6 +5419,9 @@
         ext = (imgFmt && imgFmt.value ? imgFmt.value : 'png').toLowerCase();
         if (ext === 'jpeg') ext = 'jpg';
       }
+    } else if (toolId === 'pdf-to-vector') {
+      var vf = form && form.querySelector('[name="outputFormat"]');
+      ext = (vf && vf.value ? vf.value : 'eps').toLowerCase();
     }
     if (ext && !new RegExp('\\.' + ext.replace('.', '') + '$', 'i').test(n)) {
       n = n.replace(/\.[^.]+$/, '') + '.' + ext;
@@ -5429,6 +5433,9 @@
       n = n.replace(/\.(zip|pdf)$/i, '') + '.' + ext;
     }
     if (toolId === 'extract-images' && !/\.zip$/i.test(n)) {
+      n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
+    }
+    if (toolId === 'auto-split-pdf' && !/\.zip$/i.test(n)) {
       n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
     }
     return n;
@@ -5453,9 +5460,17 @@
       'pdf-to-cbr': 'pdf-sayfalar.cbr',
       'extract-attachments': 'pdf-ekleri.zip',
       'extract-image-scans': 'tarama-gorselleri.zip',
+      'auto-split-pdf': 'otomatik-bolunmus.zip',
+      'pdf-to-vector': 'pdf-vektor.eps',
       'verify-pdf': 'pdf-dogrulama.json'
     };
     return names[toolId] || 'output.pdf';
+  }
+
+  function syncToolPanelCheckboxes(form, fd) {
+    form.querySelectorAll('.tp-check-card input[type="checkbox"]').forEach(function (el) {
+      if (el.name) fd.set(el.name, el.checked ? 'true' : 'false');
+    });
   }
 
   function syncGenericCheckboxFields(form, fd) {
@@ -5746,6 +5761,11 @@
     setToolStatus('Kuyruğa alınıyor…', true);
     var fd = new FormData(form);
     syncGenericCheckboxFields(form, fd);
+    syncToolPanelCheckboxes(form, fd);
+    if (state.currentTool.id === 'add-watermark') {
+      var wmConvertEl = form.querySelector('[name="convertPDFToImage"]');
+      if (wmConvertEl) fd.set('convertPDFToImage', wmConvertEl.value || 'false');
+    }
     if (state.currentTool.id === 'add-password' || state.currentTool.id === 'change-permissions') {
       [
         'preventPrinting', 'preventPrintingFaithful', 'preventModify', 'preventModifyAnnotations',
@@ -5764,6 +5784,20 @@
           fd.set(name, el.checked ? 'true' : 'false');
         }
       });
+    }
+    if (state.currentTool.id === 'add-stamp') {
+      ['fontSize', 'rotation', 'opacity', 'position', 'overrideX', 'overrideY', 'customMargin'].forEach(function (fname) {
+        if (!fd.has(fname)) {
+          var stampDefaults = {
+            fontSize: '40', rotation: '0', opacity: '0.5', position: '8',
+            overrideX: '-1', overrideY: '-1', customMargin: 'medium'
+          };
+          fd.set(fname, stampDefaults[fname]);
+        }
+      });
+    }
+    if (state.currentTool.id === 'url-to-pdf') {
+      fd.delete('fileInput');
     }
     fd.append('tool_id', state.currentTool.id);
     if (state.currentTool.id === 'compress-pdf') {
@@ -5787,7 +5821,11 @@
       }
     }
     if (state.currentTool.id === 'convert' && form._convertGetFormats) {
-      fd.append('_apiPath', form._convertGetFormats().apiPath);
+      form.querySelectorAll('.convert-api-param').forEach(function (el) {
+        if (el.name) fd.set(el.name, el.value);
+      });
+      var convertApiPath = form._convertGetFormats().apiPath;
+      if (convertApiPath) fd.set('_apiPath', convertApiPath);
     }
     if (state.currentTool.id === 'split-pages' && form._splitGetConfig) {
       var splitCfgSubmit = form._splitGetConfig();

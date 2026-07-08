@@ -642,14 +642,17 @@
       checkCard('yellowish', 'Sararmış kağıt tonu', true, 'Hafif sarı kağıt efekti uygular.')]);
   }
 
-  function panelPdfToCsv(body) {
-    mount(body, [textInput('pageNumbers', 'Sayfa aralığı', {
-      default: 'all', placeholder: 'all veya 1,3,5-9',
-      hint: 'Tüm sayfalar için "all" yazın veya virgülle ayırın.'
-    })]);
+  function panelPdfToCsv(body, outputFormat) {
+    mount(body, [
+      hidden('outputFormat', outputFormat || 'csv'),
+      textInput('pageNumbers', 'Sayfa aralığı', {
+        default: 'all', placeholder: 'all veya 1,3,5-9',
+        hint: 'Tüm sayfalar için "all" yazın veya virgülle ayırın.'
+      })
+    ]);
   }
 
-  function panelPdfToXlsx(body) { panelPdfToCsv(body); }
+  function panelPdfToXlsx(body) { panelPdfToCsv(body, 'xlsx'); }
 
   function panelCbzToPdf(body) {
     mount(body, [checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'e-Kitap okuyucular için sayfa düzenini optimize eder.')]);
@@ -658,7 +661,7 @@
   function panelCbrToPdf(body) { panelCbzToPdf(body); }
 
   function panelVectorToPdf(body) {
-    panelOutputFormat(body, 'outputFormat', [
+    panelOutputFormat(body, 'inputFormat', [
       { value: 'eps', label: 'EPS' }, { value: 'ps', label: 'PS' },
       { value: 'pcl', label: 'PCL' }, { value: 'xps', label: 'XPS' }
     ], 'eps', 'Kaynak formatı');
@@ -693,8 +696,8 @@
   function panelExtractImageScans(body) {
     mount(body, [
       sliderField('angleThreshold', 'Eğim eşiği (°)', { min: 0, max: 45, step: 1, default: 5 }),
-      sliderField('tolerance', 'Tolerans', { min: 1, max: 100, step: 1, default: 20 }),
-      sliderField('minArea', 'Minimum alan (px²)', { min: 100, max: 50000, step: 100, default: 8000 })
+      sliderField('tolerance', 'Tolerans', { min: 1, max: 100, step: 1, default: 35 }),
+      sliderField('minArea', 'Minimum alan (px²)', { min: 100, max: 50000, step: 100, default: 5000 })
     ]);
   }
 

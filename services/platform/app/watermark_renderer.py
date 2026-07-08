@@ -155,8 +155,8 @@ def apply_text_watermark(
                 cols=cols, rows=rows,
             )
         elif style_id == "quad":
-            cols = max(3, int(view.width / 140))
-            rows = max(6, int(view.height / 72))
+            cols = max(2, int(view.width / 200))
+            rows = max(3, int(view.height / 120))
             _insert_grid_text(
                 page, text, font_size=base_fs, rotation=rotation, opacity=opacity, color=color,
                 cols=cols, rows=rows,

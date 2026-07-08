@@ -110,8 +110,10 @@
     { value: 'md', label: 'Markdown', group: 'Metin' },
     { value: 'png', label: 'PNG', group: 'Görsel' },
     { value: 'jpg', label: 'JPG', group: 'Görsel' },
+    { value: 'jpeg', label: 'JPEG', group: 'Görsel' },
     { value: 'gif', label: 'GIF', group: 'Görsel' },
     { value: 'tiff', label: 'TIFF', group: 'Görsel' },
+    { value: 'tif', label: 'TIF', group: 'Görsel' },
     { value: 'bmp', label: 'BMP', group: 'Görsel' },
     { value: 'webp', label: 'WEBP', group: 'Görsel' },
     { value: 'html', label: 'HTML', group: 'Web' },
@@ -121,7 +123,7 @@
   ];
 
   var CONVERSION_MATRIX = {
-    pdf: ['png', 'jpg', 'gif', 'tiff', 'bmp', 'webp', 'docx', 'odt', 'pptx', 'odp', 'csv', 'xlsx', 'txt', 'rtf', 'md', 'html', 'xml', 'pdfa', 'pdfx', 'cbz', 'cbr', 'epub', 'azw3'],
+    pdf: ['png', 'jpg', 'jpeg', 'gif', 'tiff', 'tif', 'bmp', 'webp', 'docx', 'odt', 'pptx', 'odp', 'csv', 'xlsx', 'txt', 'rtf', 'md', 'html', 'xml', 'pdfa', 'pdfx', 'cbz', 'cbr', 'epub', 'azw3'],
     cbz: ['pdf'],
     docx: ['pdf'], doc: ['pdf'], odt: ['pdf'],
     xlsx: ['pdf'], xls: ['pdf'], ods: ['pdf'],
@@ -138,7 +140,8 @@
   var EXTENSION_TO_ENDPOINT = {
     any: { pdf: 'file-to-pdf' },
     pdf: {
-      png: 'pdf-to-img', jpg: 'pdf-to-img', gif: 'pdf-to-img', tiff: 'pdf-to-img', bmp: 'pdf-to-img', webp: 'pdf-to-img',
+      png: 'pdf-to-img', jpg: 'pdf-to-img', jpeg: 'pdf-to-img', gif: 'pdf-to-img',
+      tiff: 'pdf-to-img', tif: 'pdf-to-img', bmp: 'pdf-to-img', webp: 'pdf-to-img',
       docx: 'pdf-to-word', odt: 'pdf-to-word',
       pptx: 'pdf-to-presentation', odp: 'pdf-to-presentation',
       csv: 'pdf-to-csv', xlsx: 'pdf-to-xlsx',
@@ -167,11 +170,21 @@
     if (!name) return '';
     var parts = String(name).toLowerCase().split('.');
     if (parts.length < 2) return '';
-    return parts.pop() || '';
+    return normalizeImageExt(parts.pop() || '');
+  }
+
+  function normalizeImageExt(ext) {
+    var e = String(ext || '').toLowerCase();
+    if (e === 'tif') return 'tiff';
+    return e;
+  }
+
+  function toStirlingImageFormat(ext) {
+    return normalizeImageExt(ext);
   }
 
   function isImageFormat(ext) {
-    return ['png', 'jpg', 'jpeg', 'gif', 'tiff', 'bmp', 'webp'].indexOf(String(ext).toLowerCase()) >= 0;
+    return ['png', 'jpg', 'jpeg', 'gif', 'tiff', 'tif', 'bmp', 'webp'].indexOf(String(ext).toLowerCase()) >= 0;
   }
 
   function isWebFormat(ext) {
@@ -283,6 +296,8 @@
     TO_FORMAT_OPTIONS: TO_FORMAT_OPTIONS,
     OFFICE_ACCEPT: OFFICE_ACCEPT,
     detectFileExtension: detectFileExtension,
+    normalizeImageExt: normalizeImageExt,
+    toStirlingImageFormat: toStirlingImageFormat,
     isImageFormat: isImageFormat,
     isWebFormat: isWebFormat,
     isOfficeFormat: isOfficeFormat,

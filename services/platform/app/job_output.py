@@ -63,6 +63,12 @@ def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str]
             "tiff": ("pdf-sayfa.tiff", ".tiff", "image/tiff"),
             "bmp": ("pdf-sayfa.bmp", ".bmp", "image/bmp"),
         },
+        "pdf-to-vector": {
+            "eps": ("pdf-vektor.eps", ".eps", "application/postscript"),
+            "ps": ("pdf-vektor.ps", ".ps", "application/postscript"),
+            "pcl": ("pdf-vektor.pcl", ".pcl", "application/vnd.hp-pcl"),
+            "xps": ("pdf-vektor.xps", ".xps", "application/vnd.ms-xpsdocument"),
+        },
         "convert": {
             "docx": ("donusturulmus.docx", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
             "odt": ("donusturulmus.odt", ".odt", "application/vnd.oasis.opendocument.text"),
@@ -70,9 +76,21 @@ def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str]
             "pptx": ("donusturulmus.pptx", ".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
             "odp": ("donusturulmus.odp", ".odp", "application/vnd.oasis.opendocument.presentation"),
             "xlsx": ("donusturulmus.xlsx", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "csv": ("donusturulmus.csv", ".csv", "text/csv; charset=utf-8"),
+            "txt": ("donusturulmus.txt", ".txt", "text/plain; charset=utf-8"),
+            "rtf": ("donusturulmus.rtf", ".rtf", "application/rtf"),
             "png": ("donusturulmus.png", ".png", "image/png"),
             "jpg": ("donusturulmus.jpg", ".jpg", "image/jpeg"),
             "jpeg": ("donusturulmus.jpg", ".jpg", "image/jpeg"),
+            "gif": ("donusturulmus.gif", ".gif", "image/gif"),
+            "webp": ("donusturulmus.webp", ".webp", "image/webp"),
+            "tiff": ("donusturulmus.tiff", ".tiff", "image/tiff"),
+            "tif": ("donusturulmus.tiff", ".tiff", "image/tiff"),
+            "bmp": ("donusturulmus.bmp", ".bmp", "image/bmp"),
+            "epub": ("donusturulmus.epub", ".epub", "application/epub+zip"),
+            "azw3": ("donusturulmus.azw3", ".azw3", "application/vnd.amazon.ebook"),
+            "cbr": ("donusturulmus.cbr", ".cbr", "application/vnd.comicbook-rar"),
+            "cbz": ("donusturulmus.cbz", ".cbz", "application/vnd.comicbook+zip"),
         },
     }
     tool_map = mapping.get(tool_id)
@@ -83,9 +101,9 @@ def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str]
         key = next(iter(tool_map))
     name, ext, mime = tool_map[key]
     single = _fmt(form_data, "singleOrMultiple", "single_or_multiple", default="multiple")
-    if tool_id == "pdf-to-img" and single == "single":
-        return _info(name, ext, mime)
-    if tool_id == "pdf-to-img":
+    if tool_id in ("pdf-to-img", "convert") and ext in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".tiff", ".bmp"}:
+        if single == "single":
+            return _info(name, ext, mime)
         return _info("pdf-gorseller.zip", ".zip", "application/zip")
     return _info(name, ext, mime)
 
@@ -138,6 +156,15 @@ def output_file_info(data: bytes, tool_id: str, form_data: dict[str, Any] | None
         return _info("pdf-sayfalar.cbz", ".cbz", "application/vnd.comicbook+zip")
     if tool_id == "pdf-to-cbr":
         return _info("pdf-sayfalar.cbr", ".cbr", "application/vnd.comicbook-rar")
+    vec_fmt = _fmt(form_data, "outputFormat", "output_format")
+    if tool_id == "pdf-to-vector" and vec_fmt in {"eps", "ps", "pcl", "xps"}:
+        vec_names = {
+            "eps": ("pdf-vektor.eps", ".eps", "application/postscript"),
+            "ps": ("pdf-vektor.ps", ".ps", "application/postscript"),
+            "pcl": ("pdf-vektor.pcl", ".pcl", "application/vnd.hp-pcl"),
+            "xps": ("pdf-vektor.xps", ".xps", "application/vnd.ms-xpsdocument"),
+        }
+        return _info(*vec_names[vec_fmt])
     if len(data) >= 4 and data[:4] == b"%PDF":
         return _info(f"{tool_id}-sonuc.pdf", ".pdf", "application/pdf")
     if data[:8] == b"\x89PNG\r\n\x1a\n":
