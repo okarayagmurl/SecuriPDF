@@ -1,4 +1,21 @@
 # SecuriPDF — PowerShell ortak yardimcilar (Windows + Linux pwsh)
+
+function Import-SecuriPdfDotEnv {
+  param([string]$EnvFile = (Join-Path $PSScriptRoot '.env'))
+  if (-not (Test-Path $EnvFile)) { return }
+  Get-Content $EnvFile | ForEach-Object {
+    if ($_ -match '^\s*([^#=]+)=(.*)$') {
+      $key = $Matches[1].Trim()
+      $val = $Matches[2].Trim()
+      # fix-access-url.sh KEY="value" yazar; JSON uraelmak icin tirnaklari kaldir
+      if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
+        $val = $val.Substring(1, $val.Length - 2)
+      }
+      Set-Item -Path "env:$key" -Value $val
+    }
+  }
+}
+
 function Get-SecuriPdfTempDir {
   if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) { return $env:TEMP }
   if (-not [string]::IsNullOrWhiteSpace($env:TMPDIR)) { return $env:TMPDIR }

@@ -17,14 +17,7 @@ function Invoke-Kcadm {
   return $out
 }
 
-$envFile = Join-Path $PSScriptRoot ".env"
-if (Test-Path $envFile) {
-  Get-Content $envFile | ForEach-Object {
-    if ($_ -match '^\s*([^#=]+)=(.*)$') {
-      Set-Item -Path "env:$($Matches[1].Trim())" -Value $Matches[2].Trim()
-    }
-  }
-}
+Import-SecuriPdfDotEnv
 
 $admin = if ($env:KEYCLOAK_ADMIN) { $env:KEYCLOAK_ADMIN } else { "admin" }
 $adminPass = if ($env:KEYCLOAK_ADMIN_PASSWORD) { $env:KEYCLOAK_ADMIN_PASSWORD } else { "ChangeMe-KcAdmin-2026" }

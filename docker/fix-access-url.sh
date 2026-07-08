@@ -53,12 +53,19 @@ set_env() {
   local key="$1"
   local val="$2"
   local tmp="${ENV_FILE}.tmp.$$"
+  # Bosluk yoksa tirnaksiz yaz — PowerShell bootstrap JSON kirilmasin
+  local line
+  if [[ "$val" =~ [[:space:]\#] ]]; then
+    line=$(printf '%s="%s"' "${key}" "${val}")
+  else
+    line=$(printf '%s=%s' "${key}" "${val}")
+  fi
   if grep -q "^${key}=" "${ENV_FILE}"; then
     grep -v "^${key}=" "${ENV_FILE}" > "${tmp}"
-    printf '%s="%s"\n' "${key}" "${val}" >> "${tmp}"
+    printf '%s\n' "${line}" >> "${tmp}"
     mv "${tmp}" "${ENV_FILE}"
   else
-    printf '%s="%s"\n' "${key}" "${val}" >> "${ENV_FILE}"
+    printf '%s\n' "${line}" >> "${ENV_FILE}"
   fi
   rm -f "${tmp}" 2>/dev/null || true
 }
