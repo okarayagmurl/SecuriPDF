@@ -20,7 +20,7 @@ from .job_refs import load_labels, new_ref_id, save_label
 from .job_output import output_file_info
 from .license import LicenseService
 from .pdf_page_util import extract_single_page, replace_single_page
-from .stirling_form import normalize_stirling_form
+from .stirling_form import encode_stirling_multipart, normalize_stirling_form
 from .mail import send_document_email
 from .tools_catalog import get_tool_api_path
 from .watermark_presets import apply_watermark_style
@@ -38,38 +38,6 @@ def _job_dir(settings: Settings, job_id: str) -> Path:
     path = settings.data_path / "jobs" / job_id
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def _encode_form_data(form_data: dict) -> dict[str, str | list[str]] | None:
-    """httpx multipart: files ile birlikte data dict olmali (list of tuples kirar)."""
-    if not form_data:
-        return None
-    encoded: dict[str, str | list[str]] = {}
-    for key, value in form_data.items():
-        if isinstance(value, list):
-            encoded[key] = [str(item) for item in value]
-        else:
-            encoded[key] = str(value)
-    return encoded or None
-
-
-def _encode_stirling_files(
-    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
-) -> list[tuple[str, tuple[str, bytes, str]]]:
-    """httpx listesi — ayni alan adinda birden fazla dosya (merge-pdfs vb.)."""
-    out: list[tuple[str, tuple[str, bytes, str]]] = []
-    for field, (filename, content, content_type) in files:
-        out.append(
-            (
-                field,
-                (
-                    filename or "input.bin",
-                    content,
-                    content_type or "application/octet-stream",
-                ),
-            )
-        )
-    return out
 
 
 def enqueue_tool_job(
@@ -519,6 +487,25 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
     if tool_id == "url-to-pdf":
         files = []
 
+    if tool_id == "cert-sign":
+        cert_type = str(stirling_form_data.get("certType") or "PKCS12").upper()
+        keep = {"fileInput"}
+        if cert_type in ("PKCS12", "PFX"):
+            keep |= {"p12File"}
+            stirling_form_data["certType"] = "PKCS12"
+        elif cert_type == "PEM":
+            keep |= {"privateKeyFile", "certFile"}
+        elif cert_type == "JKS":
+            keep |= {"jksFile"}
+        files = [item for item in files if item[0] in keep and item[1][1]]
+        for key in ("showSignature", "showLogo"):
+            if key not in stirling_form_data:
+                stirling_form_data[key] = "false"
+        if "pageNumber" not in stirling_form_data:
+            stirling_form_data["pageNumber"] = "1"
+        if "password" not in stirling_form_data:
+            stirling_form_data["password"] = ""
+
     result_content: bytes | None = None
     stirling_status: int | None = None
     stirling_body: bytes = b""
@@ -526,20 +513,31 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
 
     if tool_id == "add-watermark" and str(form_data.get("watermarkType", "text")).lower() == "text":
         try:
-            pdf_bytes = files[0][1][1] if files else b""
-            opacity = float(str(form_data.get("opacity", "0.5")))
+            pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+            if not pdf_bytes and files:
+                pdf_bytes = files[0][1][1]
+            if not pdf_bytes:
+                _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+                return
+            opacity_raw = str(form_data.get("opacity", "0.5")).strip().replace(",", ".")
+            opacity = float(opacity_raw) if opacity_raw else 0.5
+            if opacity > 1.0:
+                opacity = opacity / 100.0
+            opacity = max(0.05, min(opacity, 1.0))
             color = str(form_data.get("customColor", "#d3d3d3"))
             font_raw = form_data.get("fontSize")
-            font_size = float(str(font_raw)) if font_raw not in (None, "") else None
+            font_size = float(str(font_raw).replace(",", ".")) if font_raw not in (None, "") else None
+            wm_text = str(form_data.get("watermarkText", "")).strip() or " "
             result_content = apply_text_watermark(
                 pdf_bytes,
-                text=str(form_data.get("watermarkText", "")),
+                text=wm_text,
                 style_id=str(meta.get("watermarkStyle") or "tiled"),
                 font_size=font_size,
                 opacity=opacity,
                 color_hex=color,
             )
-        except Exception:
+        except Exception as exc:
+            print(f"[job-worker] watermark render failed: {type(exc).__name__}: {exc}")
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "WATERMARK_RENDER_FAILED")
             return
     elif tool_id == "compare":
@@ -594,12 +592,9 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             return
     else:
         try:
+            multipart = encode_stirling_multipart(stirling_form_data, files)
             with httpx.Client(timeout=_TIMEOUT) as client:
-                resp = client.post(
-                    target,
-                    files=_encode_stirling_files(files),
-                    data=_encode_form_data(stirling_form_data),
-                )
+                resp = client.post(target, files=multipart)
             stirling_status = resp.status_code
             stirling_body = resp.content
             if resp.status_code < 400:

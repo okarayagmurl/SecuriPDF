@@ -69,17 +69,81 @@ def _drop_platform_fields(tool_id: str, out: dict[str, str | list[str]]) -> None
 
 def _apply_tool_rules(tool_id: str, out: dict[str, str | list[str]]) -> None:
     if tool_id == "vector-to-pdf":
-        fmt = out.pop("outputFormat", None) or out.pop("output_format", None)
-        if fmt:
-            out["inputFormat"] = str(fmt)
+        # Stirling Ghostscript vector→PDF yalnızca dosya uzantısına bakar;
+        # OpenAPI PdfVectorExportRequest yanlışlıkla buraya bağlanmış — gerçek alan prepress.
+        out.pop("inputFormat", None)
+        out.pop("outputFormat", None)
+        out.pop("output_format", None)
+        if "prepress" not in out:
+            out["prepress"] = "false"
+
+    if tool_id == "pdf-to-vector":
+        if "prepress" not in out:
+            out["prepress"] = "false"
+        fmt = out.get("outputFormat") or out.get("output_format") or "eps"
+        out["outputFormat"] = str(fmt).lower()
+        out.pop("output_format", None)
+
+    if tool_id == "ebook-to-pdf":
+        for key in ("embedAllFonts", "includeTableOfContents", "includePageNumbers", "optimizeForEbook"):
+            out[key] = _as_bool_str(out.get(key, "false"))
 
     if tool_id == "sanitize-pdf":
         for key, default in _SANITIZE_DEFAULTS.items():
             out[key] = _as_bool_str(out.get(key, default))
+        # removeFonts=true gömülyü siler; metin "bozuk karakter" gibi görünebilir — UI uyarısı var.
 
     if tool_id == "url-to-pdf":
-        for drop in ("fileInput", "tool_id", "toolId"):
+        for drop in ("fileInput", "tool_id", "toolId", "fileId"):
             out.pop(drop, None)
+        url = str(out.get("urlInput") or "").strip()
+        if url:
+            out["urlInput"] = url
+
+    if tool_id == "auto-split-pdf":
+        out["duplexMode"] = _as_bool_str(out.get("duplexMode", "false"))
+
+    if tool_id == "cert-sign":
+        for key in ("showSignature", "showLogo"):
+            out[key] = _as_bool_str(out.get(key, "false"))
+        if "pageNumber" not in out or not str(out.get("pageNumber") or "").strip():
+            out["pageNumber"] = "1"
+        cert_type = str(out.get("certType") or "PKCS12").upper()
+        if cert_type == "PFX":
+            cert_type = "PKCS12"
+        out["certType"] = cert_type
+        if "password" not in out:
+            out["password"] = ""
+
+
+def encode_stirling_multipart(
+    form_data: dict[str, Any],
+    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
+) -> list[tuple[str, tuple[str | None, bytes | str, str | None]]]:
+    """Tek multipart gövde — dosyasız isteklerde (url-to-pdf) urlencoded'a düşmez.
+
+    httpx `files=[]` + `data={...}` application/x-www-form-urlencoded üretir;
+    Stirling multipart bekler (415). Alanlar `(None, value)`, dosyalar `(name, bytes, ctype)`.
+    """
+    parts: list[tuple[str, tuple[str | None, bytes | str, str | None]]] = []
+    for field, (filename, content, content_type) in files:
+        parts.append(
+            (
+                field,
+                (
+                    filename or "input.bin",
+                    content,
+                    content_type or "application/octet-stream",
+                ),
+            )
+        )
+    for key, value in (form_data or {}).items():
+        if isinstance(value, list):
+            for item in value:
+                parts.append((key, (None, str(item))))
+        elif value is not None:
+            parts.append((key, (None, str(value))))
+    return parts
 
 
 def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str, str | list[str]]:

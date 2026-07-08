@@ -365,15 +365,46 @@ docker compose -f docker/docker-compose.yml logs -f nginx
 
 Volume: `entera-pdf_entera_logs`
 
-## PDF → CBR / CBR → PDF (403 premium)
+## PDF → CBR / CBR → PDF (403)
 
-`config/custom_settings.yml` içinde `premium.enabled: true` olmalıdır. `pdf-to-cbr` ve `cbr-to-pdf` endpoint'leri `endpoints.toRemove` listesinde olmamalıdır (mount: `../config/custom_settings.yml:/configs/custom_settings.yml:ro`).
+403 genelde **premium** değil; Stirling bağımlılık grubu:
 
-Ayar değişikliğinden sonra Stirling container'ını yeniden başlatın:
+| Yön | Gereksinim | Not |
+|-----|------------|-----|
+| PDF → CBR | Host/container PATH'te `rar` | Resmi image lisans nedeniyle `rar` içermez; `docker/Dockerfile` RARLAB binary ekler |
+| CBR → PDF | Junrar (Java, fat image) | Ayrı `unrar` gerekmez |
+
+`pdf-to-cbr` / `cbr-to-pdf` `endpoints.toRemove` listesinde olmamalı. `premium.enabled` Pro özellikleri içindir; CBR `rar` grubuna bağlıdır.
+
+Stirling logunda şunu görürseniz `rar` eksiktir:
+
+```text
+Missing dependency: rar - Disabling group: rar (Affected features: PDF To Cbr)
+```
+
+**Düzeltme:** `entera-pdf` image'ını yeniden build edin (`docker/Dockerfile` rar kurulumu). Alternatif: host'taki `/usr/local/bin/rar` dosyasını volume ile bağlayın.
 
 ```bash
-cd docker && docker compose restart entera-pdf
+cd docker
+docker compose build entera-pdf
+docker compose up -d entera-pdf
+docker compose logs entera-pdf | findstr /i "rar"
 ```
+
+Ticari kullanımda [RARLAB lisans](https://www.rarlab.com/license.htm) şartlarını kontrol edin. Mümkünse CBZ tercih edin.
+
+## URL → PDF (403 veya 415)
+
+1. **403 — endpoint disabled:** `SYSTEM_ENABLEURLTOPDF=true` (compose) ve `config/custom_settings.yml` içinde `system.enableUrlToPDF: true`. Env `false` iken YAML `true` olsa bile Stirling endpoint'i kapatır.
+2. **415 — Desteklenmeyen dosya türü:** Yalnızca `urlInput` gönderilmeli; platform istekleri her zaman `multipart/form-data` olmalı (dosyasız urlencoded yasak). Weasyprint grubu image'da mevcut olmalı (`*-fat`).
+
+```bash
+cd docker && docker compose up -d --force-recreate entera-pdf
+```
+
+## Otomatik Ayır (auto-split-pdf)
+
+Stirling **boş sayfa / ayraç çizgisi algılamaz**. Yalnızca resmi QR ayraç sayfasını okur (QR içeriği: `https://github.com/Stirling-Tools/Stirling-PDF` vb.). Ayraçları yazdırıp belgeler arasına koyun; çıktı ZIP'tir. `duplexMode=true` ayraçtan sonraki sayfayı da atar.
 
 ## UI değişiklikleri görünmüyor (önbellek)
 

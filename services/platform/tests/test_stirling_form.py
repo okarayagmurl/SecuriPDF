@@ -40,18 +40,33 @@ class StirlingFormTests(unittest.TestCase):
         self.assertNotIn("imageScalePercent", data)
         self.assertEqual(data["everyPage"], "false")
 
-    def test_cert_sign_keeps_page_number(self) -> None:
+    def test_cert_sign_keeps_page_number_and_required_bools(self) -> None:
         data = normalize_stirling_form(
             "cert-sign",
             {"pageNumber": "3", "certType": "PKCS12", "showSignature": "true"},
         )
         self.assertEqual(data["pageNumber"], "3")
         self.assertEqual(data["showSignature"], "true")
+        self.assertEqual(data["showLogo"], "false")
+        self.assertEqual(data["password"], "")
+        self.assertEqual(data["certType"], "PKCS12")
 
-    def test_vector_to_pdf_maps_input_format(self) -> None:
-        data = normalize_stirling_form("vector-to-pdf", {"outputFormat": "pcl"})
-        self.assertEqual(data["inputFormat"], "pcl")
+    def test_cert_sign_pfx_maps_to_pkcs12(self) -> None:
+        data = normalize_stirling_form("cert-sign", {"certType": "PFX"})
+        self.assertEqual(data["certType"], "PKCS12")
+
+    def test_vector_to_pdf_drops_format_fields_and_sets_prepress(self) -> None:
+        data = normalize_stirling_form("vector-to-pdf", {"outputFormat": "pcl", "inputFormat": "eps"})
         self.assertNotIn("outputFormat", data)
+        self.assertNotIn("inputFormat", data)
+        self.assertEqual(data["prepress"], "false")
+
+    def test_ebook_to_pdf_required_booleans(self) -> None:
+        data = normalize_stirling_form("ebook-to-pdf", {"optimizeForEbook": "on"})
+        self.assertEqual(data["embedAllFonts"], "false")
+        self.assertEqual(data["includeTableOfContents"], "false")
+        self.assertEqual(data["includePageNumbers"], "false")
+        self.assertEqual(data["optimizeForEbook"], "true")
 
     def test_sanitize_pdf_boolean_defaults(self) -> None:
         data = normalize_stirling_form("sanitize-pdf", {"removeLinks": "on"})
@@ -59,6 +74,19 @@ class StirlingFormTests(unittest.TestCase):
         self.assertEqual(data["removeEmbeddedFiles"], "true")
         self.assertEqual(data["removeLinks"], "true")
         self.assertEqual(data["removeFonts"], "false")
+
+    def test_url_to_pdf_keeps_only_url(self) -> None:
+        data = normalize_stirling_form(
+            "url-to-pdf",
+            {"urlInput": " https://example.com ", "fileInput": "should-drop", "fileId": "x"},
+        )
+        self.assertEqual(data["urlInput"], "https://example.com")
+        self.assertNotIn("fileInput", data)
+        self.assertNotIn("fileId", data)
+
+    def test_auto_split_duplex_default(self) -> None:
+        data = normalize_stirling_form("auto-split-pdf", {})
+        self.assertEqual(data["duplexMode"], "false")
 
     def test_compress_mutual_exclusion(self) -> None:
         data = normalize_stirling_form(

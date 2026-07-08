@@ -151,7 +151,7 @@
       STIRLING_UNREACHABLE: 'PDF motoruna bağlanılamadı (entera-pdf çalışıyor mu?)',
       STIRLING_HTTP_400: 'PDF motoru isteği reddetti (400) — geçersiz parametre veya dosya',
       STIRLING_HTTP_401: 'PDF motoru kimlik doğrulama hatası (401)',
-      STIRLING_HTTP_403: 'PDF motorunda bu araç devre dışı (403). Yönetici: config/custom_settings.yml içinde ilgili endpoint\'i etkinleştirin.',
+      STIRLING_HTTP_403: 'PDF motorunda bu araç devre dışı (403). URL→PDF: SYSTEM_ENABLEURLTOPDF=true. PDF→CBR: entera-pdf image içinde rar binary gerekli. Ayrıca custom_settings endpoints.toRemove kontrol edin.',
       STIRLING_HTTP_404: 'PDF motoru endpoint bulunamadı (404)',
       STIRLING_HTTP_413: 'Dosya boyutu limiti aşıldı (413)',
       STIRLING_HTTP_415: 'Desteklenmeyen dosya türü (415)',
@@ -5782,7 +5782,24 @@
         var el = form.querySelector('[name="' + name + '"]');
         if (el && el.type === 'checkbox') {
           fd.set(name, el.checked ? 'true' : 'false');
+        } else if (!fd.has(name)) {
+          fd.set(name, 'false');
         }
+      });
+      if (!fd.has('pageNumber') || !String(fd.get('pageNumber') || '').trim()) {
+        fd.set('pageNumber', '1');
+      }
+      if (!fd.has('password')) {
+        fd.set('password', '');
+      }
+      var certTypeSubmit = (form.querySelector('[name="certType"]') || {}).value || 'PKCS12';
+      var inactivePanels = {
+        PKCS12: ['privateKeyFile', 'certFile', 'jksFile'],
+        PEM: ['p12File', 'jksFile'],
+        JKS: ['p12File', 'privateKeyFile', 'certFile']
+      };
+      (inactivePanels[certTypeSubmit] || []).forEach(function (fname) {
+        fd.delete(fname);
       });
     }
     if (state.currentTool.id === 'add-stamp') {

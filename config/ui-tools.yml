@@ -1122,19 +1122,19 @@ tools:
 
   - id: vector-to-pdf
     title: Vektör → PDF
-    description: EPS, PS, PCL veya XPS vektör dosyasını PDF'e dönüştürür.
+    description: EPS, PS veya EPSF PostScript dosyasını PDF'e dönüştürür (Ghostscript).
     category: convert
     icon: convert
     apiPath: /api/v1/convert/vector/pdf
     inputs:
       - name: fileInput
-        label: Vektör dosyası
+        label: Vektör dosyası (.eps / .ps / .epsf)
         type: file
-        accept: .eps,.ps,.pcl,.xps
+        accept: .eps,.ps,.epsf,application/postscript
         required: true
         sectionTitle: Dosyalar
       - type: toolPanel
-        sectionTitle: Kaynak formatı
+        sectionTitle: Dönüşüm ayarları
 
   - id: pdf-to-vector
     title: PDF → Vektör
@@ -1205,13 +1205,13 @@ tools:
 
   - id: auto-split-pdf
     title: Otomatik Ayır (Ayraç)
-    description: Sayfa ayraç çizgisi veya boşluk algılayarak PDF'i otomatik parçalara böler.
+    description: Stirling QR ayraç sayfalarını algılayarak PDF'i otomatik parçalara böler (boş sayfa/çizgi değil).
     category: recommended
     icon: split
     apiPath: /api/v1/misc/auto-split-pdf
     inputs:
       - name: fileInput
-        label: PDF dosyası
+        label: PDF dosyası (QR ayraçlı)
         type: file
         accept: .pdf,application/pdf
         required: true

@@ -460,6 +460,10 @@
   }
 
   function panelSanitize(body) {
+    body.appendChild(infoBox(
+      '<p><strong>PDF Temizle</strong> JavaScript, gömülü dosya, meta veri ve bağlantıları kaldırır; sayfa içeriğini beyaza boyamaz.</p>' +
+      '<p><strong>Fontlar</strong> seçeneği gömülü yazı tipini sildiğinde metin bozuk karakterlere dönüşebilir — yalnızca bilinçli kullanın.</p>'
+    ));
     var list = document.createElement('div');
     list.className = 'tp-checklist';
     [
@@ -468,7 +472,7 @@
       { name: 'removeXMPMetadata', label: 'XMP meta verisi', desc: 'Gelişmiş XMP bilgisini siler.', def: false },
       { name: 'removeMetadata', label: 'Belge bilgisi', desc: 'Başlık, yazar vb. alanları temizler.', def: false },
       { name: 'removeLinks', label: 'Bağlantılar', desc: 'Tıklanabilir URL ve linkleri kaldırır.', def: false },
-      { name: 'removeFonts', label: 'Fontlar', desc: 'Gömülü fontları kaldırır (dikkatli kullanın).', def: false }
+      { name: 'removeFonts', label: 'Fontlar (dikkat)', desc: 'Gömülü fontları kaldırır; metin bozulabilir. Varsayılan kapalı.', def: false }
     ].forEach(function (item) {
       list.appendChild(checkCard(item.name, item.label, item.def, item.desc));
     });
@@ -661,10 +665,13 @@
   function panelCbrToPdf(body) { panelCbzToPdf(body); }
 
   function panelVectorToPdf(body) {
-    panelOutputFormat(body, 'inputFormat', [
-      { value: 'eps', label: 'EPS' }, { value: 'ps', label: 'PS' },
-      { value: 'pcl', label: 'PCL' }, { value: 'xps', label: 'XPS' }
-    ], 'eps', 'Kaynak formatı');
+    mount(body, [
+      infoBox(
+        '<p>EPS / PS / EPSF dosyası yükleyin. Stirling dönüşümü <strong>dosya uzantısına</strong> göre yapar (.eps, .ps, .epsf).</p>' +
+        '<p>PCL / XPS → PDF bu sürümde GhostPDL gerektirir; desteklenmez.</p>'
+      ),
+      checkCard('prepress', 'Baskı ön işleme (prepress)', false, 'Ghostscript PDFSETTINGS=/prepress uygular.')
+    ]);
   }
 
   function panelPdfToVector(body) {
@@ -677,7 +684,8 @@
 
   function panelEbookToPdf(body) {
     mount(body, [
-      checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'Okuma düzeni için optimize eder.'),
+      checkCard('embedAllFonts', 'Tüm fontları göm', false, 'Calibre ebook-convert --embed-all-fonts.'),
+      checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'Ghostscript ile boyut/okuma optimizasyonu.'),
       checkCard('includeTableOfContents', 'İçindekiler tablosu', false, 'PDF\'e içindekiler sayfası ekler.'),
       checkCard('includePageNumbers', 'Sayfa numaraları', false, 'Sayfa numaralarını ekler.')
     ]);
@@ -713,8 +721,19 @@
   }
 
   function panelAutoSplit(body) {
-    mount(body, [checkCard('duplexMode', 'Dubleks tarama modu', false,
-      'Çift taraflı taranmış belgelerde ayraç algılamasını iyileştirir.')]);
+    mount(body, [
+      infoBox(
+        '<p><strong>Otomatik Ayır</strong> boş sayfa veya çizgi <em>algılamaz</em>. Stirling resmi QR ayraç sayfasını arar.</p>' +
+        '<ol style="margin:0.5rem 0 0 1.1rem;padding:0">' +
+        '<li>Stirling ayraç PDF\'ini yazdırın (QR içeriği: github.com/Stirling-Tools/Stirling-PDF)</li>' +
+        '<li>Belgeler arasına koyup tarayın veya birleştirin</li>' +
+        '<li>Tek PDF yükleyin — çıktı ZIP</li></ol>' +
+        '<p style="margin-top:0.6rem">Ayraç indirme: ' +
+        '<a href="https://github.com/Stirling-Tools/Stirling-PDF/issues/2281" target="_blank" rel="noopener">Stirling divider sayfaları</a></p>'
+      ),
+      checkCard('duplexMode', 'Dubleks tarama modu', false,
+        'Ayraç QR bulunduğunda hemen sonraki sayfayı da atar (çift taraflı tarama).')
+    ]);
   }
 
   function panelInfoOnly(body, html) {
