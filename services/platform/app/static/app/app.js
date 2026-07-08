@@ -160,7 +160,11 @@
       STIRLING_HTTP_502: 'PDF motoru geçici olarak kullanılamıyor (502)',
       STIRLING_HTTP_503: 'PDF motoru geçici olarak kapalı (503)',
       STIRLING_HTTP_504: 'PDF motoru zaman aşımına uğradı (504)',
+      STIRLING_WEASYPRINT_MISSING: 'URL→PDF için WeasyPrint eksik veya sayfa alınamadı. Fat image + ağ erişimini kontrol edin; örnek URL: https://example.com',
+      STIRLING_CBR_INVALID: 'CBR dosyası geçersiz — RAR5/şifreli CBR desteklenmeyebilir; .cbr uzantılı Junrar uyumlu arşiv kullanın',
       WATERMARK_RENDER_FAILED: 'Filigran uygulanamadı — dosyayı yeniden deneyin',
+      SANITIZE_FAILED: 'PDF temizleme başarısız — dosyayı yeniden deneyin',
+      AUTO_SPLIT_FAILED: 'Otomatik ayırma başarısız — QR ayraç veya boş sayfa ayırıcı kullanın',
       COMPARE_INPUT_MISSING: 'Karşılaştırma için iki PDF gerekli',
       COMPARE_NO_TEXT: 'PDF\'lerde metin bulunamadı — taranmış belgeler için önce OCR uygulayın',
       COMPARE_FAILED: 'Karşılaştırma raporu oluşturulamadı',
@@ -716,6 +720,7 @@
         } else if (job.status === 'failed') {
           stopJobsPoll();
           var failMsg = jobErrorLabel(job.errorCode);
+          if (job.errorDetail) failMsg += ' — ' + job.errorDetail;
           if (job.reportId) failMsg += ' — Kayıt No: ' + job.reportId;
           toast('İş başarısız: ' + failMsg, true);
           loadJobs();
@@ -2212,7 +2217,10 @@
       '<span class="field-label">Filigran görseli</span>' +
       '<label class="btn btn-secondary file-browse-btn" for="watermarkImageInput">Görsel seç</label>' +
       '<input type="file" id="watermarkImageInput" data-wm-field="watermarkImage" name="watermarkImage" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">' +
-      '</div>';
+      '</div>' +
+      '<div class="convert-field"><span class="field-label">Opaklık</span>' +
+      '<div class="compress-level-row"><input type="range" class="compress-slider wm-opacity-slider-img" min="0" max="100" step="1" value="50">' +
+      '<input type="number" class="compress-level-num" data-wm-field="opacity" name="opacity" min="0" max="1" step="0.05" value="0.5"></div></div>';
 
     var extraField = document.createElement('div');
     extraField.className = 'convert-field';
@@ -2312,6 +2320,17 @@
       opacityNum.addEventListener('input', function () {
         var v = Math.max(0, Math.min(1, parseFloat(opacityNum.value) || 0));
         opacitySlider.value = String(Math.round(v * 100));
+      });
+    }
+    var opacitySliderImg = imagePanel.querySelector('.wm-opacity-slider-img');
+    var opacityNumImg = imagePanel.querySelector('[data-wm-field="opacity"]');
+    if (opacitySliderImg && opacityNumImg) {
+      opacitySliderImg.addEventListener('input', function () {
+        opacityNumImg.value = String(Math.round(parseInt(opacitySliderImg.value, 10)) / 100);
+      });
+      opacityNumImg.addEventListener('input', function () {
+        var v = Math.max(0, Math.min(1, parseFloat(opacityNumImg.value) || 0));
+        opacitySliderImg.value = String(Math.round(v * 100));
       });
     }
 

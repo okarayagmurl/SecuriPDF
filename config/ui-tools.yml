@@ -934,7 +934,7 @@ tools:
       - name: fileInput
         label: CBR dosyası
         type: file
-        accept: .cbr,application/x-cbr
+        accept: .cbr,.rar,application/vnd.comicbook-rar,application/x-cbr,application/x-rar-compressed
         required: true
         sectionTitle: Dosyalar
       - type: toolPanel

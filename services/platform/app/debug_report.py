@@ -62,11 +62,29 @@ def write_job_debug_report(
     }
     if form_fields:
         payload["formFieldNames"] = form_fields
-    if debug:
-        if stirling_status is not None:
-            payload["stirlingStatus"] = stirling_status
-        if stirling_body:
-            payload["stirlingBodySnippet"] = stirling_body[:2048].decode("utf-8", errors="replace")
+    if stirling_status is not None:
+        payload["stirlingStatus"] = stirling_status
+    if stirling_body:
+        # Kullanıcıya kısa ipucu (her zaman); tam gövde yalnızca debug.
+        text = stirling_body[:800].decode("utf-8", errors="replace").strip()
+        if text and not text.startswith("<"):
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    for key in ("message", "error", "detail", "title"):
+                        val = parsed.get(key)
+                        if isinstance(val, str) and val.strip():
+                            text = val.strip()
+                            break
+            except json.JSONDecodeError:
+                pass
+            snippet = " ".join(text.split())
+            if snippet:
+                payload["publicHint"] = snippet[:240]
+        if debug:
+            payload["stirlingBodySnippet"] = stirling_body[:2048].decode(
+                "utf-8", errors="replace"
+            )
     try:
         _report_path(settings, report_id).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),

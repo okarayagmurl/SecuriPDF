@@ -393,18 +393,25 @@ docker compose logs entera-pdf | findstr /i "rar"
 
 Ticari kullanımda [RARLAB lisans](https://www.rarlab.com/license.htm) şartlarını kontrol edin. Mümkünse CBZ tercih edin.
 
-## URL → PDF (403 veya 415)
+## URL → PDF (403, 415 veya 500)
 
 1. **403 — endpoint disabled:** `SYSTEM_ENABLEURLTOPDF=true` (compose) ve `config/custom_settings.yml` içinde `system.enableUrlToPDF: true`. Env `false` iken YAML `true` olsa bile Stirling endpoint'i kapatır.
-2. **415 — Desteklenmeyen dosya türü:** Yalnızca `urlInput` gönderilmeli; platform istekleri her zaman `multipart/form-data` olmalı (dosyasız urlencoded yasak). Weasyprint grubu image'da mevcut olmalı (`*-fat`).
+2. **415 — Desteklenmeyen dosya türü:** Yalnızca `urlInput` gönderilmeli; platform istekleri her zaman `multipart/form-data` olmalı (dosyasız urlencoded yasak).
+3. **500 — WeasyPrint / ağ:** Fat image (`*-fat`) WeasyPrint içermeli. Container hedef URL'ye çıkabilmeli. JS gerektiren SPA'lar boş/hatalı PDF üretebilir — basit statik sayfa deneyin (`https://example.com`). Stirling log: `docker logs entera-pdf --tail 80`.
 
 ```bash
 cd docker && docker compose up -d --force-recreate entera-pdf
 ```
 
+## CBR → PDF (400)
+
+Stirling Junrar yalnızca **`.cbr` / `.rar`** uzantısını kabul eder; RAR5 ve şifreli arşivler sıkça reddedilir. Dosya adında uzantı olduğundan emin olun. Mümkünse CBZ kullanın.
+
 ## Otomatik Ayır (auto-split-pdf)
 
-Stirling **boş sayfa / ayraç çizgisi algılamaz**. Yalnızca resmi QR ayraç sayfasını okur (QR içeriği: `https://github.com/Stirling-Tools/Stirling-PDF` vb.). Ayraçları yazdırıp belgeler arasına koyun; çıktı ZIP'tir. `duplexMode=true` ayraçtan sonraki sayfayı da atar.
+1. **QR (Stirling):** Resmi ayraç QR (`https://github.com/Stirling-Tools/Stirling-PDF` vb.). Ayraçları yazdırıp belgeler arasına koyun.
+2. **Boş sayfa (platform yedek):** QR yoksa PyMuPDF boş/beyaz sayfaları ayraç kabul eder; çıktı ZIP. Çizgi/ayraç işareti algılanmaz.
+3. `duplexMode=true` ayraçtan sonraki sayfayı da atar.
 
 ## UI değişiklikleri görünmüyor (önbellek)
 

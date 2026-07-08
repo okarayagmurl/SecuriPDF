@@ -462,7 +462,7 @@
   function panelSanitize(body) {
     body.appendChild(infoBox(
       '<p><strong>PDF Temizle</strong> JavaScript, gömülü dosya, meta veri ve bağlantıları kaldırır; sayfa içeriğini beyaza boyamaz.</p>' +
-      '<p><strong>Fontlar</strong> seçeneği gömülü yazı tipini sildiğinde metin bozuk karakterlere dönüşebilir — yalnızca bilinçli kullanın.</p>'
+      '<p>Temizleme SecuriPDF üzerinde (PyMuPDF) yapılır; <strong>gömülü fontlar korunur</strong> — bozuk karakter riski yoktur.</p>'
     ));
     var list = document.createElement('div');
     list.className = 'tp-checklist';
@@ -471,8 +471,7 @@
       { name: 'removeEmbeddedFiles', label: 'Gömülü dosyalar', desc: 'Ek dosya eklerini kaldırır.', def: true },
       { name: 'removeXMPMetadata', label: 'XMP meta verisi', desc: 'Gelişmiş XMP bilgisini siler.', def: false },
       { name: 'removeMetadata', label: 'Belge bilgisi', desc: 'Başlık, yazar vb. alanları temizler.', def: false },
-      { name: 'removeLinks', label: 'Bağlantılar', desc: 'Tıklanabilir URL ve linkleri kaldırır.', def: false },
-      { name: 'removeFonts', label: 'Fontlar (dikkat)', desc: 'Gömülü fontları kaldırır; metin bozulabilir. Varsayılan kapalı.', def: false }
+      { name: 'removeLinks', label: 'Bağlantılar', desc: 'Tıklanabilir URL ve linkleri kaldırır.', def: false }
     ].forEach(function (item) {
       list.appendChild(checkCard(item.name, item.label, item.def, item.desc));
     });
@@ -662,8 +661,6 @@
     mount(body, [checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'e-Kitap okuyucular için sayfa düzenini optimize eder.')]);
   }
 
-  function panelCbrToPdf(body) { panelCbzToPdf(body); }
-
   function panelVectorToPdf(body) {
     mount(body, [
       infoBox(
@@ -723,16 +720,18 @@
   function panelAutoSplit(body) {
     mount(body, [
       infoBox(
-        '<p><strong>Otomatik Ayır</strong> boş sayfa veya çizgi <em>algılamaz</em>. Stirling resmi QR ayraç sayfasını arar.</p>' +
+        '<p><strong>Otomatik Ayır</strong> öncelikle Stirling resmi QR ayraç sayfasını arar.</p>' +
         '<ol style="margin:0.5rem 0 0 1.1rem;padding:0">' +
-        '<li>Stirling ayraç PDF\'ini yazdırın (QR içeriği: github.com/Stirling-Tools/Stirling-PDF)</li>' +
+        '<li>Stirling ayraç PDF\'ini yazdırın (QR: github.com/Stirling-Tools/Stirling-PDF)</li>' +
         '<li>Belgeler arasına koyup tarayın veya birleştirin</li>' +
         '<li>Tek PDF yükleyin — çıktı ZIP</li></ol>' +
-        '<p style="margin-top:0.6rem">Ayraç indirme: ' +
+        '<p style="margin-top:0.6rem"><strong>Yedek:</strong> QR yoksa platform boş (beyaz) sayfaları ayraç olarak kullanır. ' +
+        'İç boş sayfalar bölünür; ayraç sayfaları çıktıya dahil edilmez.</p>' +
+        '<p style="margin-top:0.4rem">Ayraç indirme: ' +
         '<a href="https://github.com/Stirling-Tools/Stirling-PDF/issues/2281" target="_blank" rel="noopener">Stirling divider sayfaları</a></p>'
       ),
       checkCard('duplexMode', 'Dubleks tarama modu', false,
-        'Ayraç QR bulunduğunda hemen sonraki sayfayı da atar (çift taraflı tarama).')
+        'Ayraç (QR veya boş sayfa) bulunduğunda hemen sonraki sayfayı da atar.')
     ]);
   }
 
@@ -745,7 +744,21 @@
   }
 
   function panelUrlToPdf(body) {
-    panelInfoOnly(body, '<p>Tam web adresini (http:// veya https://) girin. Sayfa yüklendikten sonra PDF olarak dönüştürülür.</p><p>Korumalı veya oturum gerektiren sayfalar desteklenmeyebilir.</p>');
+    panelInfoOnly(body,
+      '<p>Tam web adresini (http:// veya https://) girin. Örnek: <code>https://example.com</code></p>' +
+      '<p>WeasyPrint kullanır (JavaScript çalıştırmaz). Dinamik/SPA siteler boş veya hatalı PDF üretebilir.</p>' +
+      '<p>Kurulum: <code>SYSTEM_ENABLEURLTOPDF=true</code>, fat image, container\'ın hedef URL\'ye erişimi.</p>'
+    );
+  }
+
+  function panelCbrToPdf(body) {
+    mount(body, [
+      infoBox(
+        '<p>CBR dosyası <strong>.cbr</strong> veya <strong>.rar</strong> uzantılı olmalıdır (RAR arşivi içinde görseller).</p>' +
+        '<p>RAR5 veya şifreli arşivler Junrar ile açılamayabilir — CBZ tercih edin.</p>'
+      ),
+      checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'Ghostscript ile boyut/okuma optimizasyonu.')
+    ]);
   }
 
   function panelMarkdownToPdf(body) {

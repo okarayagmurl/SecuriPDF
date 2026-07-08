@@ -55,6 +55,17 @@ class StirlingFormTests(unittest.TestCase):
         data = normalize_stirling_form("cert-sign", {"certType": "PFX"})
         self.assertEqual(data["certType"], "PKCS12")
 
+    def test_cert_sign_password_always_string(self) -> None:
+        data = normalize_stirling_form("cert-sign", {"certType": "PKCS12", "password": None})
+        self.assertEqual(data["password"], "")
+        self.assertEqual(data["reason"], "")
+        self.assertEqual(data["location"], "")
+        self.assertEqual(data["name"], "")
+
+    def test_cbr_optimize_default(self) -> None:
+        data = normalize_stirling_form("cbr-to-pdf", {})
+        self.assertEqual(data["optimizeForEbook"], "false")
+
     def test_vector_to_pdf_drops_format_fields_and_sets_prepress(self) -> None:
         data = normalize_stirling_form("vector-to-pdf", {"outputFormat": "pcl", "inputFormat": "eps"})
         self.assertNotIn("outputFormat", data)

@@ -255,7 +255,7 @@
     if (fromExt === 'eml') return '.eml,message/rfc822';
     if (fromExt === 'msg') return '.msg';
     if (fromExt === 'cbz') return '.cbz';
-    if (fromExt === 'cbr') return '.cbr';
+    if (fromExt === 'cbr') return '.cbr,.rar,application/vnd.comicbook-rar';
     if (['epub', 'mobi', 'azw3', 'fb2'].indexOf(fromExt) >= 0) return '.' + fromExt;
     if (isOfficeFormat(fromExt) || fromExt === 'txt' || fromExt === 'rtf') return OFFICE_ACCEPT;
     return '*/*';

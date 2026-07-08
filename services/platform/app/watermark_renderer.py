@@ -1,4 +1,4 @@
-"""PDF metin filigrani — sayfa merkezli, kesilmeden (PyMuPDF)."""
+"""PDF metin/gorsel filigrani — sayfa merkezli, kesilmeden (PyMuPDF)."""
 
 from __future__ import annotations
 
@@ -173,3 +173,80 @@ def apply_text_watermark(
     doc.save(out, deflate=True, garbage=4)
     doc.close()
     return out.getvalue()
+
+
+def _fit_image_rect(
+    page_rect: fitz.Rect,
+    img_w: float,
+    img_h: float,
+    *,
+    max_frac: float = 0.55,
+) -> fitz.Rect:
+    """Görseli sayfa ortasına, uzun kenarı max_frac ile sınırlayarak yerleştir."""
+    if img_w <= 0 or img_h <= 0:
+        img_w, img_h = 100.0, 100.0
+    max_w = page_rect.width * max_frac
+    max_h = page_rect.height * max_frac
+    scale = min(max_w / img_w, max_h / img_h, 1.0)
+    tw, th = img_w * scale, img_h * scale
+    cx = (page_rect.x0 + page_rect.x1) / 2.0
+    cy = (page_rect.y0 + page_rect.y1) / 2.0
+    return fitz.Rect(cx - tw / 2.0, cy - th / 2.0, cx + tw / 2.0, cy + th / 2.0)
+
+
+def apply_image_watermark(
+    pdf_bytes: bytes,
+    image_bytes: bytes,
+    *,
+    style_id: str,
+    opacity: float,
+    image_name: str | None = None,
+) -> bytes:
+    """Stirling image filigranı yerine platform PyMuPDF — 500 crash ve alan hatalarını önler."""
+    del image_name  # API uyumu; içerik bytes üzerinden
+    opacity = max(0.05, min(float(opacity), 1.0))
+    style = style_id if style_id in ("tiled", "diagonal", "dense", "quad") else "tiled"
+    alpha_byte = int(round(opacity * 255))
+
+    img_doc = fitz.open(stream=image_bytes, filetype="image")
+    try:
+        base = img_doc[0].get_pixmap()
+        pix = fitz.Pixmap(base) if base.alpha else fitz.Pixmap(base, 1)
+        pix.set_alpha(bytes([alpha_byte]) * (pix.width * pix.height))
+        iw, ih = float(pix.width), float(pix.height)
+    finally:
+        img_doc.close()
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        for page in doc:
+            rect = page.rect
+            if style == "diagonal":
+                box = _fit_image_rect(rect, iw, ih, max_frac=0.7)
+                page.insert_image(box, pixmap=pix, overlay=True)
+            else:
+                if style == "dense":
+                    cols, rows = max(4, int(rect.width / 160)), max(5, int(rect.height / 140))
+                elif style == "quad":
+                    cols, rows = max(2, int(rect.width / 240)), max(3, int(rect.height / 180))
+                else:
+                    cols, rows = max(3, int(rect.width / 200)), max(4, int(rect.height / 160))
+                cell_w = rect.width / cols
+                cell_h = rect.height / rows
+                for row in range(rows):
+                    for col in range(cols):
+                        cx = rect.x0 + (col + 0.5) * cell_w
+                        cy = rect.y0 + (row + 0.5) * cell_h
+                        frac = 0.42 if style == "dense" else 0.55
+                        max_w = cell_w * frac
+                        max_h = cell_h * frac
+                        scale = min(max_w / iw, max_h / ih, 1.0)
+                        tw, th = iw * scale, ih * scale
+                        box = fitz.Rect(cx - tw / 2.0, cy - th / 2.0, cx + tw / 2.0, cy + th / 2.0)
+                        page.insert_image(box, pixmap=pix, overlay=True)
+
+        out = BytesIO()
+        doc.save(out, deflate=True, garbage=4)
+        return out.getvalue()
+    finally:
+        doc.close()

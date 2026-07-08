@@ -91,7 +91,11 @@ def _apply_tool_rules(tool_id: str, out: dict[str, str | list[str]]) -> None:
     if tool_id == "sanitize-pdf":
         for key, default in _SANITIZE_DEFAULTS.items():
             out[key] = _as_bool_str(out.get(key, default))
-        # removeFonts=true gömülyü siler; metin "bozuk karakter" gibi görünebilir — UI uyarısı var.
+        # Platform PyMuPDF yolu font silmez; bayrağı her zaman false bırak.
+        out["removeFonts"] = "false"
+
+    if tool_id in ("cbr-to-pdf", "cbz-to-pdf"):
+        out["optimizeForEbook"] = _as_bool_str(out.get("optimizeForEbook", "false"))
 
     if tool_id == "url-to-pdf":
         for drop in ("fileInput", "tool_id", "toolId", "fileId"):
@@ -112,8 +116,11 @@ def _apply_tool_rules(tool_id: str, out: dict[str, str | list[str]]) -> None:
         if cert_type == "PFX":
             cert_type = "PKCS12"
         out["certType"] = cert_type
-        if "password" not in out:
-            out["password"] = ""
+        # Stirling KeyStore.load(null password) NPE — her zaman string gönder.
+        out["password"] = str(out.get("password") if out.get("password") is not None else "")
+        for key in ("reason", "location", "name"):
+            if key not in out:
+                out[key] = ""
 
 
 def encode_stirling_multipart(

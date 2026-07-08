@@ -19,12 +19,13 @@ from .redaction_renderer import RedactionError, apply_pdf_redactions_from_form
 from .job_refs import load_labels, new_ref_id, save_label
 from .job_output import output_file_info
 from .license import LicenseService
+from .pdf_autosplit import split_pdf_on_blank_pages
 from .pdf_page_util import extract_single_page, replace_single_page
+from .pdf_sanitize import sanitize_pdf_bytes
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
 from .mail import send_document_email
 from .tools_catalog import get_tool_api_path
-from .watermark_presets import apply_watermark_style
-from .watermark_renderer import apply_text_watermark
+from .watermark_renderer import apply_image_watermark, apply_text_watermark
 
 _TIMEOUT = httpx.Timeout(3600.0, connect=60.0)
 _worker: JobWorker | None = None
@@ -317,13 +318,74 @@ def _fail_job(
         db.close()
 
 
+def _stirling_body_snippet(body: bytes, limit: int = 280) -> str:
+    text = body[:800].decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    if text.startswith("<"):
+        return ""
+    # JSON {"message":"..."} veya düz metin
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            for key in ("message", "error", "detail", "title"):
+                val = data.get(key)
+                if isinstance(val, str) and val.strip():
+                    text = val.strip()
+                    break
+    except json.JSONDecodeError:
+        pass
+    text = " ".join(text.split())
+    return text[:limit]
+
+
 def _stirling_error_code(status: int, body: bytes) -> str:
-    if status != 502:
-        return f"STIRLING_HTTP_{status}"
-    text = body[:500].decode("utf-8", errors="replace").lower()
-    if "bad gateway" in text:
+    text = body[:800].decode("utf-8", errors="replace").lower()
+    if status == 502 and "bad gateway" in text:
         return "STIRLING_OCR_UNAVAILABLE"
+    if any(k in text for k in ("weasyprint", "weasy print", "missing dependency")):
+        return "STIRLING_WEASYPRINT_MISSING"
+    if status == 400 and any(
+        k in text for k in ("not a cbr", "notcbr", "invalid cbr", "no valid images", "encrypted")
+    ):
+        return "STIRLING_CBR_INVALID"
+    if status == 400:
+        return "STIRLING_HTTP_400"
     return f"STIRLING_HTTP_{status}"
+
+
+def _ensure_cbr_filename(
+    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
+) -> list[tuple[str, tuple[str | None, bytes, str | None]]]:
+    """Stirling Junrar yalnızca .cbr/.rar uzantısını kabul eder."""
+    out: list[tuple[str, tuple[str | None, bytes, str | None]]] = []
+    for field, (name, content, ctype) in files:
+        if field != "fileInput":
+            out.append((field, (name, content, ctype)))
+            continue
+        raw = (name or "").strip() or "comic.cbr"
+        lower = raw.lower()
+        if not (lower.endswith(".cbr") or lower.endswith(".rar")):
+            stem = raw.rsplit(".", 1)[0] if "." in raw else raw
+            raw = f"{stem}.cbr"
+        mime = ctype or "application/vnd.comicbook-rar"
+        if "octet-stream" in mime or mime == "application/x-cbr":
+            mime = "application/vnd.comicbook-rar"
+        out.append((field, (raw, content, mime)))
+    return out
+
+
+def _zip_entry_count(data: bytes) -> int:
+    if not data or data[:2] != b"PK":
+        return 0
+    import zipfile
+    from io import BytesIO
+
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as zf:
+            return sum(1 for info in zf.infolist() if not info.is_dir())
+    except zipfile.BadZipFile:
+        return 0
 
 
 def _filename_from_disposition(header: str | None) -> str | None:
@@ -448,9 +510,9 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             parts = [p.strip() for p in str(wt).replace("\r", "").split("\n") if p.strip()]
             form_data["watermarkText"] = " · ".join(parts) if parts else str(wt).replace("\n", " ").replace("\r", "")
         wm_type = str(form_data.get("watermarkType", "text")).lower()
-        if wm_type != "text":
-            pdf_bytes = files[0][1][1] if files else b""
-            apply_watermark_style(form_data, str(meta.get("watermarkStyle") or "tiled"), pdf_bytes)
+        if wm_type == "image":
+            # Stil spacer alanları yalnızca Stirling'e giderdi; PyMuPDF yolu stil id kullanır.
+            pass
 
     job_id = row.id
     user_id = row.user_id
@@ -484,6 +546,9 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
     if tool_id == "add-image":
         _adjust_add_image_coords(stirling_form_data, files)
 
+    if tool_id == "cbr-to-pdf":
+        files = _ensure_cbr_filename(files)
+
     if tool_id == "url-to-pdf":
         files = []
 
@@ -503,15 +568,19 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 stirling_form_data[key] = "false"
         if "pageNumber" not in stirling_form_data:
             stirling_form_data["pageNumber"] = "1"
-        if "password" not in stirling_form_data:
-            stirling_form_data["password"] = ""
+        stirling_form_data["password"] = str(
+            stirling_form_data.get("password") if stirling_form_data.get("password") is not None else ""
+        )
+        for key in ("reason", "location", "name"):
+            if key not in stirling_form_data:
+                stirling_form_data[key] = ""
 
     result_content: bytes | None = None
     stirling_status: int | None = None
     stirling_body: bytes = b""
     stirling_output_name: str | None = None
 
-    if tool_id == "add-watermark" and str(form_data.get("watermarkType", "text")).lower() == "text":
+    if tool_id == "add-watermark":
         try:
             pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
             if not pdf_bytes and files:
@@ -524,21 +593,97 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             if opacity > 1.0:
                 opacity = opacity / 100.0
             opacity = max(0.05, min(opacity, 1.0))
-            color = str(form_data.get("customColor", "#d3d3d3"))
-            font_raw = form_data.get("fontSize")
-            font_size = float(str(font_raw).replace(",", ".")) if font_raw not in (None, "") else None
-            wm_text = str(form_data.get("watermarkText", "")).strip() or " "
-            result_content = apply_text_watermark(
-                pdf_bytes,
-                text=wm_text,
-                style_id=str(meta.get("watermarkStyle") or "tiled"),
-                font_size=font_size,
-                opacity=opacity,
-                color_hex=color,
-            )
+            style_id = str(meta.get("watermarkStyle") or "tiled")
+            wm_type = str(form_data.get("watermarkType", "text")).lower()
+            if wm_type == "image":
+                img_item = next((item for item in files if item[0] == "watermarkImage"), None)
+                if not img_item or not img_item[1][1]:
+                    _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+                    return
+                result_content = apply_image_watermark(
+                    pdf_bytes,
+                    img_item[1][1],
+                    style_id=style_id,
+                    opacity=opacity,
+                    image_name=img_item[1][0],
+                )
+            else:
+                color = str(form_data.get("customColor", "#d3d3d3"))
+                font_raw = form_data.get("fontSize")
+                font_size = float(str(font_raw).replace(",", ".")) if font_raw not in (None, "") else None
+                wm_text = str(form_data.get("watermarkText", "")).strip() or " "
+                result_content = apply_text_watermark(
+                    pdf_bytes,
+                    text=wm_text,
+                    style_id=style_id,
+                    font_size=font_size,
+                    opacity=opacity,
+                    color_hex=color,
+                )
         except Exception as exc:
             print(f"[job-worker] watermark render failed: {type(exc).__name__}: {exc}")
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "WATERMARK_RENDER_FAILED")
+            return
+    elif tool_id == "sanitize-pdf":
+        try:
+            pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+            if not pdf_bytes and files:
+                pdf_bytes = files[0][1][1]
+            if not pdf_bytes:
+                _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+                return
+            result_content = sanitize_pdf_bytes(pdf_bytes, form_data)
+        except Exception as exc:
+            print(f"[job-worker] sanitize failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "SANITIZE_FAILED")
+            return
+    elif tool_id == "auto-split-pdf":
+        # Önce Stirling (QR); başarısız veya tek parça + boş sayfa varsa platform fallback.
+        try:
+            multipart = encode_stirling_multipart(stirling_form_data, files)
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                resp = client.post(target, files=multipart)
+            stirling_status = resp.status_code
+            stirling_body = resp.content
+            pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+            duplex = str(stirling_form_data.get("duplexMode", "false")).lower() in ("true", "1", "on")
+            used_stirling = False
+            if resp.status_code < 400 and resp.content:
+                # Stirling QR bulamazsa tek dosyalı ZIP dönebilir — boş sayfa varsa fallback.
+                blank_zip = split_pdf_on_blank_pages(pdf_bytes, duplex_mode=duplex) if pdf_bytes else None
+                if blank_zip and _zip_entry_count(resp.content) <= 1 and _zip_entry_count(blank_zip) >= 2:
+                    result_content = blank_zip
+                    stirling_output_name = "otomatik-bolunmus.zip"
+                else:
+                    result_content = resp.content
+                    stirling_output_name = _filename_from_disposition(
+                        resp.headers.get("content-disposition")
+                    )
+                    used_stirling = True
+            elif pdf_bytes:
+                blank_zip = split_pdf_on_blank_pages(pdf_bytes, duplex_mode=duplex)
+                if blank_zip:
+                    result_content = blank_zip
+                    stirling_output_name = "otomatik-bolunmus.zip"
+                    stirling_status = None
+                    stirling_body = b""
+                else:
+                    result_content = None
+            if used_stirling:
+                pass
+        except httpx.RequestError:
+            pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+            duplex = str(stirling_form_data.get("duplexMode", "false")).lower() in ("true", "1", "on")
+            blank_zip = split_pdf_on_blank_pages(pdf_bytes, duplex_mode=duplex) if pdf_bytes else None
+            if blank_zip:
+                result_content = blank_zip
+                stirling_output_name = "otomatik-bolunmus.zip"
+            else:
+                _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "STIRLING_UNREACHABLE")
+                return
+        except Exception as exc:
+            print(f"[job-worker] auto-split failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "AUTO_SPLIT_FAILED")
             return
     elif tool_id == "compare":
         pdf_a = next((item[1][1] for item in files if item[0] == "fileInput1"), b"")

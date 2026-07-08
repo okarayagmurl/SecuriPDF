@@ -17,6 +17,7 @@ from ..job_refs import load_labels
 
 from ..http_util import content_disposition
 from ..job_output import ensure_filename_ext, output_file_info
+from ..watermark_presets import format_watermark_with_document_number
 
 router = APIRouter(tags=["jobs"])
 
@@ -47,6 +48,11 @@ def _job_payload(row: JobRecord, settings: Settings, user: AuthUser, include_lab
         "startedAt": row.started_at.isoformat() if row.started_at else None,
         "completedAt": row.completed_at.isoformat() if row.completed_at else None,
     }
+    if row.status == "failed" and row.report_id:
+        report = read_job_debug_report(settings, row.report_id)
+        hint = (report or {}).get("publicHint")
+        if isinstance(hint, str) and hint.strip():
+            payload["errorDetail"] = hint.strip()[:240]
     if include_labels:
         labels = load_labels(settings, user.user_id, refs + ([row.output_ref] if row.output_ref else []))
         payload["inputLabels"] = {r: labels[r] for r in refs if r in labels}
@@ -282,9 +288,6 @@ async def submit_job(
         elif wm_type == "image":
             if not any(field == "watermarkImage" for field, _, _, _ in files):
                 raise HTTPException(status_code=400, detail="Filigran görseli gerekli")
-        pdf_bytes = next((content for field, _, content, _ in files if field == "fileInput"), files[0][2])
-        if wm_type != "text":
-            apply_watermark_style(data, wm_style, pdf_bytes)
 
     row = enqueue_tool_job(
         settings, db, user.user_id, tool_id, files, data, api_path=api_path_override, extra_meta=extra_meta or None
