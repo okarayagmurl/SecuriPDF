@@ -161,6 +161,8 @@
       STIRLING_HTTP_503: 'PDF motoru geçici olarak kapalı (503)',
       STIRLING_HTTP_504: 'PDF motoru zaman aşımına uğradı (504)',
       STIRLING_WEASYPRINT_MISSING: 'URL→PDF için WeasyPrint eksik veya sayfa alınamadı. Fat image + ağ erişimini kontrol edin; örnek URL: https://example.com',
+      URL_MISSING: 'Web adresi (URL) girilmedi',
+      URL_FETCH_FAILED: 'Web sayfası indirilemedi — adres erişilebilir mi, HTML mi kontrol edin',
       STIRLING_CBR_INVALID: 'CBR dosyası geçersiz — RAR5/şifreli CBR desteklenmeyebilir; .cbr uzantılı Junrar uyumlu arşiv kullanın',
       WATERMARK_RENDER_FAILED: 'Filigran uygulanamadı — dosyayı yeniden deneyin',
       SANITIZE_FAILED: 'PDF temizleme başarısız — dosyayı yeniden deneyin',

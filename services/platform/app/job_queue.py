@@ -25,6 +25,7 @@ from .pdf_sanitize import sanitize_pdf_bytes
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
 from .mail import send_document_email
 from .tools_catalog import get_tool_api_path
+from .url_to_pdf import UrlFetchError, url_to_html_pdf_request
 from .watermark_renderer import apply_image_watermark, apply_text_watermark
 
 _TIMEOUT = httpx.Timeout(3600.0, connect=60.0)
@@ -307,13 +308,24 @@ def _fail_job(
     tool_id: str,
     input_refs: list[str],
     error_code: str,
+    *,
+    form_data: dict | None = None,
+    stirling_status: int | None = None,
+    stirling_body: bytes | None = None,
 ) -> None:
     db = session_factory()
     try:
         row = db.get(JobRecord, job_id)
         if not row:
             return
-        _finalize_failed_row(settings, row, error_code)
+        _finalize_failed_row(
+            settings,
+            row,
+            error_code,
+            stirling_status=stirling_status,
+            stirling_body=stirling_body,
+            form_data=form_data,
+        )
         db.commit()
     finally:
         db.close()
@@ -551,7 +563,27 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         files = _ensure_cbr_filename(files)
 
     if tool_id == "url-to-pdf":
-        files = []
+        page_url = str(stirling_form_data.get("urlInput") or form_data.get("urlInput") or "").strip()
+        if not page_url:
+            _fail_job(
+                session_factory, job_id, settings, user_id, tool_id, input_refs,
+                "URL_MISSING", form_data=form_data,
+            )
+            return
+        try:
+            html_path, html_files, html_form = url_to_html_pdf_request(
+                page_url,
+                zoom=str(form_data.get("zoom") or "1"),
+            )
+            target = f"{settings.stirling_url.rstrip('/')}{html_path}"
+            files = html_files
+            stirling_form_data = html_form
+        except UrlFetchError:
+            _fail_job(
+                session_factory, job_id, settings, user_id, tool_id, input_refs,
+                "URL_FETCH_FAILED", form_data=form_data,
+            )
+            return
 
     if tool_id == "cert-sign":
         cert_type = str(stirling_form_data.get("certType") or "PKCS12").upper()

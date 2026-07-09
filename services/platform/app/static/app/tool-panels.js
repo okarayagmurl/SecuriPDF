@@ -746,8 +746,7 @@
   function panelUrlToPdf(body) {
     panelInfoOnly(body,
       '<p>Tam web adresini (http:// veya https://) girin. Örnek: <code>https://example.com</code></p>' +
-      '<p>WeasyPrint kullanır (JavaScript çalıştırmaz). Dinamik/SPA siteler boş veya hatalı PDF üretebilir.</p>' +
-      '<p>Kurulum: <code>SYSTEM_ENABLEURLTOPDF=true</code>, fat image, container\'ın hedef URL\'ye erişimi.</p>'
+      '<p>Platform sayfayı indirip HTML→PDF ile dönüştürür (Stirling url/pdf API async hatasından kaçınır). JavaScript çalıştırılmaz; SPA siteler kısıtlı olabilir.</p>' +
     );
   }
 
