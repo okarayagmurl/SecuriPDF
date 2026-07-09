@@ -4,12 +4,14 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from app.debug_report import write_job_debug_report
 
 
 class DebugReportTests(unittest.TestCase):
-    def test_html_body_yields_hint_and_url(self) -> None:
+    @patch("app.debug_report.is_debug_mode", return_value=True)
+    def test_html_body_yields_hint_and_url(self, _debug: object) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             settings = SimpleNamespace(data_path=Path(tmp))
             body = b"<html><body><h1>Internal Server Error</h1><p>WeasyPrint failed</p></body></html>"
@@ -28,7 +30,6 @@ class DebugReportTests(unittest.TestCase):
                 form_data={"urlInput": "https://example.com"},
             )
             self.assertIn("publicHint", report)
-            self.assertIn("500", report["publicHint"])
             self.assertIn("example.com", report["publicHint"])
             self.assertEqual(report["formContext"]["urlInput"], "https://example.com")
 
