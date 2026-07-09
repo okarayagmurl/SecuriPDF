@@ -284,6 +284,7 @@ def _finalize_failed_row(
         stirling_status=stirling_status,
         stirling_body=stirling_body,
         form_fields=list(form_data.keys()) if isinstance(form_data, dict) else None,
+        form_data=form_data if isinstance(form_data, dict) else None,
         input_ref_count=len(refs),
     )
     detail: dict = {
