@@ -1376,7 +1376,25 @@
       var cb = label.querySelector('input[type="checkbox"]');
       if (!cb || !cb.name) return;
       var tip = PERMISSION_TIPS[cb.name];
-      if (tip) tipsMod().attach(label.querySelector('span') || label, tip, { placement: 'left' });
+      if (!tip) return;
+      // Metni span'a al; ? ikonunu satır içinde tut (satır dışı kaymayı önler).
+      if (!label.querySelector('.perm-label-text')) {
+        var textNode = null;
+        for (var i = 0; i < label.childNodes.length; i++) {
+          var n = label.childNodes[i];
+          if (n.nodeType === 3 && n.textContent.trim()) {
+            textNode = n;
+            break;
+          }
+        }
+        if (textNode) {
+          var span = document.createElement('span');
+          span.className = 'perm-label-text';
+          span.textContent = textNode.textContent.trim();
+          label.replaceChild(span, textNode);
+        }
+      }
+      tipsMod().attach(label, tip, { appendInside: true, inline: true, placement: 'top' });
     });
   }
 
@@ -5535,6 +5553,7 @@
       form._pdfPreviewCleanup = null;
     }
     form.innerHTML = '';
+    if (tipsMod() && tipsMod().purgeOrphanTips) tipsMod().purgeOrphanTips();
     form._pageSelectionFields = [];
     (tool.inputs || []).forEach(function (input) { appendToolInput(form, input); });
     appendOutputOptions(form);

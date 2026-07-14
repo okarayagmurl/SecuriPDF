@@ -1334,6 +1334,16 @@ body {
   cursor: pointer;
 }
 
+.compress-check .perm-label-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.compress-check .ui-tip-trigger {
+  margin-top: 0.1rem;
+}
+
 .compress-check input[type="checkbox"] {
   margin-top: 0.15rem;
   accent-color: var(--primary);
@@ -3732,27 +3742,29 @@ body {
 }
 
 .ui-tip {
-  position: absolute;
-  z-index: 5000;
-  left: 50%;
-  bottom: calc(100% + 0.45rem);
-  transform: translateX(-50%);
+  /* body'ye sabitlenir — üst overflow:hidden kesmez (IMP003/IMP016) */
+  position: fixed;
+  z-index: 9000;
+  left: 0;
+  top: 0;
   min-width: 10rem;
-  max-width: 18rem;
-  padding: 0.45rem 0.6rem;
+  max-width: min(20rem, calc(100vw - 1rem));
+  padding: 0.5rem 0.7rem;
   border-radius: 0.45rem;
   background: #0f172a;
   color: #f8fafc;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 400;
-  line-height: 1.35;
+  line-height: 1.4;
   text-align: left;
   white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.12s ease, visibility 0.12s ease;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
 }
 
 .wm-live-overlay {
@@ -3871,26 +3883,15 @@ body {
   position: relative;
 }
 
-.ui-tip-trigger:hover .ui-tip,
-.ui-tip-trigger:focus-visible .ui-tip,
-.ui-tip-trigger:focus-within .ui-tip,
-.ui-tip-trigger.is-open .ui-tip {
+.ui-tip.is-visible {
   opacity: 1;
   visibility: visible;
-  pointer-events: auto;
 }
 
 .ui-tip-trigger.is-open {
   border-color: var(--primary);
   color: var(--primary);
   background: #eff6ff;
-}
-
-.ui-tip[data-placement="left"] {
-  left: auto;
-  right: calc(100% + 0.45rem);
-  bottom: 50%;
-  transform: translateY(50%);
 }
 
 .ui-process-steps {
