@@ -84,7 +84,19 @@
       rotator.hidden = false;
       syncRotation();
       var base = blobUrl.split('#')[0];
-      iframe.src = base + '#page=' + pageNum + '&zoom=page-width';
+      // Hash-only src degisimi bazi tarayicilarda yenilenmez; about:blank ile zorla.
+      var target = base + '#page=' + pageNum + '&zoom=page-width&nav=' + pageNum;
+      if (iframe.getAttribute('data-page') === String(pageNum) && iframe.src.indexOf(base) === 0) {
+        iframe.removeAttribute('src');
+        iframe.src = 'about:blank';
+        setTimeout(function () {
+          iframe.setAttribute('data-page', String(pageNum));
+          iframe.src = target;
+        }, 0);
+        return;
+      }
+      iframe.setAttribute('data-page', String(pageNum));
+      iframe.src = target;
     }
 
     function goPage(n) {

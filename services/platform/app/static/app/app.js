@@ -59,6 +59,59 @@
     setTimeout(function () { el.remove(); }, 4000);
   }
 
+  /** Vault + araç yükleme limiti (config/vault.yml max_file_bytes ile uyumlu). */
+  var MAX_UPLOAD_BYTES = 524288000;
+
+  function ensureUploadLimitModal() {
+    var existing = document.getElementById('uploadLimitModal');
+    if (existing) return existing;
+    var modal = document.createElement('div');
+    modal.id = 'uploadLimitModal';
+    modal.className = 'upload-limit-modal';
+    modal.hidden = true;
+    modal.innerHTML =
+      '<div class="upload-limit-backdrop" data-close="1"></div>' +
+      '<div class="upload-limit-dialog" role="dialog" aria-modal="true" aria-labelledby="uploadLimitTitle">' +
+      '<h3 id="uploadLimitTitle">Dosya boyutu limiti aşıldı</h3>' +
+      '<p id="uploadLimitBody"></p>' +
+      '<button type="button" class="btn btn-primary" data-close="1">Tamam</button>' +
+      '</div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function (e) {
+      if (e.target && e.target.getAttribute('data-close') === '1') {
+        modal.hidden = true;
+      }
+    });
+    return modal;
+  }
+
+  function showUploadLimitModal(fileName, sizeBytes) {
+    var modal = ensureUploadLimitModal();
+    var body = modal.querySelector('#uploadLimitBody');
+    if (body) {
+      body.textContent =
+        '"' + (fileName || 'Dosya') + '" (' + formatBytes(sizeBytes) + ') ' +
+        'izin verilen azami boyutu aşıyor. Maksimum yükleme limiti: ' + formatBytes(MAX_UPLOAD_BYTES) + '.';
+    }
+    modal.hidden = false;
+  }
+
+  function findOversizedFile(fileList) {
+    if (!fileList || !fileList.length) return null;
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      if (f && typeof f.size === 'number' && f.size > MAX_UPLOAD_BYTES) return f;
+    }
+    return null;
+  }
+
+  function assertFilesWithinLimit(fileList) {
+    var big = findOversizedFile(fileList);
+    if (!big) return true;
+    showUploadLimitModal(big.name, big.size);
+    return false;
+  }
+
   function redirectToLogin() {
     var rd = window.location.pathname + window.location.search;
     if (rd === '/' || rd === '/app/' || rd === '/app') {
@@ -173,6 +226,14 @@
       REDACTION_NO_MATCHES: 'Seçilen desenlerle eşleşme bulunamadı — önce Belgede tara veya OCR uygulayın',
       REDACTION_FAILED: 'Karartma uygulanamadı',
       REDACTION_NO_PATTERNS: 'Karartma deseni seçilmedi',
+      CERT_SIGN_INVALID_OUTPUT: 'İmzalı PDF geçersiz — sertifika parolası ve sayfa numarasını kontrol edip tekrar deneyin',
+      CERT_SIGN_KEY_LOAD_FAILED: 'Sertifika yüklenemedi — parola veya .p12/.pfx dosyasını kontrol edin',
+      CERT_SIGN_P12_MISSING: 'PKCS#12 sertifika dosyası eksik',
+      CERT_SIGN_PEM_MISSING: 'PEM anahtar veya sertifika dosyası eksik',
+      CERT_SIGN_PAGE_OUT_OF_RANGE: 'İmza sayfa numarası PDF sayfa sayısını aşıyor',
+      CERT_SIGN_FAILED: 'Sertifika imzalama başarısız — platform günlüklerini kontrol edin',
+      CERT_SIGN_VISIBLE_FAILED: 'Görünür imza uygulanamadı — sayfa numarasını kontrol edin veya «İmzayı PDF üzerinde göster» seçeneğini kapatıp tekrar deneyin',
+      OUTPUT_EMPTY: 'İşlem tamamlandı ancak çıktı dosyası boş (0 bayt). İşi yeniden deneyin; sertifika parolası ve sayfa numarasını kontrol edin',
       META_MISSING: 'İş meta verisi kayboldu — işi yeniden başlatın',
       INPUT_MISSING: 'Girdi dosyası bulunamadı — formu yeniden gönderin',
       JOB_INTERRUPTED: 'İş sunucu yeniden başlatması nedeniyle yarıda kaldı',
@@ -1202,6 +1263,7 @@
 
   function uploadFile(file) {
     if (!file) return;
+    if (!assertFilesWithinLimit([file])) return;
     var fd = new FormData();
     fd.append('file', file);
     fd.append('scope', state.fileScope);
@@ -1220,6 +1282,10 @@
       .then(function () { toast('Belge yüklendi'); loadDocuments(); })
       .catch(function (e) {
         var msg = formatFetchError(e);
+        if (e && e.status === 413) {
+          showUploadLimitModal(file.name, file.size);
+          return;
+        }
         if (e && e.status === 500 && /latin-1|UnicodeEncodeError/i.test(msg)) {
           msg = 'Belge kaydedilmiş olabilir; önizleme Türkçe dosya adında hata veriyor. Platform güncellemesi gerekli.';
         }
@@ -1784,7 +1850,6 @@
       btn.textContent = m.label;
       btn.addEventListener('click', function () { setMode(m.id); });
       modeToggle.appendChild(btn);
-      if (tipsMod() && m.tip) tipsMod().attach(btn, m.tip);
     });
 
     sizeInput.addEventListener('input', function () {
@@ -1792,11 +1857,22 @@
     });
 
     modeField.appendChild(modeToggle);
-    tipWrapFieldLabel(modeField, 'Kalite modu görsel kaliteyi korur; dosya boyutu modu hedef MB/KB değerine yaklaştırır.');
+    tipWrapFieldLabel(modeField, 'Kalite modu görsel kaliteyi korur; dosya boyutu modu hedef MB/KB değerine yaklaştırır. Kısayol: 1–9 tuşları kalite seviyesini ayarlar.');
     body.appendChild(modeField);
     body.appendChild(qualityPanel);
     body.appendChild(sizePanel);
     body.appendChild(optionsField);
+
+    qualityPanel.tabIndex = 0;
+    qualityPanel.addEventListener('keydown', function (e) {
+      if (currentMode !== 'quality') return;
+      var key = e.key;
+      if (key >= '1' && key <= '9') {
+        e.preventDefault();
+        syncLevel(key);
+      }
+    });
+
     form.appendChild(optimizeLevel);
     form.appendChild(expectedSize);
     form.appendChild(grayscaleHidden);
@@ -2315,13 +2391,18 @@
 
     var opacitySlider = textPanel.querySelector('.wm-opacity-slider');
     var opacityNum = textPanel.querySelector('[name="opacity"]');
+    function refreshWmOverlay() {
+      if (typeof form._refreshWmOverlay === 'function') form._refreshWmOverlay();
+    }
     if (opacitySlider && opacityNum) {
       opacitySlider.addEventListener('input', function () {
         opacityNum.value = String(Math.round(parseInt(opacitySlider.value, 10)) / 100);
+        refreshWmOverlay();
       });
       opacityNum.addEventListener('input', function () {
         var v = Math.max(0, Math.min(1, parseFloat(opacityNum.value) || 0));
         opacitySlider.value = String(Math.round(v * 100));
+        refreshWmOverlay();
       });
     }
     var opacitySliderImg = imagePanel.querySelector('.wm-opacity-slider-img');
@@ -2329,10 +2410,12 @@
     if (opacitySliderImg && opacityNumImg) {
       opacitySliderImg.addEventListener('input', function () {
         opacityNumImg.value = String(Math.round(parseInt(opacitySliderImg.value, 10)) / 100);
+        refreshWmOverlay();
       });
       opacityNumImg.addEventListener('input', function () {
         var v = Math.max(0, Math.min(1, parseFloat(opacityNumImg.value) || 0));
         opacitySliderImg.value = String(Math.round(v * 100));
+        refreshWmOverlay();
       });
     }
 
@@ -2343,6 +2426,15 @@
       });
     }
 
+    var textIn = textPanel.querySelector('[data-wm-field="watermarkText"]');
+    var colorIn = textPanel.querySelector('[data-wm-field="customColor"]');
+    var fontIn = textPanel.querySelector('[data-wm-field="fontSize"]');
+    if (textIn) textIn.addEventListener('input', refreshWmOverlay);
+    if (colorIn) colorIn.addEventListener('input', refreshWmOverlay);
+    if (fontIn) fontIn.addEventListener('input', refreshWmOverlay);
+    styleGrid.addEventListener('click', function () { setTimeout(refreshWmOverlay, 0); });
+    typeToggle.addEventListener('click', function () { setTimeout(refreshWmOverlay, 0); });
+
     applyWmPreset('tiled');
     setWmMode('text');
     form._applyWmPreset = applyWmPreset;
@@ -2351,6 +2443,41 @@
     wmPreviewHost.className = 'wm-preview-host';
     body.appendChild(wmPreviewHost);
     mountToolPdfPreview(wmPreviewHost, form, { minHeight: 240, showNav: true });
+
+    var stage = wmPreviewHost.querySelector('.ui-pdf-preview-stage');
+    if (stage) {
+      var overlay = document.createElement('div');
+      overlay.className = 'wm-live-overlay';
+      overlay.innerHTML = '<div class="wm-live-overlay-text"></div>';
+      stage.appendChild(overlay);
+      form._refreshWmOverlay = function () {
+        var mode = wmType.value || 'text';
+        var textEl = overlay.querySelector('.wm-live-overlay-text');
+        if (mode !== 'text') {
+          overlay.hidden = true;
+          return;
+        }
+        overlay.hidden = false;
+        var txt = ((textIn && textIn.value) || '').trim() || 'Filigran önizleme';
+        var op = parseFloat((opacityNum && opacityNum.value) || '0.5');
+        if (isNaN(op)) op = 0.5;
+        var color = (colorIn && colorIn.value) || '#d3d3d3';
+        var fs = Math.max(10, Math.min(72, Number((fontIn && fontIn.value) || 30)));
+        var styleId = wmStyleHidden.value || 'tiled';
+        overlay.classList.toggle('is-tiled', styleId === 'tiled' || styleId === 'cross');
+        textEl.style.color = color;
+        textEl.style.opacity = String(Math.max(0.08, Math.min(1, op)));
+        textEl.style.fontSize = fs + 'px';
+        if (styleId === 'tiled' || styleId === 'cross') {
+          var bits = [];
+          for (var i = 0; i < 18; i++) bits.push('<span>' + escapeHtml(txt) + '</span>');
+          textEl.innerHTML = bits.join('');
+        } else {
+          textEl.textContent = txt;
+        }
+      };
+      form._refreshWmOverlay();
+    }
   }
 
   function setPanelFieldNames(container, enabled) {
@@ -2591,6 +2718,17 @@
       'Sertifika dosyasını yükleyin',
       'İmza görünümünü ayarlayıp imzalayın'
     ]);
+    var guide = document.createElement('div');
+    guide.className = 'cert-guide-box';
+    guide.innerHTML =
+      '<strong>Nasıl imzalanır?</strong>' +
+      '<ol>' +
+      '<li>İmzalanacak PDF’i seçin.</li>' +
+      '<li>Genelde .p12 / .pfx dosyasını (PKCS#12) seçin; parola varsa girin.</li>' +
+      '<li>PEM kullanıyorsanız ayrı anahtar (.pem/.key) ve sertifika (.crt/.pem) gerekir.</li>' +
+      '<li>«İmzayı PDF üzerinde göster» işaretliyse imza kutusu sayfada görünür.</li>' +
+      '</ol>';
+    body.appendChild(guide);
     var typeField = document.createElement('div');
     typeField.className = 'convert-field';
     typeField.innerHTML =
@@ -2946,10 +3084,54 @@
     body.appendChild(colors);
     tipWrapFieldLabel(colors.querySelector('.compare-color-field'), 'İlk belgedeki farklar bu renkle vurgulanır.');
     tipWrapFieldLabel(colors.querySelectorAll('.compare-color-field')[1], 'İkinci belgedeki farklar bu renkle vurgulanır.');
+    function blockNearBlack(input) {
+      if (!input) return;
+      input.addEventListener('input', function () {
+        var hex = (input.value || '').replace('#', '');
+        if (hex.length !== 6) return;
+        var r = parseInt(hex.slice(0, 2), 16);
+        var g = parseInt(hex.slice(2, 4), 16);
+        var b = parseInt(hex.slice(4, 6), 16);
+        if (r < 40 && g < 40 && b < 40) {
+          input.value = input.name === 'highlightColor2' ? '#ccffcc' : '#ffcccc';
+          setToolStatus('Siyah/çok koyu vurgu rengi kullanılamaz — farklar görünmez olur.', false);
+        }
+      });
+    }
+    blockNearBlack(colors.querySelector('[name="highlightColor1"]'));
+    blockNearBlack(colors.querySelector('[name="highlightColor2"]'));
     var hint = document.createElement('p');
     hint.className = 'compress-level-hint';
-    hint.textContent = 'Taranmış PDF\'lerde önce OCR uygulayın. Çıktı HTML rapor olarak indirilir.';
+    hint.textContent = 'Taranmış PDF\'lerde önce OCR uygulayın. Çıktı HTML rapor olarak indirilir. Çok koyu / siyah vurgu rengi engellenir.';
     body.appendChild(hint);
+
+    form._compareEmptyCheck = { a: null, b: null };
+    function bindCompareFile(which, sel) {
+      var input = form.querySelector(sel);
+      if (!input) return;
+      input.addEventListener('change', function () {
+        var f = input.files && input.files[0];
+        if (!f) {
+          form._compareEmptyCheck[which] = null;
+          return;
+        }
+        if (!assertFilesWithinLimit([f])) {
+          input.value = '';
+          form._compareEmptyCheck[which] = null;
+          return;
+        }
+        readPdfPageCountLocal(f).then(function (n) {
+          form._compareEmptyCheck[which] = n;
+          if (n === 0) {
+            setToolStatus('Seçilen PDF sayfa içermiyor — karşılaştırma yapılamaz.', false);
+          }
+        });
+      });
+    }
+    setTimeout(function () {
+      bindCompareFile('a', '[name="fileInput1"]');
+      bindCompareFile('b', '[name="fileInput2"]');
+    }, 0);
   }
 
   var REDACT_PATTERN_ICONS = {
@@ -4545,7 +4727,7 @@
 
     function updatePreview() {
       previewNum.textContent = String(startIn.value || '1');
-      previewNum.style.fontSize = Math.max(8, Math.min(24, Number(fontIn.value) || 12)) * 0.85 + 'px';
+      previewNum.style.fontSize = Math.max(8, Math.min(72, Number(fontIn.value) || 12)) * 0.85 + 'px';
       PN_POSITIONS.forEach(function (p) {
         previewNum.classList.toggle(p.posClass, p.value === selectedPos);
       });
@@ -5515,6 +5697,15 @@
       setToolStatus('En az bir çıktı seçeneği işaretleyin.', false);
       return;
     }
+    var oversizedTool = null;
+    form.querySelectorAll('input[type="file"]').forEach(function (inp) {
+      if (oversizedTool || !inp.files || !inp.files.length) return;
+      oversizedTool = findOversizedFile(inp.files);
+    });
+    if (oversizedTool) {
+      showUploadLimitModal(oversizedTool.name, oversizedTool.size);
+      return;
+    }
     if (form._pageSelectionFields && window.SecuriPages) {
       for (var psi = 0; psi < form._pageSelectionFields.length; psi++) {
         var pCfg = form._pageSelectionFields[psi];
@@ -5696,6 +5887,12 @@
       }
       if (!cmp2 || !cmp2.files || !cmp2.files.length) {
         setToolStatus('Belge 2 (PDF) seçin.', false);
+        return;
+      }
+      if (!assertFilesWithinLimit(cmp1.files) || !assertFilesWithinLimit(cmp2.files)) return;
+      var emptyMeta = form._compareEmptyCheck;
+      if (emptyMeta && (emptyMeta.a === 0 || emptyMeta.b === 0)) {
+        setToolStatus('Boş veya sayfasız PDF ile karşılaştırma yapılamaz.', false);
         return;
       }
     }
@@ -5926,6 +6123,9 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             var disp = r.headers.get('Content-Disposition');
             return r.blob().then(function (blob) {
+              if (!blob || !blob.size) {
+                throw new Error('İndirilen dosya boş (0 bayt). İşi yeniden çalıştırın.');
+              }
               var fallback = downloadFallbackFilename(state.currentTool && state.currentTool.id);
               var name = fixResultFilename(state.currentTool && state.currentTool.id, filenameFromDisposition(disp, fallback), form);
               return { blob: blob, name: name };

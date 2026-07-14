@@ -309,6 +309,8 @@ def download_job_result(
     if not out_path.is_file():
         raise HTTPException(status_code=404, detail="Cikti bulunamadi")
     data = decrypt_bytes(settings, out_path.read_bytes())
+    if not data:
+        raise HTTPException(status_code=409, detail="Cikti dosyasi bos")
     labels = load_labels(settings, user.user_id, [row.output_ref])
     meta_path = _job_dir(settings, row.id) / "meta.json"
     form_data: dict = {}
@@ -341,6 +343,8 @@ def import_job_to_documents(
     if not out_path.is_file():
         raise HTTPException(status_code=404, detail="Cikti bulunamadi")
     data = decrypt_bytes(settings, out_path.read_bytes())
+    if not data:
+        raise HTTPException(status_code=409, detail="Cikti dosyasi bos")
     labels = load_labels(settings, user.user_id, [row.output_ref])
     meta_path = _job_dir(settings, row.id) / "meta.json"
     form_data: dict = {}

@@ -8,3 +8,5 @@ aiofiles==24.1.0
 httpx==0.28.1
 pypdf==5.1.0
 pymupdf==1.24.14
+endesive==2.19.3
+pillow==11.1.0

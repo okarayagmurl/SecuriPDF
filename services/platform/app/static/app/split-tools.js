@@ -11,15 +11,15 @@
     },
     {
       id: 'byChapters',
-      label: 'Bölümlere göre böl',
-      shortLabel: 'Bölümler',
+      label: 'Yer imlerine / içindekilere göre böl',
+      shortLabel: 'Yer imleri',
       apiPath: '/api/v1/general/split-pdf-by-chapters',
       hint: 'PDF yer imi / içindekiler yapısına göre ayırır. Yer imi seviyesini seçin.'
     },
     {
       id: 'bySections',
-      label: 'Sayfa bölümlerine göre böl',
-      shortLabel: 'Bölümler',
+      label: 'Sayfa ızgarasına göre böl',
+      shortLabel: 'Sayfa ızgarası',
       apiPath: '/api/v1/general/split-pdf-by-sections',
       hint: 'Her sayfayı yatay ve dikey parçalara böler (örn. 2x2 ızgara).'
     },

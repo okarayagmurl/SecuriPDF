@@ -1125,7 +1125,8 @@ body {
   border: 1px solid var(--border);
   border-radius: 0.65rem;
   background: #fff;
-  overflow: hidden;
+  /* overflow:hidden tooltip/ipucu balonlarini keser (IMP003/IMP016) */
+  overflow: visible;
 }
 
 .tool-section-head {
@@ -3732,7 +3733,7 @@ body {
 
 .ui-tip {
   position: absolute;
-  z-index: 40;
+  z-index: 5000;
   left: 50%;
   bottom: calc(100% + 0.45rem);
   transform: translateX(-50%);
@@ -3752,6 +3753,122 @@ body {
   visibility: hidden;
   transition: opacity 0.12s ease, visibility 0.12s ease;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+
+.wm-live-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wm-live-overlay[hidden] {
+  display: none !important;
+}
+
+.wm-live-overlay-text {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  max-width: 90%;
+  text-align: center;
+  word-break: break-word;
+  transform: rotate(-30deg);
+  user-select: none;
+}
+
+.wm-live-overlay.is-tiled .wm-live-overlay-text {
+  transform: none;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: space-around;
+  justify-content: space-around;
+  gap: 1.5rem;
+  padding: 0.75rem;
+  opacity: inherit;
+}
+
+.wm-live-overlay.is-tiled .wm-live-overlay-text span {
+  display: inline-block;
+  transform: rotate(-28deg);
+  margin: 0.35rem;
+}
+
+.upload-limit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.upload-limit-modal[hidden] {
+  display: none !important;
+}
+
+.upload-limit-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.upload-limit-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(28rem, 100%);
+  background: #fff;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28);
+  padding: 1.25rem 1.35rem;
+}
+
+.upload-limit-dialog h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.upload-limit-dialog p {
+  margin: 0 0 0.75rem;
+  color: var(--muted, #64748b);
+  line-height: 1.45;
+}
+
+.upload-limit-dialog .btn {
+  margin-top: 0.35rem;
+}
+
+.cert-guide-box {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.55rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.cert-guide-box strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.cert-guide-box ol {
+  margin: 0.4rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.ui-pdf-preview-stage {
+  position: relative;
 }
 
 .ui-tip-trigger:hover .ui-tip,

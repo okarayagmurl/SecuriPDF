@@ -20,8 +20,15 @@ from .job_refs import load_labels, new_ref_id, save_label
 from .job_output import output_file_info
 from .license import LicenseService
 from .pdf_autosplit import split_pdf_on_blank_pages
+from .pdf_cert_sign import (
+    CertSignError,
+    sign_pdf_from_job,
+    supports_platform_cert_sign,
+    wants_visible_signature,
+)
 from .pdf_page_util import extract_single_page, replace_single_page
 from .pdf_sanitize import sanitize_pdf_bytes
+from .pdf_validate import is_valid_pdf, output_error_code
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
 from .mail import send_document_email
 from .tools_catalog import get_tool_api_path
@@ -401,6 +408,22 @@ def _zip_entry_count(data: bytes) -> int:
         return 0
 
 
+def _stirling_cert_sign(
+    target: str,
+    stirling_form_data: dict[str, str | list[str]],
+    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
+) -> tuple[bytes | None, int | None, bytes, str | None]:
+    multipart = encode_stirling_multipart(stirling_form_data, files)
+    with httpx.Client(timeout=_TIMEOUT) as client:
+        resp = client.post(target, files=multipart)
+    status = resp.status_code
+    body = resp.content or b""
+    if status < 400:
+        name = _filename_from_disposition(resp.headers.get("content-disposition"))
+        return body, status, body, name
+    return None, status, body, None
+
+
 def _filename_from_disposition(header: str | None) -> str | None:
     if not header:
         return None
@@ -768,6 +791,83 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         except Exception:
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "REDACTION_FAILED")
             return
+    elif tool_id == "cert-sign":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not pdf_bytes:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        cert_type = str(stirling_form_data.get("certType") or "PKCS12").upper()
+        show_visible = wants_visible_signature(stirling_form_data)
+        try:
+            if supports_platform_cert_sign(cert_type) and not show_visible:
+                result_content = sign_pdf_from_job(pdf_bytes, stirling_form_data, files)
+            else:
+                result_content, stirling_status, stirling_body, stirling_output_name = _stirling_cert_sign(
+                    target, stirling_form_data, files
+                )
+                out_err = output_error_code(result_content, tool_id)
+                if out_err and supports_platform_cert_sign(cert_type):
+                    result_content = sign_pdf_from_job(pdf_bytes, stirling_form_data, files)
+                    out_err = output_error_code(result_content, tool_id)
+                if out_err:
+                    _fail_job(
+                        session_factory,
+                        job_id,
+                        settings,
+                        user_id,
+                        tool_id,
+                        input_refs,
+                        out_err,
+                        form_data=form_data,
+                        stirling_status=stirling_status,
+                        stirling_body=stirling_body,
+                    )
+                    return
+        except CertSignError as exc:
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                exc.code,
+                form_data=form_data,
+            )
+            return
+        except httpx.RequestError:
+            if supports_platform_cert_sign(cert_type) and show_visible:
+                try:
+                    result_content = sign_pdf_from_job(pdf_bytes, stirling_form_data, files)
+                except CertSignError as exc:
+                    _fail_job(
+                        session_factory,
+                        job_id,
+                        settings,
+                        user_id,
+                        tool_id,
+                        input_refs,
+                        exc.code,
+                        form_data=form_data,
+                    )
+                    return
+            else:
+                _fail_job(
+                    session_factory, job_id, settings, user_id, tool_id, input_refs, "STIRLING_UNREACHABLE"
+                )
+                return
+        except Exception:
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                "CERT_SIGN_FAILED",
+                form_data=form_data,
+            )
+            return
     else:
         try:
             multipart = encode_stirling_multipart(stirling_form_data, files)
@@ -816,6 +916,19 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 settings,
                 row,
                 error_code,
+                stirling_status=stirling_status,
+                stirling_body=stirling_body,
+                form_data=form_data,
+            )
+            db.commit()
+            return
+
+        out_err = output_error_code(result_content, tool_id)
+        if out_err:
+            _finalize_failed_row(
+                settings,
+                row,
+                out_err,
                 stirling_status=stirling_status,
                 stirling_body=stirling_body,
                 form_data=form_data,
