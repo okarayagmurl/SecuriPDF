@@ -14,7 +14,7 @@
       label: 'Yer imlerine / içindekilere göre böl',
       shortLabel: 'Yer imleri',
       apiPath: '/api/v1/general/split-pdf-by-chapters',
-      hint: 'PDF yer imi / içindekiler yapısına göre ayırır. Yer imi seviyesini seçin.'
+      hint: 'PDF yer imi / içindekiler yapısına göre ayırır. Yer imi olmayan PDF\'lerde hata alırsınız — önce içindekiler ekleyin.'
     },
     {
       id: 'bySections',
@@ -52,7 +52,7 @@
       label: 'Sayfa ayırıcısına göre böl',
       shortLabel: 'Sayfa ayırıcı',
       apiPath: '/api/v1/misc/auto-split-pdf',
-      hint: 'Taranmış PDF\'te ayırıcı (QR/barkod) sayfalarını algılar ve belgeleri otomatik ayırır.'
+      hint: 'Taranmış PDF\'te ayırıcı (QR/barkod) veya boş sayfaları algılar. QR yoksa platform boş sayfa yedeğini kullanır.'
     },
     {
       id: 'byPoster',
@@ -115,8 +115,33 @@
     if (mode.id === 'byFileSize' || mode.id === 'byPageCount' || mode.id === 'byDocCount') {
       var sv = ((form.querySelector('[name="splitValue"]') || {}).value || '').trim();
       if (!sv) return 'Bölme değeri girin.';
-      if (mode.id !== 'byFileSize' && !/^\d+$/.test(sv)) {
+      if (mode.id === 'byFileSize') {
+        var sizeTok = sv.replace(/\s+/g, '');
+        if (!/^\d+(\.\d+)?(B|KB|MB|GB)$/i.test(sizeTok)) {
+          return 'Boyut formatı örn. 5MB, 500KB olmalı.';
+        }
+        var meta = form._pdfFileMeta;
+        if (meta && meta.size) {
+          var m = sizeTok.match(/^(\d+(?:\.\d+)?)(B|KB|MB|GB)$/i);
+          if (m) {
+            var n = parseFloat(m[1]);
+            var unit = m[2].toUpperCase();
+            var mult = { B: 1, KB: 1024, MB: 1024 * 1024, GB: 1024 * 1024 * 1024 }[unit] || 1;
+            if (n * mult >= meta.size) {
+              return 'Hedef boyut dosya boyutundan küçük olmalı (dosya zaten daha küçük).';
+            }
+          }
+        }
+      } else if (!/^\d+$/.test(sv)) {
         return 'Sayısal bir değer girin.';
+      }
+      if (mode.id === 'byDocCount') {
+        var docN = parseInt(sv, 10);
+        var pageCount = form._pdfFileMeta && form._pdfFileMeta.pageCount;
+        if (pageCount && docN > pageCount) {
+          return 'Belge sayısı sayfa sayısından fazla olamaz.';
+        }
+        if (docN < 2) return 'En az 2 çıktı belgesi seçin.';
       }
     }
     if (mode.id === 'byPoster') {

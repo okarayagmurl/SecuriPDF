@@ -1031,10 +1031,10 @@ tools:
 
   - id: change-permissions
     title: İzinleri Değiştir
-    description: Korumalı PDF'in yazdırma, kopyalama ve düzenleme izinlerini günceller.
+    description: Korumalı PDF'in yazdırma, kopyalama ve düzenleme izinlerini günceller (platformda işlenir).
     category: security
     icon: lock
-    apiPath: /api/v1/security/change-permissions
+    apiPath: /api/v1/security/add-password
     inputs:
       - name: fileInput
         label: PDF dosyası

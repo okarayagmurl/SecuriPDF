@@ -27,6 +27,7 @@ from .pdf_cert_sign import (
     wants_visible_signature,
 )
 from .pdf_page_util import extract_single_page, replace_single_page
+from .pdf_permissions import PermissionsError, change_permissions
 from .pdf_sanitize import sanitize_pdf_bytes
 from .pdf_validate import is_valid_pdf, output_error_code
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
@@ -693,8 +694,41 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             print(f"[job-worker] sanitize failed: {type(exc).__name__}: {exc}")
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "SANITIZE_FAILED")
             return
-    elif tool_id == "auto-split-pdf":
+    elif tool_id == "change-permissions":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not pdf_bytes:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        try:
+            result_content = change_permissions(pdf_bytes, form_data)
+        except PermissionsError as exc:
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                exc.code,
+                form_data=form_data,
+            )
+            return
+        except Exception as exc:
+            print(f"[job-worker] change-permissions failed: {type(exc).__name__}: {exc}")
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                "PERMISSIONS_FAILED",
+                form_data=form_data,
+            )
+            return
+    elif tool_id == "auto-split-pdf" or str(api_path).rstrip("/").endswith("auto-split-pdf"):
         # Önce Stirling (QR); başarısız veya tek parça + boş sayfa varsa platform fallback.
+        # split-pages → Sayfa ayırıcı modu da aynı yolu kullanır (tool_id hâlâ split-pages).
         try:
             multipart = encode_stirling_multipart(stirling_form_data, files)
             with httpx.Client(timeout=_TIMEOUT) as client:

@@ -488,8 +488,11 @@
 
   function panelRemovePassword(body) {
     mount(body, [
-      infoBox('<p>Korumalı PDF\'in parolasını kaldırmak için mevcut açma parolasını girin.</p>'),
-      passwordInput('password', 'Mevcut parola')
+      infoBox(
+        '<p><strong>Mevcut açma parolasını</strong> aşağıdaki alana girin; koruma kaldırılır.</p>' +
+        '<p>Parola alanı boş bırakılamaz. Yanlış parolada işlem hata verir.</p>'
+      ),
+      passwordInput('password', 'Mevcut açma parolası')
     ]);
   }
 
@@ -506,7 +509,7 @@
   function panelReplaceInvert(body) {
     var mode = tileGroup('replaceAndInvertOption', [
       { value: 'HIGH_CONTRAST_COLOR', label: 'Yüksek kontrast', sub: 'Okunabilirlik' },
-      { value: 'CUSTOM_COLOR', label: 'Özel renk', sub: 'Hex renkler' },
+      { value: 'CUSTOM_COLOR', label: 'Özel renk', sub: 'Renk seçici' },
       { value: 'FULL_INVERSION', label: 'Tam ters', sub: 'Negatif' },
       { value: 'COLOR_SPACE_CONVERSION', label: 'Renk uzayı', sub: 'CMYK dönüşüm' }
     ], 'HIGH_CONTRAST_COLOR', 'İşlem modu');
@@ -525,8 +528,34 @@
     var customWrap = document.createElement('div');
     customWrap.className = 'tp-conditional';
     customWrap.hidden = true;
-    customWrap.appendChild(textInput('backGroundColor', 'Arka plan rengi (hex)', { placeholder: '#000000' }));
-    customWrap.appendChild(textInput('textColor', 'Metin rengi (hex)', { placeholder: '#FFFFFF' }));
+    function colorField(name, lbl, defHex) {
+      var row = document.createElement('label');
+      row.className = 'tp-field';
+      row.appendChild(label(lbl));
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;gap:0.5rem;align-items:center;';
+      var color = document.createElement('input');
+      color.type = 'color';
+      color.value = defHex;
+      var text = document.createElement('input');
+      text.type = 'text';
+      text.className = 'split-text-input';
+      text.name = name;
+      text.value = defHex;
+      text.placeholder = defHex;
+      color.addEventListener('input', function () { text.value = color.value; });
+      text.addEventListener('input', function () {
+        var v = text.value.trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(v)) color.value = v;
+      });
+      wrap.appendChild(color);
+      wrap.appendChild(text);
+      row.appendChild(wrap);
+      row.appendChild(hint('Stirling 24-bit renk değeri olarak gönderilir.'));
+      return row;
+    }
+    customWrap.appendChild(colorField('backGroundColor', 'Arka plan rengi', '#000000'));
+    customWrap.appendChild(colorField('textColor', 'Metin rengi', '#FFFFFF'));
 
     mode.wrap._onChange = function (v) {
       contrastWrap.hidden = v !== 'HIGH_CONTRAST_COLOR';
@@ -631,8 +660,11 @@
     var fmt = tileGroup('format', [
       { value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'gif', label: 'GIF' }
     ], 'png', 'Görsel formatı');
-    mount(body, [label('Görsel formatı'), fmt.wrap, fmt.hidden,
-      checkCard('allowDuplicates', 'Yinelenen görselleri kaydet', false, 'Aynı görsel birden fazla kez çıkarılır.')]);
+    mount(body, [
+      infoBox('<p>Yalnızca PDF\'e <strong>gömülü</strong> XObject görseller çıkarılır. Taranmış sayfa içeriği (tam sayfa raster) genelde gömülü görsel değildir.</p>'),
+      label('Görsel formatı'), fmt.wrap, fmt.hidden,
+      checkCard('allowDuplicates', 'Yinelenen görselleri kaydet', false, 'Aynı görsel birden fazla kez çıkarılır.')
+    ]);
   }
 
   function panelScannerEffect(body) {
@@ -641,8 +673,17 @@
       { value: 'medium', label: 'Orta', sub: 'Dengeli' },
       { value: 'high', label: 'Yüksek', sub: 'Detaylı' }
     ], 'medium', 'Kalite');
-    mount(body, [label('Kalite ön ayarı'), q.wrap, q.hidden,
-      checkCard('yellowish', 'Sararmış kağıt tonu', true, 'Hafif sarı kağıt efekti uygular.')]);
+    var rot = tileGroup('rotation', [
+      { value: 'none', label: 'Yok' },
+      { value: 'slight', label: 'Hafif', sub: 'Önerilen' },
+      { value: 'moderate', label: 'Orta' },
+      { value: 'severe', label: 'Güçlü' }
+    ], 'slight', 'Eğim');
+    mount(body, [
+      label('Kalite ön ayarı'), q.wrap, q.hidden,
+      label('Tarama eğimi'), rot.wrap, rot.hidden,
+      checkCard('yellowish', 'Sararmış kağıt tonu', true, 'Hafif sarı kağıt efekti uygular.')
+    ]);
   }
 
   function panelPdfToCsv(body, outputFormat) {
@@ -708,10 +749,14 @@
 
   function panelEditToc(body) {
     mount(body, [
+      infoBox(
+        '<p>Yer imi JSON dizisi girin. Her öğede <code>title</code> ve <code>pageNumber</code> (sayfa no) zorunludur.</p>' +
+        '<p>Örnek: <code>[{"title":"Bölüm 1","pageNumber":1,"children":[]}]</code></p>'
+      ),
       textareaInput('bookmarkData', 'Yer imi JSON', {
         required: true,
-        placeholder: '[{"title":"Bölüm 1","page":1,"children":[]}]',
-        hint: 'Stirling bookmarkData JSON dizisi. Mevcut yapıyı PDF Bilgisi aracından alabilirsiniz.'
+        placeholder: '[{"title":"Bölüm 1","pageNumber":1,"children":[]}]',
+        hint: 'Eski "page" alanı otomatik "pageNumber"a çevrilir. Mevcut TOC için PDF Bilgisi / yer imi çıkarma kullanın.'
       }),
       checkCard('replaceExisting', 'Mevcut yer imlerini değiştir', true, 'Var olan içindekileri silip yenisiyle değiştirir.')
     ]);
@@ -727,6 +772,7 @@
         '<li>Tek PDF yükleyin — çıktı ZIP</li></ol>' +
         '<p style="margin-top:0.6rem"><strong>Yedek:</strong> QR yoksa platform boş (beyaz) sayfaları ayraç olarak kullanır. ' +
         'İç boş sayfalar bölünür; ayraç sayfaları çıktıya dahil edilmez.</p>' +
+        '<p style="margin-top:0.4rem">Ayraç yoksa ve boş sayfa da yoksa çıktıda değişiklik olmaz — test PDF\'ine boş sayfa veya QR ekleyin.</p>' +
         '<p style="margin-top:0.4rem">Ayraç indirme: ' +
         '<a href="https://github.com/Stirling-Tools/Stirling-PDF/issues/2281" target="_blank" rel="noopener">Stirling divider sayfaları</a></p>'
       ),
@@ -746,7 +792,7 @@
   function panelUrlToPdf(body) {
     panelInfoOnly(body,
       '<p>Tam web adresini (http:// veya https://) girin. Örnek: <code>https://example.com</code></p>' +
-      '<p>Platform sayfayı indirip HTML→PDF ile dönüştürür (Stirling url/pdf API async hatasından kaçınır). JavaScript çalıştırılmaz; SPA siteler kısıtlı olabilir.</p>' +
+      '<p>Platform sayfayı indirip HTML→PDF ile dönüştürür (Stirling url/pdf API async hatasından kaçınır). JavaScript çalıştırılmaz; SPA siteler kısıtlı olabilir.</p>'
     );
   }
 
@@ -797,7 +843,11 @@
   }
 
   function panelRemoveCertSign(body) {
-    panelInfoOnly(body, '<p>PDF üzerindeki dijital sertifika imzası kaldırılır. Belge içeriği korunur.</p><p><strong>Çıktı:</strong> İmzasız PDF.</p>');
+    panelInfoOnly(body,
+      '<p>PDF üzerindeki <strong>dijital sertifika imzasını</strong> (PKCS#7) kaldırmayı dener.</p>' +
+      '<p>Görsel damga / filigran imza değildir. İmza yoksa veya kaldırılamazsa işlem hata verir.</p>' +
+      '<p><strong>Çıktı:</strong> İmzasız PDF.</p>'
+    );
   }
 
   function panelUnlockForms(body) {
@@ -809,7 +859,11 @@
   }
 
   function panelExtractAttachments(body) {
-    panelInfoOnly(body, '<p>PDF\'e gömülü dosya ekleri ZIP arşivi olarak çıkarılır.</p><p><strong>Çıktı:</strong> ZIP arşivi.</p>');
+    panelInfoOnly(body,
+      '<p>PDF\'e gömülü dosya ekleri ZIP arşivi olarak çıkarılır.</p>' +
+      '<p>Ek yoksa işlem boş ZIP yerine hata verir. Önce «Ek Dosya Ekle» ile ek gömülü olduğundan emin olun.</p>' +
+      '<p><strong>Çıktı:</strong> ZIP arşivi.</p>'
+    );
   }
 
   var PANELS = {

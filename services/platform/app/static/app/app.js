@@ -234,6 +234,16 @@
       CERT_SIGN_FAILED: 'Sertifika imzalama başarısız — platform günlüklerini kontrol edin',
       CERT_SIGN_VISIBLE_FAILED: 'Görünür imza uygulanamadı — sayfa numarasını kontrol edin veya «İmzayı PDF üzerinde göster» seçeneğini kapatıp tekrar deneyin',
       OUTPUT_EMPTY: 'İşlem tamamlandı ancak çıktı dosyası boş (0 bayt). İşi yeniden deneyin; sertifika parolası ve sayfa numarasını kontrol edin',
+      PERMISSIONS_OWNER_PASSWORD_MISSING: 'Sahip parolası gerekli',
+      PERMISSIONS_WRONG_PASSWORD: 'Sahip parolası hatalı — PDF açılamadı',
+      PERMISSIONS_DECRYPT_FAILED: 'PDF parolası çözülemedi',
+      PERMISSIONS_FAILED: 'İzinler güncellenemedi',
+      VALIDATE_SIGNATURE_PDF_OUTPUT: 'İmza doğrulama JSON yerine PDF döndü — motor yanıtını kontrol edin',
+      VALIDATE_SIGNATURE_INVALID_OUTPUT: 'İmza doğrulama raporu geçersiz',
+      REMOVE_CERT_INVALID_OUTPUT: 'İmza kaldırma çıktısı geçersiz PDF',
+      REMOVE_CERT_STILL_SIGNED: 'Dijital imza kaldırılamadı — belgede imza alanı duruyor',
+      EXTRACT_EMPTY: 'Çıkarılacak gömülü görsel veya ek bulunamadı',
+      AUTO_SPLIT_FAILED: 'Otomatik ayırma başarısız — QR ayraç veya boş sayfa olup olmadığını kontrol edin',
       META_MISSING: 'İş meta verisi kayboldu — işi yeniden başlatın',
       INPUT_MISSING: 'Girdi dosyası bulunamadı — formu yeniden gönderin',
       JOB_INTERRUPTED: 'İş sunucu yeniden başlatması nedeniyle yarıda kaldı',
@@ -2581,19 +2591,20 @@
     var posHidden = document.createElement('input');
     posHidden.type = 'hidden';
     posHidden.name = 'position';
-    posHidden.value = '8';
+    // Stirling okuma sırası: 1=sol üst … 9=sağ alt (numpad değil).
+    posHidden.value = '2';
     var posGrid = document.createElement('div');
     posGrid.className = 'stamp-position-grid';
     posGrid.setAttribute('role', 'group');
     posGrid.setAttribute('aria-label', 'Damga konumu');
     [
-      { id: '7', label: 'Sol üst' }, { id: '8', label: 'Üst orta' }, { id: '9', label: 'Sağ üst' },
+      { id: '1', label: 'Sol üst' }, { id: '2', label: 'Üst orta' }, { id: '3', label: 'Sağ üst' },
       { id: '4', label: 'Sol orta' }, { id: '5', label: 'Orta' }, { id: '6', label: 'Sağ orta' },
-      { id: '1', label: 'Sol alt' }, { id: '2', label: 'Alt orta' }, { id: '3', label: 'Sağ alt' }
+      { id: '7', label: 'Sol alt' }, { id: '8', label: 'Alt orta' }, { id: '9', label: 'Sağ alt' }
     ].forEach(function (pos) {
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'stamp-pos-btn' + (pos.id === '8' ? ' active' : '');
+      btn.className = 'stamp-pos-btn' + (pos.id === '2' ? ' active' : '');
       btn.setAttribute('data-pos', pos.id);
       btn.title = pos.label;
       btn.textContent = pos.id;
@@ -2704,7 +2715,7 @@
     body.innerHTML =
       '<div class="convert-field"><span class="field-label">Sahip parolası</span>' +
       '<input type="password" class="compress-size-input" name="ownerPassword" required autocomplete="current-password">' +
-      '<p class="compress-level-hint">Mevcut PDF sahip parolası; izinleri değiştirmek için gereklidir.</p></div>';
+      '<p class="compress-level-hint">Mevcut PDF sahip parolası; izinleri değiştirmek için gereklidir. İşlem platformda yapılır.</p></div>';
 
     var permSection = appendToolSection(form, 'İzin kısıtlamaları');
     var permHint = document.createElement('p');
@@ -5858,7 +5869,14 @@
       }
       try {
         var bmParsed = JSON.parse(bmRaw);
-        if (!Array.isArray(bmParsed)) throw new Error('not array');
+        if (!Array.isArray(bmParsed) || !bmParsed.length) throw new Error('not array');
+        var missingPage = bmParsed.some(function (n) {
+          return !n || (n.pageNumber == null && n.page == null) || !n.title;
+        });
+        if (missingPage) {
+          setToolStatus('Her yer iminde title ve pageNumber (veya page) gerekli.', false);
+          return;
+        }
       } catch (e) {
         setToolStatus('Yer imi JSON geçerli bir dizi olmalıdır.', false);
         return;
@@ -6043,7 +6061,7 @@
       ['fontSize', 'rotation', 'opacity', 'position', 'overrideX', 'overrideY', 'customMargin'].forEach(function (fname) {
         if (!fd.has(fname)) {
           var stampDefaults = {
-            fontSize: '40', rotation: '0', opacity: '0.5', position: '8',
+            fontSize: '40', rotation: '0', opacity: '0.5', position: '2',
             overrideX: '-1', overrideY: '-1', customMargin: 'medium'
           };
           fd.set(fname, stampDefaults[fname]);
@@ -6055,7 +6073,7 @@
     }
     fd.append('tool_id', state.currentTool.id);
     if (state.currentTool.id === 'compress-pdf') {
-      ['grayscale', 'linearize', 'optimizeLevel', 'expectedOutputSize'].forEach(function (fname) {
+      ['grayscale', 'linearize', 'lineArt', 'optimizeLevel', 'expectedOutputSize'].forEach(function (fname) {
         var el = form.querySelector('input[name="' + fname + '"]');
         if (!el || !el.name || el.disabled) {
           fd.delete(fname);
@@ -6063,6 +6081,38 @@
         }
         if (el.value !== '') fd.set(fname, el.value);
       });
+    }
+    if (state.currentTool.id === 'replace-invert-pdf') {
+      ['backGroundColor', 'textColor'].forEach(function (fname) {
+        var el = form.querySelector('[name="' + fname + '"]');
+        if (!el || !el.value) return;
+        var hex = String(el.value).trim();
+        if (hex.charAt(0) === '#') hex = hex.slice(1);
+        if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+          fd.set(fname, String(parseInt(hex, 16)));
+        }
+      });
+    }
+    if (state.currentTool.id === 'edit-table-of-contents') {
+      var bmEl = form.querySelector('[name="bookmarkData"]');
+      if (bmEl && bmEl.value) {
+        try {
+          var bmNodes = JSON.parse(bmEl.value);
+          function fixBm(node) {
+            if (!node || typeof node !== 'object') return node;
+            if (node.pageNumber == null && node.page != null) {
+              node.pageNumber = node.page;
+              delete node.page;
+            }
+            if (Array.isArray(node.children)) node.children = node.children.map(fixBm);
+            return node;
+          }
+          if (Array.isArray(bmNodes)) {
+            bmEl.value = JSON.stringify(bmNodes.map(fixBm));
+            fd.set('bookmarkData', bmEl.value);
+          }
+        } catch (e) { /* submit doğrulaması yakalar */ }
+      }
     }
     if (state.currentTool.id === 'add-image') {
       var ep = form.querySelector('[name="everyPage"]');

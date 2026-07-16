@@ -6,7 +6,6 @@ from typing import Any
 _PLATFORM_ONLY_BY_TOOL: dict[str, frozenset[str]] = {
     "add-image": frozenset({"pageNumber", "imageScalePercent"}),
     "auto-redact": frozenset({"redactSelection", "redactPatternIds", "customRedactRegex"}),
-    "compress-pdf": frozenset({"lineArt"}),
 }
 
 # Stirling 2.x multipart boolean alanlari.
@@ -27,6 +26,7 @@ _BOOL_FIELDS = frozenset({
     "convertPdfToImage",
     "convertPDFToImage",
     "linearize",
+    "lineArt",
     "grayscale",
     "normalize",
     "removeJavaScript",
@@ -176,6 +176,67 @@ def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str
             out.pop("optimizeLevel", None)
         else:
             out.pop("expectedOutputSize", None)
+        for key in ("lineArt", "linearize", "grayscale"):
+            if key in out:
+                out[key] = _as_bool_str(out[key])
+
+    if tool_id == "replace-invert-pdf":
+        for color_key in ("backGroundColor", "textColor"):
+            raw = str(out.get(color_key) or "").strip()
+            if not raw:
+                continue
+            out[color_key] = _hex_color_to_decimal(raw)
+
+    if tool_id == "scanner-effect":
+        if "rotation" not in out or not str(out.get("rotation") or "").strip():
+            out["rotation"] = "slight"
+        if "quality" not in out or not str(out.get("quality") or "").strip():
+            out["quality"] = "medium"
+        if "yellowish" in out:
+            out["yellowish"] = _as_bool_str(out["yellowish"])
+
+    if tool_id == "edit-table-of-contents":
+        raw = str(out.get("bookmarkData") or "").strip()
+        if raw:
+            out["bookmarkData"] = _normalize_bookmark_json(raw)
 
     _apply_tool_rules(tool_id, out)
     return out
+
+
+def _hex_color_to_decimal(value: str) -> str:
+    """Stirling CUSTOM_COLOR 24-bit decimal bekler (#RRGGBB veya rgb)."""
+    text = value.strip()
+    if text.isdigit():
+        return text
+    if text.startswith("#"):
+        text = text[1:]
+    if len(text) == 3 and all(c in "0123456789abcdefABCDEF" for c in text):
+        text = "".join(c * 2 for c in text)
+    if len(text) == 6 and all(c in "0123456789abcdefABCDEF" for c in text):
+        return str(int(text, 16))
+    return value
+
+
+def _normalize_bookmark_json(raw: str) -> str:
+    import json
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if not isinstance(data, list):
+        return raw
+
+    def fix_node(node: Any) -> Any:
+        if not isinstance(node, dict):
+            return node
+        out = dict(node)
+        if "pageNumber" not in out and "page" in out:
+            out["pageNumber"] = out.pop("page")
+        children = out.get("children")
+        if isinstance(children, list):
+            out["children"] = [fix_node(c) for c in children]
+        return out
+
+    return json.dumps([fix_node(n) for n in data], ensure_ascii=False)
