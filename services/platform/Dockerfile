@@ -17,7 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# endesive pykcs11 (g++/swig) ister; platform yalnızca cms imza kullanır — HSM paketi atlanır.
+RUN grep -v '^endesive==' requirements.txt > /tmp/requirements-no-endesive.txt \
+    && pip install --no-cache-dir -r /tmp/requirements-no-endesive.txt \
+    && pip install --no-cache-dir --no-deps endesive==2.19.3
 
 COPY app ./app
 COPY --from=frontend /frontend/dist ./app/static/app/react
