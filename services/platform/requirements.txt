@@ -9,6 +9,8 @@ httpx==0.28.1
 pypdf==5.1.0
 pymupdf==1.24.14
 pillow==11.1.0
-# endesive PKCS#12/PEM imza için; pykcs11 (HSM) istenmez — Docker'da --no-deps ile kurulur.
+# endesive PKCS#12/PEM imza; pykcs11 (HSM) Docker'da --no-deps ile atlanır.
+# --no-deps yüzünden runtime bağımlılıklar burada açıkça listelenir.
 asn1crypto==1.5.1
+requests==2.32.3
 endesive==2.19.3

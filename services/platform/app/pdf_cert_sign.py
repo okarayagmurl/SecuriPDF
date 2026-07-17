@@ -6,7 +6,6 @@ from typing import Any
 import fitz
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, pkcs12
 from cryptography.x509 import load_pem_x509_certificate
-from endesive.pdf import cms
 
 from .pdf_validate import is_valid_pdf
 
@@ -17,6 +16,14 @@ class CertSignError(Exception):
     def __init__(self, code: str, message: str = "") -> None:
         super().__init__(message or code)
         self.code = code
+
+
+def _cms_module():
+    try:
+        from endesive.pdf import cms
+    except ImportError as exc:
+        raise CertSignError("CERT_SIGN_DEPENDENCY_MISSING", str(exc)) from exc
+    return cms
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -118,7 +125,7 @@ def _cms_sign_pdf(
     show_signature: bool,
 ) -> bytes:
     try:
-        signed_tail = cms.sign(
+        signed_tail = _cms_module().sign(
             pdf_bytes,
             dct,
             private_key,
