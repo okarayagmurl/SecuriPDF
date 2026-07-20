@@ -6,6 +6,45 @@ from io import BytesIO
 from typing import Any
 
 
+_KNOWN_EXTS = (
+    ".docx",
+    ".doc",
+    ".odt",
+    ".pptx",
+    ".ppt",
+    ".odp",
+    ".xlsx",
+    ".xls",
+    ".ods",
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".tiff",
+    ".tif",
+    ".bmp",
+    ".eps",
+    ".ps",
+    ".pcl",
+    ".xps",
+    ".txt",
+    ".rtf",
+    ".csv",
+    ".html",
+    ".htm",
+    ".json",
+    ".xml",
+    ".md",
+    ".epub",
+    ".azw3",
+    ".cbr",
+    ".cbz",
+    ".zip",
+)
+
+
 def _fmt(form_data: dict[str, Any], *keys: str, default: str = "") -> str:
     for key in keys:
         val = form_data.get(key)
@@ -20,19 +59,28 @@ def _office_zip_kind(data: bytes) -> str | None:
     try:
         with zipfile.ZipFile(BytesIO(data)) as zf:
             names = zf.namelist()
+            joined = " ".join(names[:40]).lower()
+            if "word/" in joined or ("[content_types].xml" in joined and "wordprocessingml" in joined):
+                return "docx"
+            if "xl/" in joined or "spreadsheetml" in joined:
+                return "xlsx"
+            if "ppt/" in joined or "presentationml" in joined:
+                return "pptx"
+            if "mimetype" in names:
+                try:
+                    mime = zf.read("mimetype").decode("utf-8", errors="ignore")
+                except Exception:
+                    mime = ""
+                if "opendocument.text" in mime:
+                    return "odt"
+                if "opendocument.presentation" in mime:
+                    return "odp"
+                if "opendocument.spreadsheet" in mime:
+                    return "ods"
+            if "content.xml" in names and "meta.xml" in names:
+                return "odt"
     except zipfile.BadZipFile:
         return None
-    joined = " ".join(names[:40]).lower()
-    if "word/" in joined or "[content_types].xml" in joined and "wordprocessingml" in joined:
-        return "docx"
-    if "xl/" in joined or "spreadsheetml" in joined:
-        return "xlsx"
-    if "ppt/" in joined or "presentationml" in joined:
-        return "pptx"
-    if "mimetype" in names and any("opendocument.text" in zf.read("mimetype").decode("utf-8", errors="ignore") for _ in [0]):
-        return "odt"
-    if "content.xml" in names and "meta.xml" in names:
-        return "odt"
     return None
 
 
@@ -40,8 +88,42 @@ def _info(name: str, ext: str, mime: str) -> dict[str, str]:
     return {"default_name": name, "ext": ext, "mime": mime}
 
 
+def _detect_content_info(data: bytes, tool_id: str) -> dict[str, str] | None:
+    """Bayt içeriğinden gerçek format — yanlış tool_id/ext etiketini ezer."""
+    if len(data) >= 4 and data[:4] == b"%PDF":
+        return _info(f"{tool_id}-sonuc.pdf", ".pdf", "application/pdf")
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return _info("cikti.png", ".png", "image/png")
+    if data[:3] == b"\xff\xd8\xff":
+        return _info("cikti.jpg", ".jpg", "image/jpeg")
+    if len(data) >= 4 and data[:4] == b"%!PS":
+        return _info("pdf-vektor.eps", ".eps", "application/postscript")
+    if len(data) >= 2 and data[:2] == b"PK":
+        office = _office_zip_kind(data)
+        if office == "docx":
+            return _info("cikti.docx", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        if office == "odt":
+            return _info("cikti.odt", ".odt", "application/vnd.oasis.opendocument.text")
+        if office == "pptx":
+            return _info("cikti.pptx", ".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        if office == "xlsx":
+            return _info("cikti.xlsx", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        if office == "odp":
+            return _info("cikti.odp", ".odp", "application/vnd.oasis.opendocument.presentation")
+    return None
+
+
 def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str] | None:
-    fmt = _fmt(form_data, "outputFormat", "output_format", "imageFormat", "image_format")
+    fmt = _fmt(
+        form_data,
+        "outputFormat",
+        "output_format",
+        "toExt",
+        "_toExt",
+        "_outputExt",
+        "imageFormat",
+        "image_format",
+    )
     mapping: dict[str, dict[str, tuple[str, str, str]]] = {
         "pdf-to-word": {
             "docx": ("pdf-belge.docx", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
@@ -70,6 +152,7 @@ def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str]
             "xps": ("pdf-vektor.xps", ".xps", "application/vnd.ms-xpsdocument"),
         },
         "convert": {
+            "pdf": ("donusturulmus.pdf", ".pdf", "application/pdf"),
             "docx": ("donusturulmus.docx", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
             "odt": ("donusturulmus.odt", ".odt", "application/vnd.oasis.opendocument.text"),
             "doc": ("donusturulmus.doc", ".doc", "application/msword"),
@@ -91,6 +174,8 @@ def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str]
             "azw3": ("donusturulmus.azw3", ".azw3", "application/vnd.amazon.ebook"),
             "cbr": ("donusturulmus.cbr", ".cbr", "application/vnd.comicbook-rar"),
             "cbz": ("donusturulmus.cbz", ".cbz", "application/vnd.comicbook+zip"),
+            "pdfa": ("donusturulmus.pdf", ".pdf", "application/pdf"),
+            "pdfx": ("donusturulmus.pdf", ".pdf", "application/pdf"),
         },
     }
     tool_map = mapping.get(tool_id)
@@ -108,31 +193,75 @@ def _tool_format_info(tool_id: str, form_data: dict[str, Any]) -> dict[str, str]
     return _info(name, ext, mime)
 
 
+def filename_stem(filename: str) -> str:
+    """Çift uzantıları temizle (deneme.docx.pdf → deneme)."""
+    name = (filename or "").strip() or "cikti"
+    name = name.replace("\\", "/").split("/")[-1]
+    lowered = name.lower()
+    changed = True
+    while changed:
+        changed = False
+        for ext in _KNOWN_EXTS:
+            if lowered.endswith(ext) and len(name) > len(ext):
+                name = name[: -len(ext)]
+                lowered = name.lower()
+                changed = True
+                break
+    name = re.sub(r"[.\s]+$", "", name).strip()
+    return name or "cikti"
+
+
 def ensure_filename_ext(filename: str, ext: str) -> str:
     ext = ext if ext.startswith(".") else f".{ext}"
-    if filename.lower().endswith(ext.lower()):
-        return filename
-    base = re.sub(r"\.[^./\\]+$", "", filename) if "." in filename else filename
-    return f"{base}{ext}"
+    return f"{filename_stem(filename)}{ext}"
 
 
 def output_file_info(data: bytes, tool_id: str, form_data: dict[str, Any] | None = None) -> dict[str, str]:
     """Stirling ciktisinin dosya adi, uzantisi ve MIME turunu belirler."""
     form_data = form_data or {}
-
+    detected = _detect_content_info(data, tool_id)
     tool_info = _tool_format_info(tool_id, form_data)
+
+    # İçerik PDF iken docx/pptx diye etiketleme (açılmayan dosya).
+    if detected and tool_info and detected["ext"] != tool_info["ext"]:
+        if detected["ext"] == ".pdf" or tool_info["ext"] in {
+            ".docx",
+            ".odt",
+            ".pptx",
+            ".odp",
+            ".xlsx",
+            ".eps",
+            ".ps",
+            ".pcl",
+            ".xps",
+        }:
+            # Beklenen office/vektor ama içerik PDF → gerçek içeriği kullan
+            if detected["ext"] == ".pdf" and tool_info["ext"] != ".pdf":
+                return detected
+            # Beklenen PDF ama office geldi → office doğru
+            if tool_info["ext"] == ".pdf" and detected["ext"] != ".pdf":
+                return detected
+
     if tool_info:
         if tool_id == "pdf-to-img" and tool_info["ext"] != ".zip":
             if data[:8] == b"\x89PNG\r\n\x1a\n":
                 return _info("pdf-sayfa.png", ".png", "image/png")
             if data[:3] == b"\xff\xd8\xff":
                 return _info("pdf-sayfa.jpg", ".jpg", "image/jpeg")
-        if tool_info["ext"] != ".zip" or data[:2] == b"PK":
-            office = _office_zip_kind(data) if data[:2] == b"PK" else None
-            if office and tool_info["ext"] in (".docx", ".odt", ".pptx", ".xlsx"):
-                pass
-            elif tool_info["ext"] not in (".zip",):
+        if tool_info["ext"] == ".zip":
+            if data[:2] == b"PK":
                 return tool_info
+        elif detected and detected["ext"] == tool_info["ext"]:
+            return _info(tool_info["default_name"], tool_info["ext"], tool_info["mime"])
+        elif not detected:
+            return tool_info
+        else:
+            # İçerik ile uyumlu tool default adı
+            return _info(
+                ensure_filename_ext(tool_info["default_name"], detected["ext"]),
+                detected["ext"],
+                detected["mime"],
+            )
 
     if tool_id == "compare":
         return _info("karsilastirma-raporu.html", ".html", "text/html; charset=utf-8")
@@ -156,41 +285,8 @@ def output_file_info(data: bytes, tool_id: str, form_data: dict[str, Any] | None
         return _info("pdf-sayfalar.cbz", ".cbz", "application/vnd.comicbook+zip")
     if tool_id == "pdf-to-cbr":
         return _info("pdf-sayfalar.cbr", ".cbr", "application/vnd.comicbook-rar")
-    vec_fmt = _fmt(form_data, "outputFormat", "output_format")
-    if tool_id == "pdf-to-vector" and vec_fmt in {"eps", "ps", "pcl", "xps"}:
-        vec_names = {
-            "eps": ("pdf-vektor.eps", ".eps", "application/postscript"),
-            "ps": ("pdf-vektor.ps", ".ps", "application/postscript"),
-            "pcl": ("pdf-vektor.pcl", ".pcl", "application/vnd.hp-pcl"),
-            "xps": ("pdf-vektor.xps", ".xps", "application/vnd.ms-xpsdocument"),
-        }
-        return _info(*vec_names[vec_fmt])
-    if len(data) >= 4 and data[:4] == b"%PDF":
-        return _info(f"{tool_id}-sonuc.pdf", ".pdf", "application/pdf")
-    if data[:8] == b"\x89PNG\r\n\x1a\n":
-        return _info("cikti.png", ".png", "image/png")
-    if data[:3] == b"\xff\xd8\xff":
-        return _info("cikti.jpg", ".jpg", "image/jpeg")
-    if len(data) >= 2 and data[:2] == b"PK":
-        office = _office_zip_kind(data)
-        if office == "docx":
-            return _info("cikti.docx", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        if office == "odt":
-            return _info("cikti.odt", ".odt", "application/vnd.oasis.opendocument.text")
-        if office == "pptx":
-            return _info("cikti.pptx", ".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
-        if office == "xlsx":
-            return _info("cikti.xlsx", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        zip_names = {
-            "split-pages": "bolunmus-belgeler.zip",
-            "pdf-to-img": "pdf-gorseller.zip",
-            "extract-images": "cikarilan-gorseller.zip",
-            "extract-attachments": "pdf-ekleri.zip",
-            "extract-image-scans": "tarama-gorselleri.zip",
-            "auto-split-pdf": "otomatik-bolunmus.zip",
-        }
-        zip_name = zip_names.get(tool_id, "cikti.zip")
-        return _info(zip_name, ".zip", "application/zip")
+    if detected:
+        return detected
     if tool_id in (
         "split-pages",
         "pdf-to-img",

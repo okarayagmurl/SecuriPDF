@@ -17,7 +17,7 @@ from .debug_report import new_report_id, write_job_debug_report
 from .compare_renderer import CompareError, compare_pdfs_to_html
 from .redaction_renderer import RedactionError, apply_pdf_redactions_from_form
 from .job_refs import load_labels, new_ref_id, save_label
-from .job_output import output_file_info
+from .job_output import ensure_filename_ext, output_file_info
 from .license import LicenseService
 from .pdf_autosplit import split_pdf_on_blank_pages
 from .pdf_cert_sign import (
@@ -29,6 +29,7 @@ from .pdf_cert_sign import (
 from .pdf_page_util import extract_single_page, replace_single_page
 from .pdf_permissions import PermissionsError, change_permissions
 from .pdf_sanitize import sanitize_pdf_bytes
+from .pdf_toc import TocError, apply_toc
 from .pdf_validate import is_valid_pdf, output_error_code
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
 from .mail import send_document_email
@@ -378,7 +379,7 @@ def _stirling_error_code(status: int, body: bytes) -> str:
 def _ensure_cbr_filename(
     files: list[tuple[str, tuple[str | None, bytes, str | None]]],
 ) -> list[tuple[str, tuple[str | None, bytes, str | None]]]:
-    """Stirling Junrar yalnızca .cbr/.rar uzantısını kabul eder."""
+    """Stirling Junrar yalnızca .cbr/.rar uzantısını kabul eder; ZIP/CBZ'yi reddeder."""
     out: list[tuple[str, tuple[str | None, bytes, str | None]]] = []
     for field, (name, content, ctype) in files:
         if field != "fileInput":
@@ -389,6 +390,12 @@ def _ensure_cbr_filename(
         if not (lower.endswith(".cbr") or lower.endswith(".rar")):
             stem = raw.rsplit(".", 1)[0] if "." in raw else raw
             raw = f"{stem}.cbr"
+        # RAR magic "Rar!" — CBZ (ZIP) veya boş dosya Junrar'da "invalid CBR" olur.
+        if content[:4] == b"PK\x03\x04" or content[:2] == b"PK":
+            raise ValueError("CBR_NOT_RAR")
+        if len(content) >= 4 and content[:4] != b"Rar!":
+            # Bazı eski RAR'lar farklı; yine de uzantıyı düzeltip Stirling'e bırak.
+            pass
         mime = ctype or "application/vnd.comicbook-rar"
         if "octet-stream" in mime or mime == "application/x-cbr":
             mime = "application/vnd.comicbook-rar"
@@ -584,7 +591,14 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         _adjust_add_image_coords(stirling_form_data, files)
 
     if tool_id == "cbr-to-pdf":
-        files = _ensure_cbr_filename(files)
+        try:
+            files = _ensure_cbr_filename(files)
+        except ValueError as exc:
+            code = str(exc) if str(exc).startswith("CBR_") else "STIRLING_CBR_INVALID"
+            _fail_job(
+                session_factory, job_id, settings, user_id, tool_id, input_refs, code, form_data=form_data
+            )
+            return
 
     if tool_id == "url-to-pdf":
         page_url = str(stirling_form_data.get("urlInput") or form_data.get("urlInput") or "").strip()
@@ -693,6 +707,43 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         except Exception as exc:
             print(f"[job-worker] sanitize failed: {type(exc).__name__}: {exc}")
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "SANITIZE_FAILED")
+            return
+    elif tool_id == "edit-table-of-contents":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not pdf_bytes:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        replace = str(form_data.get("replaceExisting", "true")).lower() in {"true", "1", "on", "yes"}
+        try:
+            result_content = apply_toc(
+                pdf_bytes,
+                form_data.get("bookmarkData") or "",
+                replace_existing=replace,
+            )
+        except TocError as exc:
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                exc.code,
+                form_data=form_data,
+            )
+            return
+        except Exception as exc:
+            print(f"[job-worker] toc failed: {type(exc).__name__}: {exc}")
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                "TOC_APPLY_FAILED",
+                form_data=form_data,
+            )
             return
     elif tool_id == "change-permissions":
         pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
@@ -944,56 +995,73 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         row.progress = 75
         db.commit()
 
-        if result_content is None:
-            error_code = _stirling_error_code(stirling_status or 500, stirling_body or b"")
-            _finalize_failed_row(
+        try:
+            if result_content is None:
+                error_code = _stirling_error_code(stirling_status or 500, stirling_body or b"")
+                _finalize_failed_row(
+                    settings,
+                    row,
+                    error_code,
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                    form_data=form_data,
+                )
+                db.commit()
+                return
+
+            out_err = output_error_code(result_content, tool_id)
+            if out_err:
+                _finalize_failed_row(
+                    settings,
+                    row,
+                    out_err,
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                    form_data=form_data,
+                )
+                db.commit()
+                return
+
+            output_ref = new_ref_id()
+            out_path = job_path / f"{output_ref}.out"
+            out_path.write_bytes(encrypt_bytes(settings, result_content))
+            out_info = output_file_info(result_content, tool_id, form_data)
+            raw_name = stirling_output_name or out_info["default_name"]
+            out_name = ensure_filename_ext(raw_name, out_info["ext"])
+            save_label(
                 settings,
-                row,
-                error_code,
-                stirling_status=stirling_status,
-                stirling_body=stirling_body,
-                form_data=form_data,
+                user_id,
+                output_ref,
+                out_name,
             )
-            db.commit()
-            return
 
-        out_err = output_error_code(result_content, tool_id)
-        if out_err:
-            _finalize_failed_row(
+            row.status = "completed"
+            row.progress = 100
+            row.output_ref = output_ref
+            row.completed_at = utcnow()
+            db.commit()
+            write_audit(
                 settings,
-                row,
-                out_err,
-                stirling_status=stirling_status,
-                stirling_body=stirling_body,
-                form_data=form_data,
+                user_id,
+                "job.completed",
+                job_id,
+                {"toolId": tool_id, "inputRefs": input_refs, "outputRef": output_ref},
             )
-            db.commit()
-            return
-
-        output_ref = new_ref_id()
-        out_path = job_path / f"{output_ref}.out"
-        out_path.write_bytes(encrypt_bytes(settings, result_content))
-        out_info = output_file_info(result_content, tool_id, form_data)
-        out_name = stirling_output_name or out_info["default_name"]
-        save_label(
-            settings,
-            user_id,
-            output_ref,
-            out_name,
-        )
-
-        row.status = "completed"
-        row.progress = 100
-        row.output_ref = output_ref
-        row.completed_at = utcnow()
-        db.commit()
-        write_audit(
-            settings,
-            user_id,
-            "job.completed",
-            job_id,
-            {"toolId": tool_id, "inputRefs": input_refs, "outputRef": output_ref},
-        )
+        except Exception as exc:
+            print(f"[job-worker] finalize failed job={job_id}: {type(exc).__name__}: {exc}")
+            try:
+                row = db.get(JobRecord, job_id) or row
+                _finalize_failed_row(
+                    settings,
+                    row,
+                    "JOB_FINALIZE_FAILED",
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                    form_data=form_data,
+                )
+                db.commit()
+            except Exception as inner:
+                print(f"[job-worker] finalize fail-mark failed: {inner}")
     finally:
         db.close()
 

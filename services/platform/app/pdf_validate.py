@@ -79,4 +79,10 @@ def output_error_code(data: bytes | None, tool_id: str) -> str | None:
     if tool_id in {"extract-images", "extract-attachments"}:
         if data[:2] == b"PK" and _zip_entry_count(data) == 0:
             return "EXTRACT_EMPTY"
+    if tool_id == "pdf-to-vector":
+        # Ghostscript bazen HTML/PDF hata gövdesi veya yanlış format döner.
+        if data[:4] == b"%PDF" or data[:1] in (b"{", b"<") or data[:15].lower().startswith(b"<!doctype"):
+            return "VECTOR_OUTPUT_MISMATCH"
+        if len(data) < 32:
+            return "VECTOR_OUTPUT_MISMATCH"
     return None

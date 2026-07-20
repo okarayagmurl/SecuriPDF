@@ -670,8 +670,8 @@
   function panelScannerEffect(body) {
     var q = tileGroup('quality', [
       { value: 'low', label: 'Düşük', sub: 'Hızlı' },
-      { value: 'medium', label: 'Orta', sub: 'Dengeli' },
-      { value: 'high', label: 'Yüksek', sub: 'Detaylı' }
+      { value: 'medium', label: 'Orta', sub: 'Önerilen' },
+      { value: 'high', label: 'Yüksek', sub: 'Yavaş' }
     ], 'medium', 'Kalite');
     var rot = tileGroup('rotation', [
       { value: 'none', label: 'Yok' },
@@ -680,6 +680,7 @@
       { value: 'severe', label: 'Güçlü' }
     ], 'slight', 'Eğim');
     mount(body, [
+      infoBox('<p>Tarama efekti Stirling üzerinde işlenir. «Yüksek» kalite bazı ortamlarda motor hatası verebilir — önce Orta deneyin.</p>'),
       label('Kalite ön ayarı'), q.wrap, q.hidden,
       label('Tarama eğimi'), rot.wrap, rot.hidden,
       checkCard('yellowish', 'Sararmış kağıt tonu', true, 'Hafif sarı kağıt efekti uygular.')
@@ -750,15 +751,17 @@
   function panelEditToc(body) {
     mount(body, [
       infoBox(
-        '<p>Yer imi JSON dizisi girin. Her öğede <code>title</code> ve <code>pageNumber</code> (sayfa no) zorunludur.</p>' +
-        '<p>Örnek: <code>[{"title":"Bölüm 1","pageNumber":1,"children":[]}]</code></p>'
+        '<p>Bu araç PDF <strong>yer imlerini</strong> (bookmark / outline) günceller — ayrı bir «içindekiler sayfası» basmaz.</p>' +
+        '<p>JSON dizisi: her öğede <code>title</code> ve <code>pageNumber</code> zorunlu. Örnek:</p>' +
+        '<p><code>[{"title":"Bölüm 1","pageNumber":1,"children":[]}]</code></p>' +
+        '<p>Sonuç PDF\'i Acrobat / tarayıcı yer imi panelinde görünür.</p>'
       ),
       textareaInput('bookmarkData', 'Yer imi JSON', {
         required: true,
         placeholder: '[{"title":"Bölüm 1","pageNumber":1,"children":[]}]',
-        hint: 'Eski "page" alanı otomatik "pageNumber"a çevrilir. Mevcut TOC için PDF Bilgisi / yer imi çıkarma kullanın.'
+        hint: 'Eski "page" alanı otomatik "pageNumber"a çevrilir.'
       }),
-      checkCard('replaceExisting', 'Mevcut yer imlerini değiştir', true, 'Var olan içindekileri silip yenisiyle değiştirir.')
+      checkCard('replaceExisting', 'Mevcut yer imlerini değiştir', true, 'Var olan yer imlerini silip yenisiyle değiştirir.')
     ]);
   }
 
@@ -792,7 +795,7 @@
   function panelUrlToPdf(body) {
     panelInfoOnly(body,
       '<p>Tam web adresini (http:// veya https://) girin. Örnek: <code>https://example.com</code></p>' +
-      '<p>Platform sayfayı indirip HTML→PDF ile dönüştürür (Stirling url/pdf API async hatasından kaçınır). JavaScript çalıştırılmaz; SPA siteler kısıtlı olabilir.</p>'
+      '<p>Platform sayfayı indirip HTML→PDF ile dönüştürür. <strong>JavaScript çalıştırılmaz</strong>; React/Vue SPA siteler eksik veya boş görünebilir — statik HTML siteler daha iyi sonuç verir.</p>'
     );
   }
 

@@ -192,6 +192,9 @@ def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str
             out["rotation"] = "slight"
         if "quality" not in out or not str(out.get("quality") or "").strip():
             out["quality"] = "medium"
+        # High bazı Stirling sürümlerinde patlıyor — grayscale ile yumuşat.
+        if str(out.get("quality")).lower() == "high" and "colorspace" not in out:
+            out["colorspace"] = "grayscale"
         if "yellowish" in out:
             out["yellowish"] = _as_bool_str(out["yellowish"])
 
@@ -199,6 +202,18 @@ def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str
         raw = str(out.get("bookmarkData") or "").strip()
         if raw:
             out["bookmarkData"] = _normalize_bookmark_json(raw)
+
+    if tool_id == "scale-pages":
+        if "pageSize" not in out or not str(out.get("pageSize") or "").strip():
+            out["pageSize"] = "A4"
+        sf = str(out.get("scaleFactor") or "").strip().replace(",", ".")
+        try:
+            val = float(sf) if sf else 1.0
+        except ValueError:
+            val = 1.0
+        if val <= 0:
+            val = 1.0
+        out["scaleFactor"] = str(val)
 
     _apply_tool_rules(tool_id, out)
     return out
@@ -234,6 +249,10 @@ def _normalize_bookmark_json(raw: str) -> str:
         out = dict(node)
         if "pageNumber" not in out and "page" in out:
             out["pageNumber"] = out.pop("page")
+        try:
+            out["pageNumber"] = max(1, int(float(str(out.get("pageNumber", 1)))))
+        except (TypeError, ValueError):
+            out["pageNumber"] = 1
         children = out.get("children")
         if isinstance(children, list):
             out["children"] = [fix_node(c) for c in children]

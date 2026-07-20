@@ -244,6 +244,13 @@
       REMOVE_CERT_STILL_SIGNED: 'Dijital imza kaldırılamadı — belgede imza alanı duruyor',
       EXTRACT_EMPTY: 'Çıkarılacak gömülü görsel veya ek bulunamadı',
       AUTO_SPLIT_FAILED: 'Otomatik ayırma başarısız — QR ayraç veya boş sayfa olup olmadığını kontrol edin',
+      CBR_NOT_RAR: 'Dosya CBR/RAR değil (ZIP/CBZ olabilir). CBZ→PDF aracını kullanın veya gerçek .cbr yükleyin',
+      JOB_FINALIZE_FAILED: 'İşlem tamamlanırken hata oluştu — tekrar deneyin',
+      TOC_INVALID_JSON: 'Yer imi JSON geçersiz',
+      TOC_EMPTY: 'En az bir yer imi (title + pageNumber) gerekli',
+      TOC_APPLY_FAILED: 'İçindekiler / yer imleri PDF\'e yazılamadı',
+      TOC_EMPTY_PDF: 'PDF sayfa içermiyor',
+      VECTOR_OUTPUT_MISMATCH: 'Vektör çıktısı beklenen formatta değil (Ghostscript/EPS kontrol edin)',
       META_MISSING: 'İş meta verisi kayboldu — işi yeniden başlatın',
       INPUT_MISSING: 'Girdi dosyası bulunamadı — formu yeniden gönderin',
       JOB_INTERRUPTED: 'İş sunucu yeniden başlatması nedeniyle yarıda kaldı',
@@ -5636,6 +5643,8 @@
     var ext = '';
     if (toolId === 'convert' && form && form._convertGetFormats) {
       ext = (form._convertGetFormats().toExt || '').toLowerCase();
+      if (ext === 'pdfa' || ext === 'pdfx') ext = 'pdf';
+      if (ext === 'jpeg') ext = 'jpg';
     } else if (toolId === 'pdf-to-word') {
       var wf = form && form.querySelector('[name="outputFormat"]');
       ext = (wf && wf.value ? wf.value : 'docx').toLowerCase();
@@ -5651,19 +5660,34 @@
       if (single && single.value === 'single') {
         ext = (imgFmt && imgFmt.value ? imgFmt.value : 'png').toLowerCase();
         if (ext === 'jpeg') ext = 'jpg';
+      } else {
+        ext = 'zip';
       }
     } else if (toolId === 'pdf-to-vector') {
       var vf = form && form.querySelector('[name="outputFormat"]');
       ext = (vf && vf.value ? vf.value : 'eps').toLowerCase();
+    } else if (toolId === 'file-to-pdf' || toolId === 'img-to-pdf' || toolId === 'cbz-to-pdf' || toolId === 'cbr-to-pdf' || toolId === 'ebook-to-pdf' || toolId === 'eml-to-pdf' || toolId === 'url-to-pdf') {
+      ext = 'pdf';
     }
-    if (ext && !new RegExp('\\.' + ext.replace('.', '') + '$', 'i').test(n)) {
-      n = n.replace(/\.[^.]+$/, '') + '.' + ext;
+    if (ext) {
+      var known = ['docx','doc','odt','pptx','ppt','odp','xlsx','xls','ods','pdf','png','jpg','jpeg','gif','webp','tiff','tif','bmp','eps','ps','pcl','xps','txt','rtf','csv','html','htm','json','xml','md','epub','azw3','cbr','cbz','zip'];
+      var stem = n;
+      var changed = true;
+      while (changed) {
+        changed = false;
+        for (var i = 0; i < known.length; i++) {
+          var re = new RegExp('\\.' + known[i] + '$', 'i');
+          if (re.test(stem) && stem.length > known[i].length + 1) {
+            stem = stem.replace(re, '');
+            changed = true;
+            break;
+          }
+        }
+      }
+      n = stem.replace(/[.\s]+$/, '') + '.' + ext;
     }
     if (toolId === 'split-pages' && !/\.zip$/i.test(n)) {
       n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
-    }
-    if (toolId === 'pdf-to-img' && ext && ext !== 'zip' && !new RegExp('\\.' + ext + '$', 'i').test(n)) {
-      n = n.replace(/\.(zip|pdf)$/i, '') + '.' + ext;
     }
     if (toolId === 'extract-images' && !/\.zip$/i.test(n)) {
       n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
@@ -5970,6 +5994,13 @@
         return;
       }
     }
+    if (state.currentTool.id === 'scale-pages') {
+      var sfEl = form.querySelector('[name="scaleFactor"]');
+      if (!sfEl || !String(sfEl.value || '').trim()) {
+        setToolStatus('Ölçek faktörü gerekli.', false);
+        return;
+      }
+    }
     if (state.currentTool.id === 'remove-password') {
       if (!((form.querySelector('[name="password"]') || {}).value || '').trim()) {
         setToolStatus('Mevcut parola girin.', false);
@@ -6068,6 +6099,24 @@
         }
       });
     }
+    if (state.currentTool.id === 'scale-pages') {
+      var ps = form.querySelector('[name="pageSize"]');
+      var sf = form.querySelector('[name="scaleFactor"]');
+      fd.set('pageSize', (ps && ps.value) || 'A4');
+      fd.set('scaleFactor', (sf && sf.value) || '1');
+    }
+    if (state.currentTool.id === 'overlay-pdf') {
+      var om = form.querySelector('[name="overlayMode"]');
+      var op = form.querySelector('[name="overlayPosition"]');
+      fd.set('overlayMode', (om && om.value) || 'SequentialOverlay');
+      fd.set('overlayPosition', (op && op.value) || '0');
+    }
+    if (state.currentTool.id === 'scanner-effect') {
+      var sq = form.querySelector('[name="quality"]');
+      var sr = form.querySelector('[name="rotation"]');
+      fd.set('quality', (sq && sq.value) || 'medium');
+      fd.set('rotation', (sr && sr.value) || 'slight');
+    }
     if (state.currentTool.id === 'url-to-pdf') {
       fd.delete('fileInput');
     }
@@ -6128,8 +6177,19 @@
       form.querySelectorAll('.convert-api-param').forEach(function (el) {
         if (el.name) fd.set(el.name, el.value);
       });
-      var convertApiPath = form._convertGetFormats().apiPath;
+      var convertFmt = form._convertGetFormats();
+      var convertApiPath = convertFmt.apiPath;
       if (convertApiPath) fd.set('_apiPath', convertApiPath);
+      var toExtSubmit = (convertFmt.toExt || '').toLowerCase();
+      if (toExtSubmit) {
+        fd.set('toExt', toExtSubmit);
+        fd.set('_toExt', toExtSubmit);
+        if (toExtSubmit === 'pdf' || toExtSubmit === 'pdfa' || toExtSubmit === 'pdfx') {
+          fd.set('outputFormat', 'pdf');
+        } else if (!fd.has('outputFormat')) {
+          fd.set('outputFormat', toExtSubmit === 'jpeg' ? 'jpg' : toExtSubmit);
+        }
+      }
     }
     if (state.currentTool.id === 'split-pages' && form._splitGetConfig) {
       var splitCfgSubmit = form._splitGetConfig();

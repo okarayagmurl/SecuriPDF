@@ -46,6 +46,16 @@ def fetch_url_html(url: str) -> bytes:
     final_url = str(resp.url)
     if "html" in ctype or body.lstrip()[:1] in (b"<", b"\xef", b"\xfe"):
         text = body.decode("utf-8", errors="replace")
+        # JS-only SPA kabukları çok kısa olur; anlamlı içerik yoksa uyar.
+        visible = re.sub(r"<script[\s\S]*?</script>", "", text, flags=re.I)
+        visible = re.sub(r"<style[\s\S]*?</style>", "", visible, flags=re.I)
+        visible = re.sub(r"<[^>]+>", " ", visible)
+        visible = re.sub(r"\s+", " ", visible).strip()
+        if len(visible) < 40:
+            raise UrlFetchError(
+                "Sayfa içeriği çok zayıf (muhtemelen JavaScript gerektiren SPA). "
+                "Statik HTML bir adres deneyin."
+            )
         return _inject_base_href(text, final_url).encode("utf-8")
 
     raise UrlFetchError(
