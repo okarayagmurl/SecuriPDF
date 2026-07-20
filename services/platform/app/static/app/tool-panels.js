@@ -714,11 +714,18 @@
   }
 
   function panelPdfToVector(body) {
-    panelOutputFormat(body, 'outputFormat', [
+    var fmt = tileGroup('outputFormat', [
       { value: 'eps', label: 'EPS' }, { value: 'ps', label: 'PS' },
       { value: 'pcl', label: 'PCL' }, { value: 'xps', label: 'XPS' }
     ], 'eps', 'Çıktı formatı');
-    mount(body, [checkCard('prepress', 'Baskı ön işleme', false, 'Profesyonel baskı için prepress modu.')]);
+    mount(body, [
+      infoBox(
+        '<p>EPS bazı Ghostscript kurulumlarında başarısız olabilir — önce <strong>PS</strong> deneyin.</p>' +
+        '<p>Çıktı adı girdi PDF adından türetilir (çift uzantı eklenmez).</p>'
+      ),
+      label('Çıktı formatı'), fmt.wrap, fmt.hidden,
+      checkCard('prepress', 'Baskı ön işleme', false, 'Profesyonel baskı için prepress modu.')
+    ]);
   }
 
   function panelEbookToPdf(body) {
@@ -803,7 +810,7 @@
     mount(body, [
       infoBox(
         '<p>CBR dosyası <strong>.cbr</strong> veya <strong>.rar</strong> uzantılı olmalıdır (RAR arşivi içinde görseller).</p>' +
-        '<p>RAR5 veya şifreli arşivler Junrar ile açılamayabilir — CBZ tercih edin.</p>'
+        '<p><strong>RAR5 desteklenmez</strong> (Junrar). WinRAR/7-Zip ile RAR4 olarak yeniden paketleyin veya CBZ kullanın.</p>'
       ),
       checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'Ghostscript ile boyut/okuma optimizasyonu.')
     ]);

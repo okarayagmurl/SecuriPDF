@@ -80,10 +80,15 @@ def _apply_tool_rules(tool_id: str, out: dict[str, str | list[str]]) -> None:
     if tool_id == "pdf-to-vector":
         if "prepress" not in out:
             out["prepress"] = "false"
-        fmt = out.get("outputFormat") or out.get("output_format") or "eps"
-        out["outputFormat"] = str(fmt).lower()
+        fmt = str(out.get("outputFormat") or out.get("output_format") or "eps").lower()
+        # EPS bazı Ghostscript kurulumlarında başarısız; PS daha güvenilir yedek değil —
+        # kullanıcı seçimini koru ama formatı normalize et.
+        if fmt not in {"eps", "ps", "pcl", "xps"}:
+            fmt = "eps"
+        out["outputFormat"] = fmt
         out.pop("output_format", None)
-
+        # PDF dosyası uzantısı korunmalı (Stirling uzantıya da bakabilir).
+        out.pop("inputFormat", None)
     if tool_id == "ebook-to-pdf":
         for key in ("embedAllFonts", "includeTableOfContents", "includePageNumbers", "optimizeForEbook"):
             out[key] = _as_bool_str(out.get(key, "false"))
@@ -190,14 +195,16 @@ def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str
     if tool_id == "scanner-effect":
         if "rotation" not in out or not str(out.get("rotation") or "").strip():
             out["rotation"] = "slight"
-        if "quality" not in out or not str(out.get("quality") or "").strip():
-            out["quality"] = "medium"
-        # High bazı Stirling sürümlerinde patlıyor — grayscale ile yumuşat.
-        if str(out.get("quality")).lower() == "high" and "colorspace" not in out:
-            out["colorspace"] = "grayscale"
+        # Yüksek kalite bazı Stirling/Ghostscript kurulumlarında OOM veya 500 verir.
+        quality = str(out.get("quality") or "medium").strip().lower() or "medium"
+        if quality == "high":
+            quality = "medium"
+        out["quality"] = quality
         if "yellowish" in out:
             out["yellowish"] = _as_bool_str(out["yellowish"])
-
+        # Gelişmiş DPI alanlarını güvenli tut — boş/çok yüksek değer motor hatası.
+        for drop in ("advanced_enabled", "advancedEnabled", "resolution", "dpi"):
+            out.pop(drop, None)
     if tool_id == "edit-table-of-contents":
         raw = str(out.get("bookmarkData") or "").strip()
         if raw:

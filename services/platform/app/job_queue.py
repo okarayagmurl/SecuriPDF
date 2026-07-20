@@ -17,8 +17,14 @@ from .debug_report import new_report_id, write_job_debug_report
 from .compare_renderer import CompareError, compare_pdfs_to_html
 from .redaction_renderer import RedactionError, apply_pdf_redactions_from_form
 from .job_refs import load_labels, new_ref_id, save_label
-from .job_output import ensure_filename_ext, output_file_info
+from .job_output import (
+    build_output_filename,
+    ensure_filename_ext,
+    output_basename_from_inputs,
+    output_file_info,
+)
 from .license import LicenseService
+from .pdf_attachments import AttachmentExtractError, extract_embedded_attachments
 from .pdf_autosplit import split_pdf_on_blank_pages
 from .pdf_cert_sign import (
     CertSignError,
@@ -391,13 +397,17 @@ def _ensure_cbr_filename(
             stem = raw.rsplit(".", 1)[0] if "." in raw else raw
             raw = f"{stem}.cbr"
         # RAR magic "Rar!" — CBZ (ZIP) veya boş dosya Junrar'da "invalid CBR" olur.
-        if content[:4] == b"PK\x03\x04" or content[:2] == b"PK":
+        if not content or len(content) < 7:
             raise ValueError("CBR_NOT_RAR")
-        if len(content) >= 4 and content[:4] != b"Rar!":
-            # Bazı eski RAR'lar farklı; yine de uzantıyı düzeltip Stirling'e bırak.
-            pass
+        if content[:2] == b"PK":
+            raise ValueError("CBR_NOT_RAR")
+        if content[:4] != b"Rar!":
+            raise ValueError("CBR_NOT_RAR")
+        # RAR5: Rar!\x1a\x07\x01 — Junrar genelde desteklemez.
+        if content[4:7] == b"\x1a\x07\x01":
+            raise ValueError("CBR_RAR5_UNSUPPORTED")
         mime = ctype or "application/vnd.comicbook-rar"
-        if "octet-stream" in mime or mime == "application/x-cbr":
+        if "octet-stream" in mime or mime in {"application/x-cbr", "application/x-rar-compressed", "application/vnd.rar"}:
             mime = "application/vnd.comicbook-rar"
         out.append((field, (raw, content, mime)))
     return out
@@ -890,10 +900,10 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 result_content, stirling_status, stirling_body, stirling_output_name = _stirling_cert_sign(
                     target, stirling_form_data, files
                 )
-                out_err = output_error_code(result_content, tool_id)
+                out_err = output_error_code(result_content, tool_id, form_data)
                 if out_err and supports_platform_cert_sign(cert_type):
                     result_content = sign_pdf_from_job(pdf_bytes, stirling_form_data, files)
-                    out_err = output_error_code(result_content, tool_id)
+                    out_err = output_error_code(result_content, tool_id, form_data)
                 if out_err:
                     _fail_job(
                         session_factory,
@@ -953,6 +963,79 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 form_data=form_data,
             )
             return
+    elif tool_id == "extract-attachments":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not pdf_bytes:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        # Önce platform (PyMuPDF) — Stirling boş ZIP / motor hatası sık.
+        try:
+            result_content = extract_embedded_attachments(pdf_bytes)
+            stirling_output_name = "pdf-ekleri.zip"
+        except AttachmentExtractError as exc:
+            try:
+                multipart = encode_stirling_multipart(stirling_form_data, files)
+                with httpx.Client(timeout=_TIMEOUT) as client:
+                    resp = client.post(target, files=multipart)
+                stirling_status = resp.status_code
+                stirling_body = resp.content
+                if resp.status_code < 400 and resp.content and resp.content[:2] == b"PK":
+                    if _zip_entry_count(resp.content) > 0:
+                        result_content = resp.content
+                        stirling_output_name = _filename_from_disposition(
+                            resp.headers.get("content-disposition")
+                        ) or "pdf-ekleri.zip"
+                    else:
+                        _fail_job(
+                            session_factory,
+                            job_id,
+                            settings,
+                            user_id,
+                            tool_id,
+                            input_refs,
+                            "EXTRACT_EMPTY",
+                            form_data=form_data,
+                        )
+                        return
+                else:
+                    _fail_job(
+                        session_factory,
+                        job_id,
+                        settings,
+                        user_id,
+                        tool_id,
+                        input_refs,
+                        exc.code,
+                        form_data=form_data,
+                        stirling_status=stirling_status,
+                        stirling_body=stirling_body,
+                    )
+                    return
+            except httpx.RequestError:
+                _fail_job(
+                    session_factory,
+                    job_id,
+                    settings,
+                    user_id,
+                    tool_id,
+                    input_refs,
+                    exc.code,
+                    form_data=form_data,
+                )
+                return
+        except Exception as exc:
+            print(f"[job-worker] extract-attachments failed: {type(exc).__name__}: {exc}")
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                "EXTRACT_ATTACHMENTS_FAILED",
+                form_data=form_data,
+            )
+            return
     else:
         try:
             multipart = encode_stirling_multipart(stirling_form_data, files)
@@ -1009,7 +1092,7 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 db.commit()
                 return
 
-            out_err = output_error_code(result_content, tool_id)
+            out_err = output_error_code(result_content, tool_id, form_data)
             if out_err:
                 _finalize_failed_row(
                     settings,
@@ -1026,8 +1109,13 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             out_path = job_path / f"{output_ref}.out"
             out_path.write_bytes(encrypt_bytes(settings, result_content))
             out_info = output_file_info(result_content, tool_id, form_data)
-            raw_name = stirling_output_name or out_info["default_name"]
-            out_name = ensure_filename_ext(raw_name, out_info["ext"])
+            preferred_stem = output_basename_from_inputs(files)
+            out_name = build_output_filename(
+                preferred_stem,
+                out_info["ext"],
+                stirling_name=stirling_output_name,
+                default_name=out_info["default_name"],
+            )
             save_label(
                 settings,
                 user_id,

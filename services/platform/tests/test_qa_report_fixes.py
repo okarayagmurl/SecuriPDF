@@ -51,7 +51,8 @@ class QaFixesTests(unittest.TestCase):
     def test_scanner_rotation_default(self) -> None:
         data = normalize_stirling_form("scanner-effect", {"quality": "high", "yellowish": "on"})
         self.assertEqual(data["rotation"], "slight")
-        self.assertEqual(data["quality"], "high")
+        # Yüksek kalite motor hatasına yol açabildiği için medium'a düşürülür.
+        self.assertEqual(data["quality"], "medium")
         self.assertEqual(data["yellowish"], "true")
 
     def test_change_permissions_sets_encryption(self) -> None:

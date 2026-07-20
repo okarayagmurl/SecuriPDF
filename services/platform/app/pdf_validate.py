@@ -56,8 +56,13 @@ def _has_signature_fields(data: bytes) -> bool:
         return b"/Type /Sig" in data or b"/ByteRange" in data
 
 
-def output_error_code(data: bytes | None, tool_id: str) -> str | None:
+def output_error_code(
+    data: bytes | None,
+    tool_id: str,
+    form_data: dict | None = None,
+) -> str | None:
     """Boş veya araç için geçersiz çıktı — hata kodu veya None."""
+    form_data = form_data or {}
     if not data:
         return "OUTPUT_EMPTY"
     if tool_id == "cert-sign" and not is_valid_pdf(data):
@@ -85,4 +90,39 @@ def output_error_code(data: bytes | None, tool_id: str) -> str | None:
             return "VECTOR_OUTPUT_MISMATCH"
         if len(data) < 32:
             return "VECTOR_OUTPUT_MISMATCH"
+    # PDF→Office: Stirling bazen dönüştürmeden PDF döner (açılmayan .docx.pdf).
+    office_tools = {"pdf-to-word", "pdf-to-presentation"}
+    to_ext = str(
+        form_data.get("toExt")
+        or form_data.get("_toExt")
+        or form_data.get("outputFormat")
+        or form_data.get("output_format")
+        or ""
+    ).strip().lower()
+    if tool_id == "convert" and to_ext in {"docx", "odt", "pptx", "odp"}:
+        office_tools = office_tools | {"convert"}
+    if tool_id in office_tools and data[:4] == b"%PDF":
+        return "OFFICE_CONVERT_STILL_PDF"
+    if tool_id in office_tools and data[:2] != b"PK":
+        return "OFFICE_CONVERT_INVALID"
+    # Office/HTML/EML → PDF beklenen araçlar.
+    pdf_out_tools = {
+        "file-to-pdf",
+        "eml-to-pdf",
+        "cbz-to-pdf",
+        "cbr-to-pdf",
+        "ebook-to-pdf",
+        "img-to-pdf",
+        "url-to-pdf",
+        "html-to-pdf",
+        "markdown-to-pdf",
+        "scanner-effect",
+    }
+    if tool_id == "convert" and to_ext in {"pdf", "pdfa", "pdfx", ""}:
+        # Convert + PDF hedefi (veya boş — çoğu office→pdf yolu).
+        if to_ext in {"pdf", "pdfa", "pdfx"}:
+            pdf_out_tools = pdf_out_tools | {"convert"}
+    if tool_id in pdf_out_tools:
+        if not is_valid_pdf(data):
+            return "PDF_OUTPUT_INVALID"
     return None

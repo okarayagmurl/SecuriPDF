@@ -212,8 +212,43 @@ def filename_stem(filename: str) -> str:
 
 
 def ensure_filename_ext(filename: str, ext: str) -> str:
-    ext = ext if ext.startswith(".") else f".{ext}"
+    """Uzantıyı eklemek yerine değiştir: stem + tek hedef uzantı."""
+    ext = ext if str(ext).startswith(".") else f".{ext}"
     return f"{filename_stem(filename)}{ext}"
+
+
+def output_basename_from_inputs(
+    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
+    *,
+    preferred_fields: tuple[str, ...] = ("fileInput", "fileInput1"),
+) -> str:
+    """Girdi dosya adından gövde — uzantı eklemeden/birleştirmeden."""
+    for field in preferred_fields:
+        for f, (name, _content, _ctype) in files:
+            if f == field and name:
+                return filename_stem(str(name))
+    for _f, (name, _content, _ctype) in files:
+        if name:
+            return filename_stem(str(name))
+    return "cikti"
+
+
+def build_output_filename(
+    preferred_stem: str,
+    ext: str,
+    *,
+    stirling_name: str | None = None,
+    default_name: str | None = None,
+) -> str:
+    """Çıktı adı: gövde + tek uzantı. Stirling'in çift uzantılı adını yok say."""
+    stem = filename_stem(preferred_stem or "")
+    if stem in {"", "cikti"} and stirling_name:
+        stem = filename_stem(stirling_name)
+    if stem in {"", "cikti"} and default_name:
+        stem = filename_stem(default_name)
+    if not stem:
+        stem = "cikti"
+    return ensure_filename_ext(stem, ext)
 
 
 def output_file_info(data: bytes, tool_id: str, form_data: dict[str, Any] | None = None) -> dict[str, str]:

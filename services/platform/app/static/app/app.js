@@ -242,15 +242,20 @@
       VALIDATE_SIGNATURE_INVALID_OUTPUT: 'İmza doğrulama raporu geçersiz',
       REMOVE_CERT_INVALID_OUTPUT: 'İmza kaldırma çıktısı geçersiz PDF',
       REMOVE_CERT_STILL_SIGNED: 'Dijital imza kaldırılamadı — belgede imza alanı duruyor',
-      EXTRACT_EMPTY: 'Çıkarılacak gömülü görsel veya ek bulunamadı',
+      EXTRACT_EMPTY: 'Çıkarılacak gömülü görsel veya ek bulunamadı — önce «Ek Dosya Ekle» ile gömülü ek olduğundan emin olun',
+      EXTRACT_ATTACHMENTS_FAILED: 'PDF ekleri çıkarılamadı',
       AUTO_SPLIT_FAILED: 'Otomatik ayırma başarısız — QR ayraç veya boş sayfa olup olmadığını kontrol edin',
       CBR_NOT_RAR: 'Dosya CBR/RAR değil (ZIP/CBZ olabilir). CBZ→PDF aracını kullanın veya gerçek .cbr yükleyin',
+      CBR_RAR5_UNSUPPORTED: 'RAR5 arşivi desteklenmiyor (Junrar). RAR4/.cbr veya CBZ kullanın',
+      OFFICE_CONVERT_STILL_PDF: 'PDF→Office dönüşümü başarısız — çıktı hâlâ PDF. Belgeyi OCR veya onarım sonrası tekrar deneyin',
+      OFFICE_CONVERT_INVALID: 'Office çıktısı geçersiz — dönüşümü farklı bir PDF ile tekrar deneyin',
+      PDF_OUTPUT_INVALID: 'Beklenen PDF çıktısı geçersiz veya bozuk — dosya/parametreleri kontrol edip tekrar deneyin',
       JOB_FINALIZE_FAILED: 'İşlem tamamlanırken hata oluştu — tekrar deneyin',
       TOC_INVALID_JSON: 'Yer imi JSON geçersiz',
       TOC_EMPTY: 'En az bir yer imi (title + pageNumber) gerekli',
       TOC_APPLY_FAILED: 'İçindekiler / yer imleri PDF\'e yazılamadı',
       TOC_EMPTY_PDF: 'PDF sayfa içermiyor',
-      VECTOR_OUTPUT_MISMATCH: 'Vektör çıktısı beklenen formatta değil (Ghostscript/EPS kontrol edin)',
+      VECTOR_OUTPUT_MISMATCH: 'Vektör çıktısı beklenen formatta değil — PS deneyin veya Ghostscript/EPS kurulumunu kontrol edin',
       META_MISSING: 'İş meta verisi kayboldu — işi yeniden başlatın',
       INPUT_MISSING: 'Girdi dosyası bulunamadı — formu yeniden gönderin',
       JOB_INTERRUPTED: 'İş sunucu yeniden başlatması nedeniyle yarıda kaldı',
@@ -5634,12 +5639,51 @@
   function filenameFromDisposition(header, fallback) {
     var fb = fallback || 'output.pdf';
     if (!header) return fb;
-    var m = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(header);
-    return m ? decodeURIComponent(m[1]) : fb;
+    var star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+    if (star) {
+      try { return decodeURIComponent(star[1].trim().replace(/^["']|["']$/g, '')); } catch (e) { /* ignore */ }
+    }
+    var m = /filename\s*=\s*"((?:\\.|[^"\\])*)"|filename\s*=\s*([^;]+)/i.exec(header);
+    if (!m) return fb;
+    var raw = (m[1] != null ? m[1] : m[2] || '').trim().replace(/^["']|["']$/g, '');
+    try { return decodeURIComponent(raw); } catch (e2) { return raw || fb; }
+  }
+
+  function stripKnownExtensions(name) {
+    var known = ['docx','doc','odt','pptx','ppt','odp','xlsx','xls','ods','pdf','png','jpg','jpeg','gif','webp','tiff','tif','bmp','eps','ps','pcl','xps','txt','rtf','csv','html','htm','json','xml','md','epub','azw3','cbr','cbz','zip'];
+    var stem = String(name || '').replace(/^.*[\\/]/, '');
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var i = 0; i < known.length; i++) {
+        var re = new RegExp('\\.' + known[i] + '$', 'i');
+        if (re.test(stem) && stem.length > known[i].length + 1) {
+          stem = stem.replace(re, '');
+          changed = true;
+          break;
+        }
+      }
+    }
+    return stem.replace(/[.\s]+$/, '') || 'cikti';
+  }
+
+  function inputStemFromForm(form) {
+    if (!form) return '';
+    var preferred = ['fileInput', 'fileInput1', 'fileInput2'];
+    for (var p = 0; p < preferred.length; p++) {
+      var inp = form.querySelector('input[type="file"][name="' + preferred[p] + '"]');
+      if (inp && inp.files && inp.files[0] && inp.files[0].name) {
+        return stripKnownExtensions(inp.files[0].name);
+      }
+    }
+    var any = form.querySelector('input[type="file"]');
+    if (any && any.files && any.files[0] && any.files[0].name) {
+      return stripKnownExtensions(any.files[0].name);
+    }
+    return '';
   }
 
   function fixResultFilename(toolId, name, form) {
-    var n = name || downloadFallbackFilename(toolId);
     var ext = '';
     if (toolId === 'convert' && form && form._convertGetFormats) {
       ext = (form._convertGetFormats().toExt || '').toLowerCase();
@@ -5666,34 +5710,22 @@
     } else if (toolId === 'pdf-to-vector') {
       var vf = form && form.querySelector('[name="outputFormat"]');
       ext = (vf && vf.value ? vf.value : 'eps').toLowerCase();
-    } else if (toolId === 'file-to-pdf' || toolId === 'img-to-pdf' || toolId === 'cbz-to-pdf' || toolId === 'cbr-to-pdf' || toolId === 'ebook-to-pdf' || toolId === 'eml-to-pdf' || toolId === 'url-to-pdf') {
+    } else if (toolId === 'file-to-pdf' || toolId === 'img-to-pdf' || toolId === 'cbz-to-pdf' || toolId === 'cbr-to-pdf' || toolId === 'ebook-to-pdf' || toolId === 'eml-to-pdf' || toolId === 'url-to-pdf' || toolId === 'scanner-effect') {
       ext = 'pdf';
+    } else if (toolId === 'extract-attachments' || toolId === 'extract-images' || toolId === 'auto-split-pdf' || toolId === 'split-pages') {
+      ext = 'zip';
     }
-    if (ext) {
-      var known = ['docx','doc','odt','pptx','ppt','odp','xlsx','xls','ods','pdf','png','jpg','jpeg','gif','webp','tiff','tif','bmp','eps','ps','pcl','xps','txt','rtf','csv','html','htm','json','xml','md','epub','azw3','cbr','cbz','zip'];
-      var stem = n;
-      var changed = true;
-      while (changed) {
-        changed = false;
-        for (var i = 0; i < known.length; i++) {
-          var re = new RegExp('\\.' + known[i] + '$', 'i');
-          if (re.test(stem) && stem.length > known[i].length + 1) {
-            stem = stem.replace(re, '');
-            changed = true;
-            break;
-          }
-        }
-      }
-      n = stem.replace(/[.\s]+$/, '') + '.' + ext;
-    }
+    // Öncelik: girdi dosya gövdesi + hedef uzantı (Stirling çift uzantısını yok say).
+    var stem = inputStemFromForm(form) || stripKnownExtensions(name || downloadFallbackFilename(toolId));
+    var n = ext ? (stem + '.' + ext) : (name || downloadFallbackFilename(toolId));
     if (toolId === 'split-pages' && !/\.zip$/i.test(n)) {
-      n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
+      n = stripKnownExtensions(n) + '.zip';
     }
     if (toolId === 'extract-images' && !/\.zip$/i.test(n)) {
-      n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
+      n = stripKnownExtensions(n) + '.zip';
     }
     if (toolId === 'auto-split-pdf' && !/\.zip$/i.test(n)) {
-      n = n.replace(/\.(pdf|html?)$/i, '') + '.zip';
+      n = stripKnownExtensions(n) + '.zip';
     }
     return n;
   }
@@ -6114,7 +6146,9 @@
     if (state.currentTool.id === 'scanner-effect') {
       var sq = form.querySelector('[name="quality"]');
       var sr = form.querySelector('[name="rotation"]');
-      fd.set('quality', (sq && sq.value) || 'medium');
+      var qVal = (sq && sq.value) || 'medium';
+      if (String(qVal).toLowerCase() === 'high') qVal = 'medium';
+      fd.set('quality', qVal);
       fd.set('rotation', (sr && sr.value) || 'slight');
     }
     if (state.currentTool.id === 'url-to-pdf') {

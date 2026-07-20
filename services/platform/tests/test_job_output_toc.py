@@ -5,8 +5,14 @@ from io import BytesIO
 
 from pypdf import PdfWriter
 
-from app.job_output import ensure_filename_ext, filename_stem, output_file_info
+from app.job_output import (
+    build_output_filename,
+    ensure_filename_ext,
+    filename_stem,
+    output_file_info,
+)
 from app.pdf_toc import TocError, apply_toc
+from app.pdf_validate import output_error_code
 
 
 def _pdf() -> bytes:
@@ -23,6 +29,10 @@ class JobOutputNamingTests(unittest.TestCase):
         self.assertEqual(filename_stem("deneme.docx.pdf"), "deneme")
         self.assertEqual(ensure_filename_ext("deneme.docx.pdf", ".pdf"), "deneme.pdf")
         self.assertEqual(ensure_filename_ext("rapor.pptx.pdf", ".pptx"), "rapor.pptx")
+        self.assertEqual(
+            build_output_filename("standart_doküman.docx", ".pdf", stirling_name="standart_doküman.docx.pdf"),
+            "standart_doküman.pdf",
+        )
 
     def test_convert_to_pdf_uses_pdf_name(self) -> None:
         data = _pdf()
@@ -35,6 +45,12 @@ class JobOutputNamingTests(unittest.TestCase):
         info = output_file_info(data, "pdf-to-word", {"outputFormat": "docx"})
         self.assertEqual(info["ext"], ".pdf")
 
+    def test_office_still_pdf_rejected(self) -> None:
+        self.assertEqual(output_error_code(_pdf(), "pdf-to-word"), "OFFICE_CONVERT_STILL_PDF")
+        self.assertEqual(
+            output_error_code(_pdf(), "convert", {"toExt": "docx"}),
+            "OFFICE_CONVERT_STILL_PDF",
+        )
 
 class TocTests(unittest.TestCase):
     def test_apply_toc_writes_bookmarks(self) -> None:
