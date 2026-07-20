@@ -8,27 +8,8 @@ from .audit import write_audit
 from .auth import encrypt_bytes, new_id
 from .config import Settings
 from .database import DocumentRecord, FolderRecord, UserQuotaRecord, utcnow
+from .document_names import resolve_document_filename
 from .settings_store import SettingsStore
-
-
-def _mime_from_name(name: str) -> str:
-    lower = name.lower()
-    if lower.endswith(".zip"):
-        return "application/zip"
-    if lower.endswith(".html") or lower.endswith(".htm"):
-        return "text/html"
-    return "application/pdf"
-
-
-def _ensure_extension(name: str, mime_type: str) -> str:
-    lower = name.lower()
-    if lower.endswith((".pdf", ".zip", ".html", ".htm")):
-        return name
-    if mime_type == "application/zip":
-        return f"{name}.zip"
-    if mime_type == "text/html":
-        return f"{name}.html"
-    return f"{name}.pdf"
 
 
 def _user_dir(settings: Settings, kind: str, user_id: str) -> Path:
@@ -92,9 +73,7 @@ def store_document_bytes(
     storage_path = _user_dir(settings, scope, user_id) / f"{doc_id}.enc"
     storage_path.write_bytes(encrypt_bytes(settings, data))
 
-    name = (filename or f"{doc_id}.pdf").strip()
-    resolved_mime = mime_type or _mime_from_name(name)
-    name = _ensure_extension(name, resolved_mime)
+    name, resolved_mime = resolve_document_filename(filename, mime_type, data)
 
     now = utcnow()
     row = DocumentRecord(

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..audit import read_document_activity, write_audit
 from ..auth import AuthUser, decrypt_bytes, encrypt_bytes, get_current_user, new_id, require_admin
 from ..config import Settings, get_settings
+from ..document_names import resolve_document_filename
 from ..http_util import content_disposition
 from ..job_queue import enqueue_email_job
 from ..mail import send_document_email
@@ -30,6 +31,17 @@ router = APIRouter(tags=["vault"])
 
 class PinUpdate(BaseModel):
     pinned: bool
+
+
+def _download_filename(db: Session, row: DocumentRecord, data: bytes) -> tuple[str, str]:
+    """İndirme adı: kayıtlı çift uzantıyı içerik/MIME ile düzelt; DB adını da onar."""
+    name, mime = resolve_document_filename(row.name, row.mime_type, data)
+    if name != row.name or mime != (row.mime_type or ""):
+        row.name = name
+        row.mime_type = mime
+        row.modified_at = utcnow()
+        db.commit()
+    return name, mime
 
 
 def _require_user_email(user: AuthUser) -> str:
@@ -226,7 +238,7 @@ def list_documents(
         return {
             "id": row.id,
             "documentGuid": row.id,
-            "name": row.name,
+            "name": resolve_document_filename(row.name, row.mime_type)[0],
             "sizeBytes": row.size_bytes,
             "mimeType": row.mime_type,
             "folderId": getattr(row, "folder_id", None),
@@ -276,13 +288,19 @@ async def upload_document(
     storage_path = _user_dir(settings, scope, user.user_id) / f"{doc_id}.enc"
     storage_path.write_bytes(encrypt_bytes(settings, data))
 
+    name, resolved_mime = resolve_document_filename(
+        file.filename or f"{doc_id}.pdf",
+        file.content_type,
+        data,
+    )
+
     now = utcnow()
     row = DocumentRecord(
         id=doc_id,
         user_id=user.user_id,
-        name=file.filename or f"{doc_id}.pdf",
+        name=name,
         size_bytes=len(data),
-        mime_type=file.content_type or "application/pdf",
+        mime_type=resolved_mime,
         storage_path=str(storage_path),
         folder_id=folder_id,
         storage_scope=scope,
@@ -358,10 +376,11 @@ def download_document(
     settings: Settings = Depends(get_settings),
 ):
     row, data = _load_user_document(doc_id, db, user, settings)
+    name, mime = _download_filename(db, row, data)
     return Response(
         content=data,
-        media_type=row.mime_type,
-        headers={"Content-Disposition": content_disposition("attachment", row.name)},
+        media_type=mime,
+        headers={"Content-Disposition": content_disposition("attachment", name)},
     )
 
 
@@ -373,10 +392,11 @@ def preview_document(
     settings: Settings = Depends(get_settings),
 ):
     row, data = _load_user_document(doc_id, db, user, settings)
+    name, mime = _download_filename(db, row, data)
     return Response(
         content=data,
-        media_type=row.mime_type,
-        headers={"Content-Disposition": content_disposition("inline", row.name)},
+        media_type=mime,
+        headers={"Content-Disposition": content_disposition("inline", name)},
     )
 
 

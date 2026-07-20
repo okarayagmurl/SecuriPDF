@@ -12,6 +12,7 @@ from ..config import Settings, get_settings
 from ..database import JobRecord, get_db
 from ..debug_report import read_job_debug_report, write_job_debug_report
 from ..document_store import store_document_bytes
+from ..document_names import resolve_document_filename
 from ..job_queue import _job_dir, enqueue_tool_job
 from ..job_refs import load_labels
 
@@ -358,7 +359,11 @@ def import_job_to_documents(
             form_data = {}
             reserved_id = None
     info = output_file_info(data, row.tool_id, form_data)
-    filename = ensure_filename_ext(labels.get(row.output_ref) or info["default_name"], info["ext"])
+    filename, mime = resolve_document_filename(
+        labels.get(row.output_ref) or info["default_name"],
+        info["mime"].split(";")[0],
+        data,
+    )
     try:
         doc = store_document_bytes(
             db,
@@ -368,7 +373,7 @@ def import_job_to_documents(
             filename,
             scope="documents",
             doc_id=reserved_id,
-            mime_type=info["mime"].split(";")[0],
+            mime_type=mime,
             audit_action="document.job_import",
             audit_detail={"jobId": row.id, "toolId": row.tool_id},
         )

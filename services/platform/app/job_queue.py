@@ -26,12 +26,14 @@ from .job_output import (
 from .license import LicenseService
 from .pdf_attachments import AttachmentExtractError, extract_embedded_attachments
 from .pdf_autosplit import split_pdf_on_blank_pages
+from .pdf_cbz import CbzError, cbz_to_pdf
 from .pdf_cert_sign import (
     CertSignError,
     sign_pdf_from_job,
     supports_platform_cert_sign,
     wants_visible_signature,
 )
+from .pdf_eml import EmlError, eml_to_pdf
 from .pdf_page_util import extract_single_page, replace_single_page
 from .pdf_permissions import PermissionsError, change_permissions
 from .pdf_sanitize import sanitize_pdf_bytes
@@ -963,6 +965,92 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 form_data=form_data,
             )
             return
+    elif tool_id in {"cbz-to-pdf", "eml-to-pdf"} or (
+        tool_id == "convert"
+        and str(meta.get("apiPath") or "").rstrip("/").endswith(("/cbz/pdf", "/eml/pdf"))
+    ):
+        # Stirling başarısız olursa platform yedek (CBZ görseller / EML metin).
+        effective = tool_id
+        api = str(meta.get("apiPath") or api_path or "")
+        if tool_id == "convert":
+            if api.rstrip("/").endswith("/cbz/pdf"):
+                effective = "cbz-to-pdf"
+            elif api.rstrip("/").endswith("/eml/pdf"):
+                effective = "eml-to-pdf"
+        src = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not src and files:
+            src = files[0][1][1]
+        if not src:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        stirling_status = None
+        stirling_body = b""
+        try:
+            multipart = encode_stirling_multipart(stirling_form_data, files)
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                resp = client.post(target, files=multipart)
+            stirling_status = resp.status_code
+            stirling_body = resp.content
+            if resp.status_code < 400 and resp.content and is_valid_pdf(resp.content):
+                result_content = resp.content
+                stirling_output_name = _filename_from_disposition(
+                    resp.headers.get("content-disposition")
+                )
+            else:
+                raise ValueError("STIRLING_FALLBACK")
+        except Exception:
+            try:
+                if effective == "cbz-to-pdf":
+                    result_content = cbz_to_pdf(src)
+                else:
+                    result_content = eml_to_pdf(src)
+                stirling_output_name = None
+                stirling_status = None
+                stirling_body = b""
+            except CbzError as exc:
+                _fail_job(
+                    session_factory,
+                    job_id,
+                    settings,
+                    user_id,
+                    tool_id,
+                    input_refs,
+                    exc.code,
+                    form_data=form_data,
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                )
+                return
+            except EmlError as exc:
+                _fail_job(
+                    session_factory,
+                    job_id,
+                    settings,
+                    user_id,
+                    tool_id,
+                    input_refs,
+                    exc.code,
+                    form_data=form_data,
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                )
+                return
+            except Exception as exc:
+                print(f"[job-worker] {effective} fallback failed: {type(exc).__name__}: {exc}")
+                code = _stirling_error_code(stirling_status or 500, stirling_body or b"")
+                _fail_job(
+                    session_factory,
+                    job_id,
+                    settings,
+                    user_id,
+                    tool_id,
+                    input_refs,
+                    code,
+                    form_data=form_data,
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                )
+                return
     elif tool_id == "extract-attachments":
         pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
         if not pdf_bytes:
