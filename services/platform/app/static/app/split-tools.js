@@ -14,7 +14,7 @@
       label: 'Yer imlerine / içindekilere göre böl',
       shortLabel: 'Yer imleri',
       apiPath: '/api/v1/general/split-pdf-by-chapters',
-      hint: 'PDF yer imi / içindekiler yapısına göre ayırır. Yer imi olmayan PDF\'lerde hata alırsınız — önce içindekiler ekleyin.'
+      hint: 'PDF yer imi / içindekiler yapısına göre ayırır. Yer imi yoksa hata alırsınız — önce «İçindekiler / Yer İmleri» aracını kullanın. Seviye 0 = en üst başlıklar.'
     },
     {
       id: 'bySections',

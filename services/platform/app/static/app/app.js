@@ -257,6 +257,12 @@
       OFFICE_CONVERT_INVALID: 'Office çıktısı geçersiz — dönüşümü farklı bir PDF ile tekrar deneyin',
       PDF_OUTPUT_INVALID: 'Beklenen PDF çıktısı geçersiz veya bozuk — dosya/parametreleri kontrol edip tekrar deneyin',
       JOB_FINALIZE_FAILED: 'İşlem tamamlanırken hata oluştu — tekrar deneyin',
+      SPLIT_NO_BOOKMARKS: 'PDF\'de yer imi / içindekiler yok — önce «İçindekiler / Yer İmleri» ile ekleyin',
+      SPLIT_NO_BOOKMARKS_AT_LEVEL: 'Seçilen seviyede yer imi yok — seviye 0 deneyin veya yer imlerini kontrol edin',
+      SPLIT_NO_CHAPTERS: 'Bölünecek bölüm bulunamadı',
+      SPLIT_EMPTY_PDF: 'PDF sayfa içermiyor',
+      SPLIT_CHAPTERS_FAILED: 'Yer imlerine göre bölme başarısız',
+      INPUT_NOT_PDF: 'Girdi geçerli bir PDF değil',
       TOC_INVALID_JSON: 'Yer imi JSON geçersiz',
       TOC_EMPTY: 'En az bir yer imi (title + pageNumber) gerekli',
       TOC_APPLY_FAILED: 'İçindekiler / yer imleri PDF\'e yazılamadı',
@@ -6239,6 +6245,8 @@
         return el && el.checked ? 'true' : 'false';
       }
       if (splitCfgSubmit.modeId === 'byChapters') {
+        var bl = form.querySelector('[name="bookmarkLevel"]');
+        fd.set('bookmarkLevel', (bl && bl.value !== '') ? bl.value : '0');
         fd.set('includeMetadata', splitBool('includeMetadata'));
         fd.set('allowDuplicates', splitBool('allowDuplicates'));
       }

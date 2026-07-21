@@ -42,10 +42,12 @@ _BOOL_FIELDS = frozenset({
     "deleteAll",
     "replaceExisting",
     "allowDuplicates",
+    "includeMetadata",
     "duplexMode",
     "yellowish",
     "prepress",
     "convertToPdfA3b",
+    "merge",
 })
 
 _SANITIZE_DEFAULTS: dict[str, str] = {
@@ -221,6 +223,20 @@ def normalize_stirling_form(tool_id: str, form_data: dict[str, Any]) -> dict[str
         if val <= 0:
             val = 1.0
         out["scaleFactor"] = str(val)
+
+    # split-pages → yer imi / bölüm parametreleri (apiPath ile de gelir)
+    if "bookmarkLevel" in out or "includeMetadata" in out or "allowDuplicates" in out:
+        if "bookmarkLevel" not in out or not str(out.get("bookmarkLevel") or "").strip():
+            out["bookmarkLevel"] = "0"
+        else:
+            try:
+                out["bookmarkLevel"] = str(max(0, int(float(str(out["bookmarkLevel"])))))
+            except (TypeError, ValueError):
+                out["bookmarkLevel"] = "0"
+        if "includeMetadata" in out:
+            out["includeMetadata"] = _as_bool_str(out["includeMetadata"])
+        if "allowDuplicates" in out:
+            out["allowDuplicates"] = _as_bool_str(out["allowDuplicates"])
 
     _apply_tool_rules(tool_id, out)
     return out

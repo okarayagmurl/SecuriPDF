@@ -37,6 +37,7 @@ from .pdf_eml import EmlError, eml_to_pdf
 from .pdf_page_util import extract_single_page, replace_single_page
 from .pdf_permissions import PermissionsError, change_permissions
 from .pdf_sanitize import sanitize_pdf_bytes
+from .pdf_split_chapters import SplitChaptersError, split_pdf_by_chapters
 from .pdf_toc import TocError, apply_toc
 from .pdf_validate import is_valid_pdf, output_error_code
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
@@ -789,6 +790,82 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 form_data=form_data,
             )
             return
+    elif (
+        tool_id in {"split-pdf-by-chapters"}
+        or str(api_path).rstrip("/").endswith("split-pdf-by-chapters")
+    ):
+        # Platform öncelikli — Stirling 400/500 (outline yok / parametre) sık.
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not pdf_bytes and files:
+            pdf_bytes = files[0][1][1]
+        if not pdf_bytes:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        try:
+            result_content = split_pdf_by_chapters(
+                pdf_bytes,
+                bookmark_level=form_data.get("bookmarkLevel", stirling_form_data.get("bookmarkLevel", "0")),
+                allow_duplicates=form_data.get(
+                    "allowDuplicates", stirling_form_data.get("allowDuplicates", "false")
+                ),
+                include_metadata=form_data.get(
+                    "includeMetadata", stirling_form_data.get("includeMetadata", "false")
+                ),
+            )
+            stirling_output_name = "yer-imlerine-gore-bolunmus.zip"
+        except SplitChaptersError as exc:
+            # Platform net hata; Stirling'e düşme — aynı hatayı tekrar üretmez.
+            _fail_job(
+                session_factory,
+                job_id,
+                settings,
+                user_id,
+                tool_id,
+                input_refs,
+                exc.code,
+                form_data=form_data,
+            )
+            return
+        except Exception as exc:
+            print(f"[job-worker] split-by-chapters platform failed: {type(exc).__name__}: {exc}")
+            # Stirling yedek dene
+            try:
+                multipart = encode_stirling_multipart(stirling_form_data, files)
+                with httpx.Client(timeout=_TIMEOUT) as client:
+                    resp = client.post(target, files=multipart)
+                stirling_status = resp.status_code
+                stirling_body = resp.content
+                if resp.status_code < 400 and resp.content and resp.content[:2] == b"PK":
+                    result_content = resp.content
+                    stirling_output_name = _filename_from_disposition(
+                        resp.headers.get("content-disposition")
+                    ) or "yer-imlerine-gore-bolunmus.zip"
+                else:
+                    _fail_job(
+                        session_factory,
+                        job_id,
+                        settings,
+                        user_id,
+                        tool_id,
+                        input_refs,
+                        _stirling_error_code(resp.status_code, resp.content),
+                        form_data=form_data,
+                        stirling_status=stirling_status,
+                        stirling_body=stirling_body,
+                    )
+                    return
+            except httpx.RequestError:
+                _fail_job(
+                    session_factory,
+                    job_id,
+                    settings,
+                    user_id,
+                    tool_id,
+                    input_refs,
+                    "SPLIT_CHAPTERS_FAILED",
+                    form_data=form_data,
+                )
+                return
     elif tool_id == "auto-split-pdf" or str(api_path).rstrip("/").endswith("auto-split-pdf"):
         # Önce Stirling (QR); başarısız veya tek parça + boş sayfa varsa platform fallback.
         # split-pages → Sayfa ayırıcı modu da aynı yolu kullanır (tool_id hâlâ split-pages).
