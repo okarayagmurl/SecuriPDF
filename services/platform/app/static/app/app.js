@@ -199,7 +199,7 @@
 
   function jobErrorLabel(code) {
     var map = {
-      STIRLING_OCR_UNAVAILABLE: 'OCR motoru yanıt vermedi. Türkçe dil paketi (tur.traineddata) kurulu mu? scripts/setup-tessdata.sh çalıştırın.',
+      STIRLING_OCR_UNAVAILABLE: 'OCR motoru yanıt vermedi. Türkçe dil paketi (tur.traineddata) kurulu mu? scripts/setup-tessdata.sh çalıştırın; fat image ve bellek (4G+) gerekli.',
       STIRLING_REQUEST_FAILED: 'PDF motoruna istek gönderilemedi. Sayfayı yenileyip tekrar deneyin.',
       STIRLING_UNREACHABLE: 'PDF motoruna bağlanılamadı (entera-pdf çalışıyor mu?)',
       STIRLING_HTTP_400: 'PDF motoru isteği reddetti (400) — geçersiz parametre veya dosya',
@@ -214,9 +214,10 @@
       STIRLING_HTTP_503: 'PDF motoru geçici olarak kapalı (503)',
       STIRLING_HTTP_504: 'PDF motoru zaman aşımına uğradı (504)',
       STIRLING_WEASYPRINT_MISSING: 'URL→PDF için WeasyPrint eksik veya sayfa alınamadı. Fat image + ağ erişimini kontrol edin; örnek URL: https://example.com',
+      EBOOK_CALIBRE_MISSING: 'E-kitap dönüşümü için Calibre (ebook-convert) yok — Stirling fat image kullanın',
       URL_MISSING: 'Web adresi (URL) girilmedi',
       URL_FETCH_FAILED: 'Web sayfası indirilemedi — adres erişilebilir mi, HTML mi kontrol edin',
-      STIRLING_CBR_INVALID: 'CBR dosyası geçersiz — RAR5/şifreli CBR desteklenmeyebilir; .cbr uzantılı Junrar uyumlu arşiv kullanın',
+      STIRLING_CBR_INVALID: 'CBR dosyası geçersiz — şifreli olabilir veya görsel içermiyor',
       WATERMARK_RENDER_FAILED: 'Filigran uygulanamadı — dosyayı yeniden deneyin',
       SANITIZE_FAILED: 'PDF temizleme başarısız — dosyayı yeniden deneyin',
       AUTO_SPLIT_FAILED: 'Otomatik ayırma başarısız — QR ayraç veya boş sayfa ayırıcı kullanın',
@@ -244,9 +245,11 @@
       REMOVE_CERT_STILL_SIGNED: 'Dijital imza kaldırılamadı — belgede imza alanı duruyor',
       EXTRACT_EMPTY: 'Çıkarılacak gömülü görsel veya ek bulunamadı — önce «Ek Dosya Ekle» ile gömülü ek olduğundan emin olun',
       EXTRACT_ATTACHMENTS_FAILED: 'PDF ekleri çıkarılamadı',
-      AUTO_SPLIT_FAILED: 'Otomatik ayırma başarısız — QR ayraç veya boş sayfa olup olmadığını kontrol edin',
       CBR_NOT_RAR: 'Dosya CBR/RAR değil (ZIP/CBZ olabilir). CBZ→PDF aracını kullanın veya gerçek .cbr yükleyin',
-      CBR_RAR5_UNSUPPORTED: 'RAR5 arşivi desteklenmiyor (Junrar). RAR4/.cbr veya CBZ kullanın',
+      CBR_RAR5_UNSUPPORTED: 'RAR5 açılamadı — platformda 7z kurulu olmalı (yeniden build)',
+      CBR_EXTRACTOR_MISSING: 'RAR açıcı yok (7z). Platform image yeniden build edilmeli',
+      CBR_EXTRACT_FAILED: 'CBR/RAR arşivi açılamadı (şifreli veya bozuk olabilir)',
+      CBR_NO_IMAGES: 'CBR içinde görsel bulunamadı',
       CBZ_NOT_ZIP: 'CBZ dosyası geçerli bir ZIP arşivi değil',
       CBZ_INVALID: 'CBZ arşivi açılamadı',
       CBZ_NO_IMAGES: 'CBZ içinde görsel bulunamadı',
@@ -267,6 +270,9 @@
       TOC_EMPTY: 'En az bir yer imi (title + pageNumber) gerekli',
       TOC_APPLY_FAILED: 'İçindekiler / yer imleri PDF\'e yazılamadı',
       TOC_EMPTY_PDF: 'PDF sayfa içermiyor',
+      VECTOR_GS_MISSING: 'Ghostscript yok — platform image yeniden build edilmeli',
+      VECTOR_GS_FAILED: 'Vektör dönüşümü başarısız — PS formatını deneyin',
+      VECTOR_FORMAT_UNSUPPORTED: 'Desteklenmeyen vektör formatı',
       VECTOR_OUTPUT_MISMATCH: 'Vektör çıktısı beklenen formatta değil — PS deneyin veya Ghostscript/EPS kurulumunu kontrol edin',
       META_MISSING: 'İş meta verisi kayboldu — işi yeniden başlatın',
       INPUT_MISSING: 'Girdi dosyası bulunamadı — formu yeniden gönderin',
@@ -5721,7 +5727,7 @@
       }
     } else if (toolId === 'pdf-to-vector') {
       var vf = form && form.querySelector('[name="outputFormat"]');
-      ext = (vf && vf.value ? vf.value : 'eps').toLowerCase();
+      ext = (vf && vf.value ? vf.value : 'ps').toLowerCase();
     } else if (toolId === 'file-to-pdf' || toolId === 'img-to-pdf' || toolId === 'cbz-to-pdf' || toolId === 'cbr-to-pdf' || toolId === 'ebook-to-pdf' || toolId === 'eml-to-pdf' || toolId === 'url-to-pdf' || toolId === 'scanner-effect') {
       ext = 'pdf';
     } else if (toolId === 'extract-attachments' || toolId === 'extract-images' || toolId === 'auto-split-pdf' || toolId === 'split-pages') {

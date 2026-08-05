@@ -48,6 +48,11 @@ _BOOL_FIELDS = frozenset({
     "prepress",
     "convertToPdfA3b",
     "merge",
+    "deskew",
+    "clean",
+    "cleanFinal",
+    "sidecar",
+    "removeImagesAfter",
 })
 
 _SANITIZE_DEFAULTS: dict[str, str] = {
@@ -82,14 +87,12 @@ def _apply_tool_rules(tool_id: str, out: dict[str, str | list[str]]) -> None:
     if tool_id == "pdf-to-vector":
         if "prepress" not in out:
             out["prepress"] = "false"
-        fmt = str(out.get("outputFormat") or out.get("output_format") or "eps").lower()
-        # EPS bazı Ghostscript kurulumlarında başarısız; PS daha güvenilir yedek değil —
-        # kullanıcı seçimini koru ama formatı normalize et.
+        fmt = str(out.get("outputFormat") or out.get("output_format") or "ps").lower()
+        # EPS bazı Ghostscript kurulumlarında başarısız; PS varsayılan daha güvenilir.
         if fmt not in {"eps", "ps", "pcl", "xps"}:
-            fmt = "eps"
+            fmt = "ps"
         out["outputFormat"] = fmt
         out.pop("output_format", None)
-        # PDF dosyası uzantısı korunmalı (Stirling uzantıya da bakabilir).
         out.pop("inputFormat", None)
     if tool_id == "ebook-to-pdf":
         for key in ("embedAllFonts", "includeTableOfContents", "includePageNumbers", "optimizeForEbook"):

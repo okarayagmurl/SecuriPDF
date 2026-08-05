@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 CONFIG_PATH = Path(os.environ.get("SECURIPDF_UPDATER_CONFIG", "/etc/securipdf/updater.env"))
 JOBS_DIR = Path(os.environ.get("SECURIPDF_UPDATER_JOBS", "/var/lib/securipdf/jobs"))
-LISTEN_HOST = os.environ.get("SECURIPDF_UPDATER_HOST", "127.0.0.1")
+LISTEN_HOST = os.environ.get("SECURIPDF_UPDATER_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("SECURIPDF_UPDATER_PORT", "8765"))
 
 _CONFIG: dict[str, str] = {}

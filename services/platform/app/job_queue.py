@@ -27,6 +27,7 @@ from .license import LicenseService
 from .pdf_attachments import AttachmentExtractError, extract_embedded_attachments
 from .pdf_autosplit import split_pdf_on_blank_pages
 from .pdf_cbz import CbzError, cbz_to_pdf
+from .pdf_cbr import CbrConvertError, is_rar5, rar_bytes_to_cbz
 from .pdf_cert_sign import (
     CertSignError,
     sign_pdf_from_job,
@@ -40,6 +41,7 @@ from .pdf_sanitize import sanitize_pdf_bytes
 from .pdf_split_chapters import SplitChaptersError, split_pdf_by_chapters
 from .pdf_toc import TocError, apply_toc
 from .pdf_validate import is_valid_pdf, output_error_code
+from .pdf_vector import VectorError, pdf_to_vector_gs
 from .stirling_form import encode_stirling_multipart, normalize_stirling_form
 from .mail import send_document_email
 from .tools_catalog import get_tool_api_path
@@ -376,6 +378,10 @@ def _stirling_error_code(status: int, body: bytes) -> str:
         return "STIRLING_OCR_UNAVAILABLE"
     if any(k in text for k in ("weasyprint", "weasy print", "missing dependency")):
         return "STIRLING_WEASYPRINT_MISSING"
+    if any(k in text for k in ("ebook-convert", "calibre", "ebook convert")):
+        return "EBOOK_CALIBRE_MISSING"
+    if any(k in text for k in ("tesseract", "tessdata", "traineddata", "ocr")) and status >= 500:
+        return "STIRLING_OCR_UNAVAILABLE"
     if status == 400 and any(
         k in text for k in ("not a cbr", "notcbr", "invalid cbr", "no valid images", "encrypted")
     ):
@@ -388,7 +394,7 @@ def _stirling_error_code(status: int, body: bytes) -> str:
 def _ensure_cbr_filename(
     files: list[tuple[str, tuple[str | None, bytes, str | None]]],
 ) -> list[tuple[str, tuple[str | None, bytes, str | None]]]:
-    """Stirling Junrar yalnızca .cbr/.rar uzantısını kabul eder; ZIP/CBZ'yi reddeder."""
+    """Stirling Junrar RAR4; RAR5 → CBZ'ye çevrilir (platform). ZIP/CBZ'yi reddeder."""
     out: list[tuple[str, tuple[str | None, bytes, str | None]]] = []
     for field, (name, content, ctype) in files:
         if field != "fileInput":
@@ -396,21 +402,33 @@ def _ensure_cbr_filename(
             continue
         raw = (name or "").strip() or "comic.cbr"
         lower = raw.lower()
-        if not (lower.endswith(".cbr") or lower.endswith(".rar")):
-            stem = raw.rsplit(".", 1)[0] if "." in raw else raw
-            raw = f"{stem}.cbr"
-        # RAR magic "Rar!" — CBZ (ZIP) veya boş dosya Junrar'da "invalid CBR" olur.
         if not content or len(content) < 7:
             raise ValueError("CBR_NOT_RAR")
+        # CBZ (ZIP) — kullanıcıya doğru aracı söyle.
         if content[:2] == b"PK":
             raise ValueError("CBR_NOT_RAR")
         if content[:4] != b"Rar!":
             raise ValueError("CBR_NOT_RAR")
-        # RAR5: Rar!\x1a\x07\x01 — Junrar genelde desteklemez.
-        if content[4:7] == b"\x1a\x07\x01":
-            raise ValueError("CBR_RAR5_UNSUPPORTED")
+
+        # RAR5: Junrar desteklemez → CBZ'ye çevir, cbz-to-pdf yoluna bırak.
+        if is_rar5(content):
+            try:
+                cbz = rar_bytes_to_cbz(content)
+            except CbrConvertError as exc:
+                raise ValueError(exc.code) from exc
+            stem = raw.rsplit(".", 1)[0] if "." in raw else raw
+            out.append((field, (f"{stem}.cbz", cbz, "application/vnd.comicbook+zip")))
+            continue
+
+        if not (lower.endswith(".cbr") or lower.endswith(".rar")):
+            stem = raw.rsplit(".", 1)[0] if "." in raw else raw
+            raw = f"{stem}.cbr"
         mime = ctype or "application/vnd.comicbook-rar"
-        if "octet-stream" in mime or mime in {"application/x-cbr", "application/x-rar-compressed", "application/vnd.rar"}:
+        if "octet-stream" in mime or mime in {
+            "application/x-cbr",
+            "application/x-rar-compressed",
+            "application/vnd.rar",
+        }:
             mime = "application/vnd.comicbook-rar"
         out.append((field, (raw, content, mime)))
     return out
@@ -612,6 +630,11 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 session_factory, job_id, settings, user_id, tool_id, input_refs, code, form_data=form_data
             )
             return
+        # RAR5 CBZ'ye çevrildiyse Stirling CBR endpoint'i yerine CBZ yolu.
+        cbr_file = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if cbr_file[:2] == b"PK":
+            api_path = "/api/v1/convert/cbz/pdf"
+            target = f"{settings.stirling_url.rstrip('/')}{api_path}"
 
     if tool_id == "url-to-pdf":
         page_url = str(stirling_form_data.get("urlInput") or form_data.get("urlInput") or "").strip()
@@ -1042,11 +1065,11 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 form_data=form_data,
             )
             return
-    elif tool_id in {"cbz-to-pdf", "eml-to-pdf"} or (
+    elif tool_id in {"cbz-to-pdf", "eml-to-pdf", "cbr-to-pdf"} or (
         tool_id == "convert"
-        and str(meta.get("apiPath") or "").rstrip("/").endswith(("/cbz/pdf", "/eml/pdf"))
+        and str(meta.get("apiPath") or "").rstrip("/").endswith(("/cbz/pdf", "/eml/pdf", "/cbr/pdf"))
     ):
-        # Stirling başarısız olursa platform yedek (CBZ görseller / EML metin).
+        # Stirling başarısız olursa platform yedek (CBZ görseller / EML metin / CBR→CBZ).
         effective = tool_id
         api = str(meta.get("apiPath") or api_path or "")
         if tool_id == "convert":
@@ -1054,15 +1077,23 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                 effective = "cbz-to-pdf"
             elif api.rstrip("/").endswith("/eml/pdf"):
                 effective = "eml-to-pdf"
+            elif api.rstrip("/").endswith("/cbr/pdf"):
+                effective = "cbr-to-pdf"
         src = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
         if not src and files:
             src = files[0][1][1]
         if not src:
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
             return
+        # CBR dosyası CBZ'ye çevrildiyse platform CBZ yolu.
+        if effective == "cbr-to-pdf" and src[:2] == b"PK":
+            effective = "cbz-to-pdf"
+        # Saf RAR4 CBR — aşağıdaki Stirling denemesi cbr endpoint'ini kullanır (target güncel).
         stirling_status = None
         stirling_body = b""
         try:
+            if effective == "cbr-to-pdf":
+                raise ValueError("STIRLING_CBR_DIRECT")
             multipart = encode_stirling_multipart(stirling_form_data, files)
             with httpx.Client(timeout=_TIMEOUT) as client:
                 resp = client.post(target, files=multipart)
@@ -1079,11 +1110,26 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             try:
                 if effective == "cbz-to-pdf":
                     result_content = cbz_to_pdf(src)
-                else:
+                elif effective == "eml-to-pdf":
                     result_content = eml_to_pdf(src)
-                stirling_output_name = None
-                stirling_status = None
-                stirling_body = b""
+                else:
+                    # RAR4: generic else'e düşmesin diye burada Stirling CBR dene
+                    multipart = encode_stirling_multipart(stirling_form_data, files)
+                    with httpx.Client(timeout=_TIMEOUT) as client:
+                        resp = client.post(target, files=multipart)
+                    stirling_status = resp.status_code
+                    stirling_body = resp.content
+                    if resp.status_code < 400 and resp.content and is_valid_pdf(resp.content):
+                        result_content = resp.content
+                        stirling_output_name = _filename_from_disposition(
+                            resp.headers.get("content-disposition")
+                        )
+                    else:
+                        raise ValueError("CBR_STIRLING_FAILED")
+                stirling_output_name = stirling_output_name or None
+                if effective != "cbr-to-pdf":
+                    stirling_status = None
+                    stirling_body = b""
             except CbzError as exc:
                 _fail_job(
                     session_factory,
@@ -1123,6 +1169,70 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
                     tool_id,
                     input_refs,
                     code,
+                    form_data=form_data,
+                    stirling_status=stirling_status,
+                    stirling_body=stirling_body,
+                )
+                return
+    elif (
+        tool_id == "pdf-to-vector"
+        or str(api_path).rstrip("/").endswith("/pdf/vector")
+    ):
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        if not pdf_bytes:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
+            return
+        fmt = str(
+            stirling_form_data.get("outputFormat")
+            or form_data.get("outputFormat")
+            or "eps"
+        ).lower()
+        stirling_status = None
+        stirling_body = b""
+        try:
+            multipart = encode_stirling_multipart(stirling_form_data, files)
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                resp = client.post(target, files=multipart)
+            stirling_status = resp.status_code
+            stirling_body = resp.content
+            out_err = output_error_code(resp.content if resp.status_code < 400 else None, "pdf-to-vector", form_data)
+            if resp.status_code < 400 and resp.content and not out_err:
+                result_content = resp.content
+                stirling_output_name = _filename_from_disposition(
+                    resp.headers.get("content-disposition")
+                )
+            else:
+                raise ValueError("VECTOR_FALLBACK")
+        except Exception:
+            # Platform Ghostscript; EPS başarısızsa PS dene.
+            tried = [fmt] if fmt in {"eps", "ps"} else ["eps", "ps"]
+            if "ps" not in tried:
+                tried.append("ps")
+            last_code = "VECTOR_GS_FAILED"
+            for try_fmt in tried:
+                try:
+                    result_content = pdf_to_vector_gs(pdf_bytes, try_fmt)
+                    stirling_form_data["outputFormat"] = try_fmt
+                    form_data["outputFormat"] = try_fmt
+                    stirling_output_name = f"pdf-vektor.{try_fmt}"
+                    last_code = ""
+                    break
+                except VectorError as exc:
+                    last_code = exc.code
+                    continue
+            if last_code:
+                _fail_job(
+                    session_factory,
+                    job_id,
+                    settings,
+                    user_id,
+                    tool_id,
+                    input_refs,
+                    last_code if last_code != "VECTOR_GS_MISSING" else (
+                        _stirling_error_code(stirling_status or 500, stirling_body or b"")
+                        if stirling_status
+                        else "VECTOR_OUTPUT_MISMATCH"
+                    ),
                     form_data=form_data,
                     stirling_status=stirling_status,
                     stirling_body=stirling_body,

@@ -899,13 +899,24 @@
 
     var prog = data.progress || { done: 0, total: 0 };
     var complete = !!data.complete;
-    summary.className = 'readiness-summary ' + (complete ? 'ready-ok' : 'ready-fail');
-    summary.textContent = complete
-      ? 'Kurulum tamamlandi (' + prog.done + '/' + prog.total + ')'
+    var wizardDone = !!data.wizardCompleted || complete;
+    summary.className = 'readiness-summary ' + (wizardDone ? 'ready-ok' : 'ready-fail');
+    summary.textContent = wizardDone
+      ? 'Kurulum tamamlandi' + (prog.total ? ' (' + prog.done + '/' + prog.total + ')' : '')
       : 'Kurulum devam ediyor: ' + prog.done + ' / ' + prog.total + ' adim';
 
-    if (card) card.classList.toggle('complete', complete);
-    if (banner) banner.classList.toggle('hidden', complete);
+    if (card) {
+      card.classList.toggle('complete', wizardDone);
+      card.classList.toggle('hidden', wizardDone);
+    }
+    if (banner) banner.classList.toggle('hidden', wizardDone);
+    var completeBtn = document.getElementById('btnSetupWizardComplete');
+    if (completeBtn) completeBtn.classList.toggle('hidden', wizardDone);
+
+    if (wizardDone) {
+      list.innerHTML = '';
+      return;
+    }
 
     list.innerHTML = '';
     (data.checks || []).forEach(function (c) {

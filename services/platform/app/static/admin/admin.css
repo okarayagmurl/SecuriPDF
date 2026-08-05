@@ -436,6 +436,11 @@ button.danger:hover {
   font-size: 0.92rem;
 }
 
+.setup-card.hidden,
+#btnSetupWizardComplete.hidden {
+  display: none !important;
+}
+
 .setup-card.complete {
   border-color: #86efac;
 }

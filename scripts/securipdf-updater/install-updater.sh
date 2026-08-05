@@ -42,7 +42,7 @@ cat > /etc/securipdf/updater.env <<EOF
 SECURIPDF_OFFLINE_DIR=${OFFLINE_DIR}
 SECURIPDF_UPDATER_TOKEN=${TOKEN}
 SECURIPDF_UPDATER_PORT=${PORT}
-SECURIPDF_UPDATER_HOST=127.0.0.1
+SECURIPDF_UPDATER_HOST=0.0.0.0
 EOF
 chmod 600 /etc/securipdf/updater.env
 
@@ -95,3 +95,6 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 echo "Offline dizin: ${OFFLINE_DIR}"
+echo "Updater dinleme: 0.0.0.0:${PORT} (Docker host.docker.internal erisimi icin)"
+echo "Dogrula: curl -sf -H \"Authorization: Bearer ${TOKEN}\" http://127.0.0.1:${PORT}/health"
+echo "Platform container'i yeniden baslatin: cd docker && docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d securipdf-platform"

@@ -13,7 +13,10 @@ ARG SECURIPDF_VERSION=unknown
 ARG SECURIPDF_BUILT_AT=
 ARG STIRLING_VERSION=unknown
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        p7zip-full \
+        ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

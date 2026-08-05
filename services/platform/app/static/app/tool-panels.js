@@ -715,12 +715,12 @@
 
   function panelPdfToVector(body) {
     var fmt = tileGroup('outputFormat', [
-      { value: 'eps', label: 'EPS' }, { value: 'ps', label: 'PS' },
+      { value: 'ps', label: 'PS', sub: 'Önerilen' }, { value: 'eps', label: 'EPS' },
       { value: 'pcl', label: 'PCL' }, { value: 'xps', label: 'XPS' }
-    ], 'eps', 'Çıktı formatı');
+    ], 'ps', 'Çıktı formatı');
     mount(body, [
       infoBox(
-        '<p>EPS bazı Ghostscript kurulumlarında başarısız olabilir — önce <strong>PS</strong> deneyin.</p>' +
+        '<p>Varsayılan <strong>PS</strong> daha kararlıdır. EPS bazı ortamlarda Ghostscript hatası verebilir.</p>' +
         '<p>Çıktı adı girdi PDF adından türetilir (çift uzantı eklenmez).</p>'
       ),
       label('Çıktı formatı'), fmt.wrap, fmt.hidden,
@@ -730,6 +730,10 @@
 
   function panelEbookToPdf(body) {
     mount(body, [
+      infoBox(
+        '<p>EPUB / MOBI / AZW3 / FB2 → PDF. Stirling fat image içinde <strong>Calibre ebook-convert</strong> gerekir.</p>' +
+        '<p>DRM korumalı AZW3 dönüştürülemez. Büyük dosyalarda «e-Kitap optimizasyonu» kapalı başlayın.</p>'
+      ),
       checkCard('embedAllFonts', 'Tüm fontları göm', false, 'Calibre ebook-convert --embed-all-fonts.'),
       checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'Ghostscript ile boyut/okuma optimizasyonu.'),
       checkCard('includeTableOfContents', 'İçindekiler tablosu', false, 'PDF\'e içindekiler sayfası ekler.'),
@@ -810,7 +814,7 @@
     mount(body, [
       infoBox(
         '<p>CBR dosyası <strong>.cbr</strong> veya <strong>.rar</strong> uzantılı olmalıdır (RAR arşivi içinde görseller).</p>' +
-        '<p><strong>RAR5 desteklenmez</strong> (Junrar). WinRAR/7-Zip ile RAR4 olarak yeniden paketleyin veya CBZ kullanın.</p>'
+        '<p>RAR5 desteklenir (platform 7z ile CBZ\'ye çevirir). Şifreli arşivler açılamaz.</p>'
       ),
       checkCard('optimizeForEbook', 'e-Kitap optimizasyonu', false, 'Ghostscript ile boyut/okuma optimizasyonu.')
     ]);
