@@ -318,6 +318,60 @@ textarea {
   color: #334155;
 }
 
+.upgrade-upload-box {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.65rem;
+}
+
+.upgrade-file-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.upgrade-file-label input[type="file"] {
+  display: block;
+  margin-top: 0.35rem;
+  font-weight: 400;
+}
+
+.upgrade-progress-wrap {
+  margin: 0.75rem 0 0.35rem;
+}
+
+.upgrade-progress-bar {
+  height: 0.55rem;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.upgrade-progress-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #0f766e;
+  transition: width 0.2s ease;
+}
+
+.upgrade-advanced {
+  margin-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+}
+
+.upgrade-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

@@ -6,7 +6,7 @@ import json
 import socket
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -50,7 +50,16 @@ from ..ops import (
     restore_backup,
     run_maintenance_purge,
 )
-from ..updater_client import UpdaterError, updater_apply, updater_get_job, updater_health, updater_preflight
+from ..updater_client import (
+    UpdaterError,
+    updater_apply,
+    updater_get_job,
+    updater_health,
+    updater_package_chunk,
+    updater_package_complete,
+    updater_package_init,
+    updater_preflight,
+)
 from ..version_info import get_installed_version, get_upgrade_available, save_staging_manifest
 from ..mail import test_smtp_connection
 from ..settings_store import SettingsStore
@@ -828,6 +837,84 @@ def admin_ops_upgrade_job(
     except UpdaterError as exc:
         raise _updater_http_error(exc) from exc
     return {"ok": True, "job": job}
+
+
+class PackageInitBody(BaseModel):
+    filename: str = Field(min_length=1)
+    size: int = Field(gt=0)
+    sha256: str | None = None
+
+
+@router.post("/ops/upgrade/package/init")
+def admin_ops_package_init(
+    body: PackageInitBody,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    try:
+        result = updater_package_init(body.filename, body.size, body.sha256)
+    except UpdaterError as exc:
+        raise _updater_http_error(exc) from exc
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.upgrade.package_init",
+        result.get("uploadId", "package"),
+        {"filename": body.filename, "size": body.size},
+    )
+    return result
+
+
+@router.put("/ops/upgrade/package/{upload_id}/chunk")
+async def admin_ops_package_chunk(
+    upload_id: str,
+    request: Request,
+    index: int = 0,
+    user: AuthUser = Depends(get_current_user),
+):
+    require_admin(user)
+    data = await request.body()
+    if not data:
+        raise HTTPException(status_code=400, detail="Bos chunk")
+    try:
+        return updater_package_chunk(upload_id, index, data)
+    except UpdaterError as exc:
+        raise _updater_http_error(exc) from exc
+
+
+@router.post("/ops/upgrade/package/{upload_id}/complete")
+def admin_ops_package_complete(
+    upload_id: str,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    try:
+        result = updater_package_complete(upload_id)
+    except UpdaterError as exc:
+        raise _updater_http_error(exc) from exc
+
+    manifest = result.get("manifest")
+    if isinstance(manifest, dict) and manifest.get("version"):
+        try:
+            save_staging_manifest(settings, manifest)
+            result["stagingSaved"] = True
+        except ValueError as exc:
+            result["stagingSaved"] = False
+            result["stagingError"] = str(exc)
+
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.upgrade.package_complete",
+        upload_id,
+        {
+            "offlineDir": result.get("offlineDir"),
+            "version": (manifest or {}).get("version") if isinstance(manifest, dict) else None,
+        },
+    )
+    return result
 
 
 @router.get("/ops/backups")

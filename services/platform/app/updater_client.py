@@ -25,11 +25,19 @@ def updater_configured() -> bool:
     return bool(_token())
 
 
-def _request(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+def _request(
+    method: str,
+    path: str,
+    body: dict[str, Any] | None = None,
+    *,
+    timeout: int = 30,
+    raw: bytes | None = None,
+    content_type: str | None = None,
+) -> dict[str, Any]:
     if not updater_configured():
         raise UpdaterError("SECURIPDF_UPDATER_TOKEN tanimli degil")
     url = f"{_base_url()}{path}"
-    data = None
+    data = raw
     headers = {
         "Authorization": f"Bearer {_token()}",
         "Accept": "application/json",
@@ -37,11 +45,13 @@ def _request(method: str, path: str, body: dict[str, Any] | None = None) -> dict
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
+    elif raw is not None:
+        headers["Content-Type"] = content_type or "application/octet-stream"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            text = resp.read().decode("utf-8")
+            return json.loads(text) if text else {}
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         try:
@@ -77,3 +87,23 @@ def updater_apply() -> dict[str, Any]:
 def updater_get_job(job_id: str) -> dict[str, Any]:
     payload = _request("GET", f"/jobs/{job_id}")
     return payload.get("job") or payload
+
+
+def updater_package_init(filename: str, size: int, sha256: str | None = None) -> dict[str, Any]:
+    body: dict[str, Any] = {"filename": filename, "size": size}
+    if sha256:
+        body["sha256"] = sha256
+    return _request("POST", "/package/init", body)
+
+
+def updater_package_chunk(upload_id: str, index: int, data: bytes) -> dict[str, Any]:
+    return _request(
+        "PUT",
+        f"/package/{upload_id}/chunk?index={index}",
+        raw=data,
+        timeout=120,
+    )
+
+
+def updater_package_complete(upload_id: str) -> dict[str, Any]:
+    return _request("POST", f"/package/{upload_id}/complete", {}, timeout=1800)

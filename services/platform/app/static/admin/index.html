@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecuriPDF Admin</title>
-  <link rel="stylesheet" href="/admin/static/admin.css?v=15">
+  <link rel="stylesheet" href="/admin/static/admin.css?v=16">
 </head>
 <body>
   <div id="setupBanner" class="setup-banner hidden" role="status">
@@ -466,8 +466,21 @@
         <div id="opsUpgradeSummary" class="readiness-summary"></div>
         <pre id="opsUpgradeDetail" class="access-urls"></pre>
         <h3 class="subsection">Web güncelleme (host updater)</h3>
-        <p class="hint">Platform container, sunucudaki <code>securipdf-updater</code> agent'ına bağlanır. Yeni offline paketi sunucuda açın; ardından ön kontrol ve uygula adımlarını kullanın.</p>
+        <p class="hint">Offline paketi (<code>.tar.gz</code>) tarayıcıdan yükleyin; sunucuda açılır, staging MANIFEST kaydedilir. Ardından ön kontrol ve uygula.</p>
         <div id="opsUpdaterStatus" class="stat-grid"></div>
+        <div class="upgrade-upload-box">
+          <label class="upgrade-file-label">Offline paket (.tar.gz)
+            <input type="file" id="upgradePackageFile" accept=".tar.gz,.tgz,application/gzip,application/x-gzip,application/x-tar">
+          </label>
+          <div class="row-actions">
+            <button type="button" id="btnUpgradePackageUpload">Paketi yükle ve hazırla</button>
+          </div>
+          <div class="upgrade-progress-wrap" id="upgradeProgressWrap" hidden>
+            <div class="upgrade-progress-bar"><span id="upgradeProgressFill"></span></div>
+            <p class="hint" id="upgradeProgressText">0%</p>
+          </div>
+          <pre id="upgradePackageResult"></pre>
+        </div>
         <ul id="opsPreflightList" class="readiness-list compact"></ul>
         <div class="row-actions">
           <button type="button" id="btnUpgradePreflight" class="secondary">Ön kontrol</button>
@@ -475,17 +488,18 @@
         </div>
         <pre id="opsUpgradeJobLog" class="access-urls"></pre>
         <pre id="opsUpgradeJobResult"></pre>
-        <h3 class="subsection">Staging MANIFEST kaydı</h3>
-        <p class="hint">Yeni offline paketteki <code>MANIFEST.json</code> içeriğini yapıştırın veya sunucuda <code>docker cp</code> ile vault staging yoluna kopyalayın.</p>
-        <label>MANIFEST (JSON)
-          <textarea id="upgradeStagingJson" rows="8" placeholder='{"version":"1.1.1-stirling-2.13.1", ...}'></textarea>
-        </label>
-        <div class="row-actions">
-          <button type="button" id="btnSaveStagingManifest">Staging kaydet</button>
-        </div>
-        <pre id="upgradeStagingResult"></pre>
+        <details class="upgrade-advanced">
+          <summary>Gelişmiş: MANIFEST JSON yapıştır</summary>
+          <p class="hint">Paket yükleme sonrası otomatik kaydedilir. Gerekirse elle yapıştırabilirsiniz.</p>
+          <label>MANIFEST (JSON)
+            <textarea id="upgradeStagingJson" rows="8" placeholder='{"version":"1.1.1-stirling-2.13.1", ...}'></textarea>
+          </label>
+          <div class="row-actions">
+            <button type="button" id="btnSaveStagingManifest">Staging kaydet</button>
+          </div>
+          <pre id="upgradeStagingResult"></pre>
+        </details>
       </section>
-
       <section class="card full">
         <h2>Sistem durumu</h2>
         <p class="hint">Vault servisi, disk kullanimi ve yedek ozeti.</p>
@@ -683,6 +697,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=20"></script>
+  <script src="/admin/static/admin.js?v=21"></script>
 </body>
 </html>

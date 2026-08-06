@@ -2,31 +2,36 @@
 """SecuriPDF host updater agent — localhost HTTP API for offline stack upgrades."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import shutil
 import subprocess
+import tarfile
 import threading
 import uuid
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 CONFIG_PATH = Path(os.environ.get("SECURIPDF_UPDATER_CONFIG", "/etc/securipdf/updater.env"))
 JOBS_DIR = Path(os.environ.get("SECURIPDF_UPDATER_JOBS", "/var/lib/securipdf/jobs"))
+UPLOADS_DIR = Path(os.environ.get("SECURIPDF_UPDATER_UPLOADS", "/var/lib/securipdf/uploads"))
+PACKAGES_DIR = Path(os.environ.get("SECURIPDF_UPDATER_PACKAGES", "/var/lib/securipdf/packages"))
 LISTEN_HOST = os.environ.get("SECURIPDF_UPDATER_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("SECURIPDF_UPDATER_PORT", "8765"))
+CHUNK_SIZE_DEFAULT = 8 * 1024 * 1024  # 8 MiB
 
 _CONFIG: dict[str, str] = {}
 _ACTIVE_LOCK = threading.Lock()
 _ACTIVE_JOB: str | None = None
+_UPLOAD_META: dict[str, dict[str, Any]] = {}
 
 
 def _load_config() -> dict[str, str]:
     global _CONFIG
-    if _CONFIG:
-        return _CONFIG
     data: dict[str, str] = {}
     if CONFIG_PATH.exists():
         for line in CONFIG_PATH.read_text(encoding="utf-8").splitlines():
@@ -40,6 +45,17 @@ def _load_config() -> dict[str, str]:
             data[key] = os.environ[key]
     _CONFIG = data
     return data
+
+
+def _save_config_value(key: str, value: str) -> None:
+    cfg = _load_config()
+    cfg[key] = value
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lines = [f"{k}={v}\n" for k, v in sorted(cfg.items())]
+    CONFIG_PATH.write_text("".join(lines), encoding="utf-8")
+    os.chmod(CONFIG_PATH, 0o600)
+    global _CONFIG
+    _CONFIG = cfg
 
 
 def _offline_dir() -> Path:
@@ -69,7 +85,7 @@ def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: dict[str
     handler.wfile.write(body)
 
 
-def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
+def _read_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     length = int(handler.headers.get("Content-Length", "0") or 0)
     if length <= 0:
         return {}
@@ -133,6 +149,44 @@ def _tail_log(job_id: str, max_lines: int = 200) -> list[str]:
     return lines[-max_lines:]
 
 
+def _safe_filename(name: str) -> str:
+    base = Path(name or "package.tar.gz").name
+    base = base.replace("..", "_").replace("/", "_").replace("\\", "_")
+    if not base.lower().endswith((".tar.gz", ".tgz")):
+        raise ValueError("Yalnizca .tar.gz / .tgz kabul edilir")
+    return base
+
+
+def _find_existing_env() -> Path | None:
+    candidates: list[Path] = []
+    try:
+        candidates.append(_offline_dir() / "docker" / ".env")
+    except RuntimeError:
+        pass
+    # Yaygın kurulum yolları
+    home = Path.home()
+    candidates.extend(
+        [
+            home / "SecuriPDF" / "docker" / ".env",
+            home / "securipdf" / "docker" / ".env",
+            Path("/opt/securipdf/docker/.env"),
+            Path("/opt/SecuriPDF/docker/.env"),
+        ]
+    )
+    # Açık paket dizinleri
+    for root in (home, Path("/opt"), PACKAGES_DIR):
+        if not root.exists():
+            continue
+        for env in root.glob("**/docker/.env"):
+            candidates.append(env)
+            if len(candidates) > 40:
+                break
+    for path in candidates:
+        if path.is_file() and path.stat().st_size > 0:
+            return path
+    return None
+
+
 def collect_status() -> dict[str, Any]:
     cfg = _load_config()
     offline = cfg.get("SECURIPDF_OFFLINE_DIR", "")
@@ -159,6 +213,8 @@ def collect_status() -> dict[str, Any]:
         "upgradeScriptExists": bool(upgrade_script and upgrade_script.is_file()),
         "activeJobId": _ACTIVE_JOB,
         "listen": f"{LISTEN_HOST}:{LISTEN_PORT}",
+        "uploadsDir": str(UPLOADS_DIR),
+        "packagesDir": str(PACKAGES_DIR),
     }
 
 
@@ -173,10 +229,10 @@ def run_preflight() -> dict[str, Any]:
             ok = False
         checks.append({"id": cid, "label": label, "ok": passed, "hint": hint})
 
-    add("offline_dir", "Offline kurulum dizini", bool(status.get("offlineDir")), "installer veya updater.env")
+    add("offline_dir", "Offline kurulum dizini", bool(status.get("offlineDir")), "Web paket yükleme veya updater.env")
     add("docker", "Docker daemon erisimi", status.get("dockerOk") is True, status.get("dockerError") or "")
-    add("images_tar", "Image arsivi (images/securipdf-images.tar)", status.get("imagesTarExists") is True, "Yeni paketi offline dizine acin")
-    add("env", "docker/.env mevcut", status.get("envExists") is True, "")
+    add("images_tar", "Image arsivi (images/securipdf-images.tar)", status.get("imagesTarExists") is True, "Paketi web'den yükleyin")
+    add("env", "docker/.env mevcut", status.get("envExists") is True, "Mevcut kurulum .env kopyalanmalı")
     add("upgrade_script", "upgrade-offline-stack.sh", status.get("upgradeScriptExists") is True, "")
 
     root = _offline_dir() if status.get("offlineDir") else None
@@ -269,36 +325,173 @@ def get_job(job_id: str) -> dict[str, Any] | None:
     return job
 
 
+def package_init(filename: str, size: int, sha256: str | None = None) -> dict[str, Any]:
+    if size <= 0 or size > 20 * 1024 * 1024 * 1024:
+        raise ValueError("Gecersiz paket boyutu")
+    safe = _safe_filename(filename)
+    upload_id = str(uuid.uuid4())
+    dest = UPLOADS_DIR / upload_id
+    dest.mkdir(parents=True, exist_ok=True)
+    meta = {
+        "id": upload_id,
+        "filename": safe,
+        "size": int(size),
+        "sha256": (sha256 or "").strip().lower() or None,
+        "received": 0,
+        "chunks": {},
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "path": str(dest / safe),
+    }
+    (dest / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    _UPLOAD_META[upload_id] = meta
+    return {
+        "ok": True,
+        "uploadId": upload_id,
+        "chunkSize": CHUNK_SIZE_DEFAULT,
+        "filename": safe,
+        "size": int(size),
+    }
+
+
+def package_chunk(upload_id: str, index: int, data: bytes) -> dict[str, Any]:
+    meta = _UPLOAD_META.get(upload_id)
+    if not meta:
+        meta_path = UPLOADS_DIR / upload_id / "meta.json"
+        if not meta_path.is_file():
+            raise ValueError("Upload bulunamadi")
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        _UPLOAD_META[upload_id] = meta
+    if index < 0:
+        raise ValueError("Gecersiz chunk index")
+    part = UPLOADS_DIR / upload_id / f"chunk.{index:06d}"
+    part.write_bytes(data)
+    chunks = meta.setdefault("chunks", {})
+    chunks[str(index)] = len(data)
+    meta["received"] = sum(int(v) for v in chunks.values())
+    (UPLOADS_DIR / upload_id / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return {
+        "ok": True,
+        "uploadId": upload_id,
+        "index": index,
+        "received": meta["received"],
+        "size": meta["size"],
+        "percent": round(100.0 * meta["received"] / max(meta["size"], 1), 2),
+    }
+
+
+def _assemble_and_extract(upload_id: str) -> dict[str, Any]:
+    meta_path = UPLOADS_DIR / upload_id / "meta.json"
+    if not meta_path.is_file():
+        raise ValueError("Upload bulunamadi")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    chunks = meta.get("chunks") or {}
+    if not chunks:
+        raise ValueError("Hic chunk yok")
+    indices = sorted(int(k) for k in chunks.keys())
+    expected = list(range(indices[-1] + 1))
+    if indices != expected:
+        raise ValueError("Eksik chunk var")
+    if int(meta.get("received") or 0) != int(meta.get("size") or -1):
+        raise ValueError(
+            f"Boyut uyusmuyor: received={meta.get('received')} expected={meta.get('size')}"
+        )
+
+    tar_path = UPLOADS_DIR / upload_id / meta["filename"]
+    h = hashlib.sha256()
+    with tar_path.open("wb") as out:
+        for i in indices:
+            part = UPLOADS_DIR / upload_id / f"chunk.{i:06d}"
+            blob = part.read_bytes()
+            h.update(blob)
+            out.write(blob)
+    digest = h.hexdigest()
+    expected_sha = (meta.get("sha256") or "").strip().lower()
+    if expected_sha and expected_sha != digest:
+        raise ValueError("SHA256 dogrulamasi basarisiz")
+
+    PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
+    extract_root = PACKAGES_DIR / upload_id
+    if extract_root.exists():
+        shutil.rmtree(extract_root)
+    extract_root.mkdir(parents=True)
+
+    with tarfile.open(tar_path, "r:gz") as tf:
+        # Python 3.12+ filter; older ignores
+        try:
+            tf.extractall(extract_root, filter=tarfile.data_filter)  # type: ignore[arg-type]
+        except (AttributeError, TypeError):
+            tf.extractall(extract_root)
+
+    # securipdf-*-offline tek üst klasör beklenir
+    children = [p for p in extract_root.iterdir() if p.is_dir()]
+    if len(children) == 1 and (children[0] / "scripts" / "upgrade-offline-stack.sh").is_file():
+        package_dir = children[0]
+    elif (extract_root / "scripts" / "upgrade-offline-stack.sh").is_file():
+        package_dir = extract_root
+    else:
+        raise ValueError("Paket icinde upgrade-offline-stack.sh bulunamadi")
+
+    env_src = _find_existing_env()
+    env_dst = package_dir / "docker" / ".env"
+    env_dst.parent.mkdir(parents=True, exist_ok=True)
+    if env_src and env_src.resolve() != env_dst.resolve():
+        shutil.copy2(env_src, env_dst)
+    elif not env_dst.is_file():
+        raise ValueError(
+            "Mevcut docker/.env bulunamadi — once en az bir kurulum tamamlanmis olmali"
+        )
+
+    _save_config_value("SECURIPDF_OFFLINE_DIR", str(package_dir.resolve()))
+
+    manifest = None
+    manifest_path = package_dir / "MANIFEST.json"
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            manifest = None
+
+    # Chunk temizliği (tar kalsın isteğe bağlı)
+    for part in (UPLOADS_DIR / upload_id).glob("chunk.*"):
+        part.unlink(missing_ok=True)
+
+    return {
+        "ok": True,
+        "uploadId": upload_id,
+        "sha256": digest,
+        "offlineDir": str(package_dir.resolve()),
+        "manifest": manifest,
+        "envCopiedFrom": str(env_src) if env_src else None,
+        "imagesTarExists": (package_dir / "images" / "securipdf-images.tar").is_file(),
+    }
+
+
+def package_complete(upload_id: str) -> dict[str, Any]:
+    return _assemble_and_extract(upload_id)
+
+
 class UpdaterHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         return
 
-    def _route(self) -> None:
+    def _unauthorized(self) -> bool:
         if not _auth_ok(self.headers):
             _json_response(self, 401, {"ok": False, "error": "Yetkisiz"})
-            return
+            return True
+        return False
 
+    def do_GET(self) -> None:
+        if self._unauthorized():
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
-
-        if self.command == "GET" and path == "/health":
+        if path == "/health":
             _json_response(self, 200, {"ok": True})
             return
-        if self.command == "GET" and path == "/status":
+        if path == "/status":
             _json_response(self, 200, collect_status())
             return
-        if self.command == "POST" and path == "/preflight":
-            _json_response(self, 200, run_preflight())
-            return
-        if self.command == "POST" and path == "/apply":
-            try:
-                job = start_apply()
-            except RuntimeError as exc:
-                _json_response(self, 409, {"ok": False, "error": str(exc)})
-                return
-            _json_response(self, 202, {"ok": True, "job": job})
-            return
-        if self.command == "GET" and path.startswith("/jobs/"):
+        if path.startswith("/jobs/"):
             job_id = path.split("/", 2)[-1]
             job = get_job(job_id)
             if not job:
@@ -306,24 +499,85 @@ class UpdaterHandler(BaseHTTPRequestHandler):
                 return
             _json_response(self, 200, {"ok": True, "job": job})
             return
-
         _json_response(self, 404, {"ok": False, "error": "Bulunamadi"})
 
-    def do_GET(self) -> None:
-        self._route()
-
     def do_POST(self) -> None:
+        if self._unauthorized():
+            return
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
         try:
-            _read_json(self)
+            if path == "/preflight":
+                _read_json_body(self)
+                _json_response(self, 200, run_preflight())
+                return
+            if path == "/apply":
+                _read_json_body(self)
+                try:
+                    job = start_apply()
+                except RuntimeError as exc:
+                    _json_response(self, 409, {"ok": False, "error": str(exc)})
+                    return
+                _json_response(self, 202, {"ok": True, "job": job})
+                return
+            if path == "/package/init":
+                body = _read_json_body(self)
+                result = package_init(
+                    str(body.get("filename") or ""),
+                    int(body.get("size") or 0),
+                    str(body.get("sha256") or "") or None,
+                )
+                _json_response(self, 200, result)
+                return
+            if path.startswith("/package/") and path.endswith("/complete"):
+                upload_id = path.split("/")[2]
+                _read_json_body(self)
+                result = package_complete(upload_id)
+                _json_response(self, 200, result)
+                return
         except ValueError as exc:
             _json_response(self, 400, {"ok": False, "error": str(exc)})
             return
-        self._route()
+        except Exception as exc:
+            _json_response(self, 500, {"ok": False, "error": str(exc)})
+            return
+        _json_response(self, 404, {"ok": False, "error": "Bulunamadi"})
+
+    def do_PUT(self) -> None:
+        if self._unauthorized():
+            return
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        qs = parse_qs(parsed.query or "")
+        try:
+            if path.startswith("/package/") and path.endswith("/chunk"):
+                upload_id = path.split("/")[2]
+                index = int((qs.get("index") or ["0"])[0])
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                if length <= 0:
+                    raise ValueError("Bos chunk")
+                if length > CHUNK_SIZE_DEFAULT * 2:
+                    raise ValueError("Chunk cok buyuk")
+                data = self.rfile.read(length)
+                if len(data) != length:
+                    raise ValueError("Chunk eksik okundu")
+                result = package_chunk(upload_id, index, data)
+                _json_response(self, 200, result)
+                return
+        except ValueError as exc:
+            _json_response(self, 400, {"ok": False, "error": str(exc)})
+            return
+        except Exception as exc:
+            _json_response(self, 500, {"ok": False, "error": str(exc)})
+            return
+        _json_response(self, 404, {"ok": False, "error": "Bulunamadi"})
 
 
 def main() -> None:
     _load_config()
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), UpdaterHandler)
     print(f"SecuriPDF updater listening on {LISTEN_HOST}:{LISTEN_PORT}", flush=True)
     server.serve_forever()

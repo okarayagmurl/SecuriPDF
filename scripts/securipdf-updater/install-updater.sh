@@ -35,7 +35,7 @@ if [[ -z "${TOKEN}" ]]; then
   echo "UYARI: SECURIPDF_UPDATER_TOKEN uretildi — docker/.env ile eslestirin." >&2
 fi
 
-mkdir -p /etc/securipdf /var/lib/securipdf/jobs
+mkdir -p /etc/securipdf /var/lib/securipdf/jobs /var/lib/securipdf/uploads /var/lib/securipdf/packages
 install -m 0755 "${SCRIPT_DIR}/updater.py" /usr/local/bin/securipdf-updater.py
 
 cat > /etc/securipdf/updater.env <<EOF

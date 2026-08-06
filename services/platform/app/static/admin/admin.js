@@ -6,7 +6,16 @@
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); } catch { data = text; }
-    if (!res.ok) throw new Error(typeof data === 'string' ? data : (data.detail || res.statusText));
+    if (!res.ok) {
+      var msg = res.statusText;
+      if (typeof data === 'string') msg = data;
+      else if (data && data.detail) {
+        if (typeof data.detail === 'string') msg = data.detail;
+        else if (Array.isArray(data.detail)) msg = data.detail.map(function (d) { return d.msg || JSON.stringify(d); }).join('; ');
+        else msg = JSON.stringify(data.detail);
+      } else if (data && data.error) msg = data.error;
+      throw new Error(msg);
+    }
     return data;
   }
 
@@ -1214,6 +1223,81 @@
   document.getElementById('btnRefreshReadiness').addEventListener('click', loadReadiness);
   document.getElementById('btnRefreshBackups').addEventListener('click', loadBackups);
   document.getElementById('btnRefreshVersion').addEventListener('click', loadVersionUpgrade);
+
+  function setUpgradeProgress(percent, text) {
+    var wrap = document.getElementById('upgradeProgressWrap');
+    var fill = document.getElementById('upgradeProgressFill');
+    var label = document.getElementById('upgradeProgressText');
+    if (wrap) wrap.hidden = false;
+    if (fill) fill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    if (label) label.textContent = text || (Math.round(percent) + '%');
+  }
+
+  async function uploadOfflinePackage(file) {
+    var name = file.name || 'package.tar.gz';
+    if (!/\.(tar\.gz|tgz)$/i.test(name)) {
+      throw new Error('Dosya .tar.gz veya .tgz olmalı');
+    }
+    setUpgradeProgress(0, 'Yükleme başlatılıyor…');
+    var init = await api('/ops/upgrade/package/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: name, size: file.size })
+    });
+    var uploadId = init.uploadId;
+    var chunkSize = init.chunkSize || (8 * 1024 * 1024);
+    var total = file.size;
+    var index = 0;
+    var offset = 0;
+    while (offset < total) {
+      var end = Math.min(offset + chunkSize, total);
+      var blob = file.slice(offset, end);
+      var buf = await blob.arrayBuffer();
+      await api('/ops/upgrade/package/' + encodeURIComponent(uploadId) + '/chunk?index=' + index, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: buf
+      });
+      offset = end;
+      index += 1;
+      var pct = (100 * offset) / total;
+      setUpgradeProgress(pct, 'Yükleniyor: ' + Math.round(pct) + '% (' + index + ' parça)');
+    }
+    setUpgradeProgress(99, 'Paket açılıyor ve hazırlanıyor (birkaç dakika sürebilir)…');
+    var result = await api('/ops/upgrade/package/' + encodeURIComponent(uploadId) + '/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    setUpgradeProgress(100, 'Hazır');
+    if (result.manifest) {
+      try {
+        document.getElementById('upgradeStagingJson').value = JSON.stringify(result.manifest, null, 2);
+      } catch (e) { /* ignore */ }
+    }
+    show('upgradePackageResult', result);
+    return result;
+  }
+
+  document.getElementById('btnUpgradePackageUpload').addEventListener('click', async function () {
+    var input = document.getElementById('upgradePackageFile');
+    var file = input && input.files && input.files[0];
+    if (!file) return alert('Önce offline .tar.gz paketini seçin');
+    if (!window.confirm('~' + Math.round(file.size / (1024 * 1024)) + ' MB paket sunucuya yüklenecek ve açılacak. Devam?')) return;
+    var btn = document.getElementById('btnUpgradePackageUpload');
+    btn.disabled = true;
+    try {
+      await uploadOfflinePackage(file);
+      await loadVersionUpgrade();
+      alert('Paket hazır. Ön kontrol → Güncellemeyi uygula adımlarına geçebilirsiniz.');
+    } catch (e) {
+      alert(e.message);
+      var label = document.getElementById('upgradeProgressText');
+      if (label) label.textContent = 'Hata: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   document.getElementById('btnUpgradePreflight').addEventListener('click', async function () {
     var btn = document.getElementById('btnUpgradePreflight');

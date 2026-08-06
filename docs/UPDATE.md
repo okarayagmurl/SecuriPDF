@@ -34,20 +34,25 @@ Offline paket `MANIFEST.json` alanları: `version`, `min_upgrade_from`, `upgrade
 
 **Admin → Operasyon → Sistem sürümü ve güncelleme → Web güncelleme**
 
-Host üzerinde `securipdf-updater` systemd servisi (127.0.0.1:8765) çalışır. Platform container, `SECURIPDF_UPDATER_URL` ve `SECURIPDF_UPDATER_TOKEN` ile agent'a bağlanır.
+Host üzerinde `securipdf-updater` systemd servisi (`0.0.0.0:8765`) çalışır. Platform container, `SECURIPDF_UPDATER_URL` ve `SECURIPDF_UPDATER_TOKEN` ile agent'a bağlanır.
 
 | API | Açıklama |
 |-----|----------|
 | `GET /api/vault/v1/admin/ops/upgrade/updater` | Updater erişimi ve host durumu |
+| `POST /api/vault/v1/admin/ops/upgrade/package/init` | Tarayıcıdan paket yükleme başlat |
+| `PUT /api/vault/v1/admin/ops/upgrade/package/{id}/chunk` | 8 MiB parçalar halinde yükle |
+| `POST /api/vault/v1/admin/ops/upgrade/package/{id}/complete` | Birleştir, aç, `.env` kopyala, staging kaydet |
 | `POST /api/vault/v1/admin/ops/upgrade/preflight` | Ön kontrol (Docker, image arşivi, OAuth URL) |
 | `POST /api/vault/v1/admin/ops/upgrade/apply` | `upgrade-offline-stack.sh` job başlat |
 | `GET /api/vault/v1/admin/ops/upgrade/jobs/{id}` | Job durumu ve log |
 
-### Kurulum akışı
+### Kurulum akışı (tamamen tarayıcı)
 
-1. Yeni offline paketi sunucuda mevcut dizine açın (`images/securipdf-images.tar` dahil).
-2. CLI ile güncelleyin veya Admin'den **Ön kontrol** → **Güncelleme uygula**.
-3. İlk kurulumda veya token değişiminde updater agent kurun:
+1. Offline `.tar.gz` paketini bilgisayarınıza alın (USB / yerel kopya).
+2. Admin → Operasyon → **Paketi yükle ve hazırla** (parçalı yükleme; ~1–2 GB sürebilir).
+3. Yükleme bitince MANIFEST staging'e yazılır; updater `SECURIPDF_OFFLINE_DIR` güncellenir.
+4. **Ön kontrol** → **Güncellemeyi uygula**.
+5. İlk kurulumda veya token değişiminde updater agent kurun:
 
 ```bash
 cd ~/securipdf-*-offline
@@ -58,12 +63,13 @@ sudo SECURIPDF_OFFLINE_DIR="$PWD" bash scripts/securipdf-updater/install-updater
 
 ### Ön koşullar (web güncelleme hazır)
 
-- Staging manifest kayıtlı (`GET .../upgrade/available` → `webUpgradeAvailable: true`)
-- Updater agent erişilebilir
-- `images/securipdf-images.tar` offline dizinde mevcut
+- Updater agent erişilebilir (`0.0.0.0:8765`, Docker → host)
+- Diskte paket + image arşivi için yeterli alan (~2× paket boyutu önerilir)
+- Staging manifest kayıtlı (`webUpgradeAvailable: true` — paket yükleme sonrası otomatik)
+- `images/securipdf-images.tar` açılmış pakette mevcut
 
 ```bash
-# Manuel CLI (updater olmadan)
+# Manuel CLI (updater / tarayıcı olmadan)
 cd ~/securipdf-*-offline && sudo bash scripts/upgrade-offline-stack.sh
 ```
 
