@@ -46,20 +46,18 @@ Host üzerinde `securipdf-updater` systemd servisi (`0.0.0.0:8765`) çalışır.
 | `POST /api/vault/v1/admin/ops/upgrade/apply` | `upgrade-offline-stack.sh` job başlat |
 | `GET /api/vault/v1/admin/ops/upgrade/jobs/{id}` | Job durumu ve log |
 
-### Kurulum akışı (tamamen tarayıcı)
+### Kurulum akışı (tamamen tarayıcı — offline ilke)
 
-1. Offline `.tar.gz` paketini bilgisayarınıza alın (USB / yerel kopya).
-2. Admin → Operasyon → **Paketi yükle ve hazırla** (parçalı yükleme; ~1–2 GB sürebilir).
-3. Yükleme bitince MANIFEST staging'e yazılır; updater `SECURIPDF_OFFLINE_DIR` güncellenir.
-4. **Ön kontrol** → **Güncellemeyi uygula**.
-5. İlk kurulumda veya token değişiminde updater agent kurun:
+Güncelleme paketi **her zaman offline `.tar.gz`**dır (GitHub/S3 paket kaynağı değil). Entera paketi üretir; müşteri Admin’den yükler.
 
-```bash
-cd ~/securipdf-*-offline
-sudo SECURIPDF_OFFLINE_DIR="$PWD" bash scripts/securipdf-updater/install-updater.sh
-```
+1. Entera: `build-offline-bundle.sh` → `securipdf-<VERSION>-offline.tar.gz` (+ `.sha256`).
+2. Dosyayı müşteriye USB / iç paylaşım ile verin.
+3. Admin → Operasyon → **Paketi yükle ve hazırla**.
+4. Yükleme bitince MANIFEST staging’e yazılır (`version`, `upgrade_from`, `min_upgrade_from` zorunlu alanlar).
+5. **Ön kontrol** → **Güncellemeyi uygula**.
+6. Host `securipdf-updater` agent gerekir (ilk kurulumda `install-updater.sh`).
 
-`upgrade-offline-stack.sh` tamamlandığında updater kurulumu otomatik denenir. `docker/.env` içine `SECURIPDF_UPDATER_TOKEN` ve `SECURIPDF_UPDATER_URL` yazılır; platform container yeniden başlatılmalıdır.
+**Not:** Belge/vault dosya depolama (local / S3 / shared folder) güncelleme paketinden **bağımsızdır**; setup sihirbazında ayrıca yapılandırılır.
 
 ### Ön koşullar (web güncelleme hazır)
 
