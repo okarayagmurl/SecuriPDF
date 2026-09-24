@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecuriPDF Admin</title>
-  <link rel="stylesheet" href="/admin/static/admin.css?v=16">
+  <link rel="stylesheet" href="/admin/static/admin.css?v=17">
 </head>
 <body>
   <div id="setupBanner" class="setup-banner hidden" role="status">
@@ -466,7 +466,7 @@
         <div id="opsUpgradeSummary" class="readiness-summary"></div>
         <pre id="opsUpgradeDetail" class="access-urls"></pre>
         <h3 class="subsection">Web güncelleme (host updater)</h3>
-        <p class="hint">Offline paketi (<code>.tar.gz</code>) tarayıcıdan yükleyin; sunucuda açılır, staging MANIFEST kaydedilir. Ardından ön kontrol ve uygula.</p>
+        <p class="hint">Güncellemeler <strong>offline paket</strong> ile yapılır (GitHub/S3 değil). Entera’nın verdiği <code>securipdf-*-offline.tar.gz</code> dosyasını yükleyin; sunucuda açılır, sürüm (MANIFEST) kaydedilir. Ardından ön kontrol → uygula.</p>
         <div id="opsUpdaterStatus" class="stat-grid"></div>
         <div class="upgrade-upload-box">
           <label class="upgrade-file-label">Offline paket (.tar.gz)
@@ -697,6 +697,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=21"></script>
+  <script src="/admin/static/admin.js?v=22"></script>
 </body>
 </html>

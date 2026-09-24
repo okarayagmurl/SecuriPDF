@@ -37,9 +37,19 @@ if [[ -f "${DOCKER_DIR}/.env" ]]; then
   load_dotenv "${DOCKER_DIR}/.env"
 fi
 
-IMAGE_TAG="${IMAGE_TAG:-1.1.0-stirling-2.13.1}"
+VERSION_FILE_TAG=""
+if [[ -f "${ROOT_DIR}/VERSION" ]]; then
+  VERSION_FILE_TAG="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION")"
+fi
+IMAGE_TAG="${IMAGE_TAG:-${VERSION_FILE_TAG:-1.1.0-stirling-2.13.1}}"
+STIRLING_VERSION="${STIRLING_VERSION:-$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirling-//p')}"
 STIRLING_VERSION="${STIRLING_VERSION:-2.13.1}"
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
+# Web/CLI yükseltme uyumu: bir önceki ana sürüm (override: PREV_VERSION=...)
+PREV_VERSION="${PREV_VERSION:-1.1.0-stirling-2.13.1}"
+if [[ "${PREV_VERSION}" == "${IMAGE_TAG}" ]]; then
+  PREV_VERSION=""
+fi
 VERSION_DIR="securipdf-${IMAGE_TAG}-offline"
 STAGING="${OUTPUT_ROOT}/${VERSION_DIR}"
 IMAGES_TAR="${STAGING}/images/securipdf-images.tar"
@@ -177,14 +187,22 @@ if [[ "${PWSH_COUNT}" -eq 0 ]]; then
   echo "UYARI: offline/debs-pwsh bos — musteride Keycloak bootstrap icin pwsh gerekir."
 fi
 
+if [[ -n "${PREV_VERSION}" ]]; then
+  UPGRADE_FROM_JSON="[\"${PREV_VERSION}\"]"
+  MIN_UPGRADE_FROM="${PREV_VERSION}"
+else
+  UPGRADE_FROM_JSON="[]"
+  MIN_UPGRADE_FROM=""
+fi
+
 cat > "${STAGING}/MANIFEST.json" <<EOF
 {
   "product": "SecuriPDF",
   "version": "${IMAGE_TAG}",
   "stirling_version": "${STIRLING_VERSION}",
   "built_at": "${SECURIPDF_BUILT_AT}",
-  "min_upgrade_from": "${IMAGE_TAG}",
-  "upgrade_from": ["${IMAGE_TAG}"],
+  "min_upgrade_from": "${MIN_UPGRADE_FROM}",
+  "upgrade_from": ${UPGRADE_FROM_JSON},
   "platform_ui": ${PLATFORM_UI_VER},
   "oauth2_proxy": "v7.8.2",
   "keycloak": "26.0",
