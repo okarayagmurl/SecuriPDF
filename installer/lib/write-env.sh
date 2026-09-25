@@ -37,8 +37,8 @@ write_env() {
 # LDAP: Admin panel > Active Directory > Kaydet > Keycloak'a uygula
 
 ENTERA_VERSION=1.1.0
-STIRLING_VERSION=2.13.1
-IMAGE_TAG=1.1.0-stirling-2.13.1
+STIRLING_VERSION=2.14.3
+IMAGE_TAG=1.2.0-stirling-2.14.3
 STIRLING_IMAGE=docker.stirlingpdf.com/stirlingtools/stirling-pdf
 
 HTTP_PORT=${http_port}

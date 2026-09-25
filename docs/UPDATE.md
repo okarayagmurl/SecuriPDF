@@ -6,7 +6,7 @@
 entera-pdf:<ENTERA_VERSION>-stirling-<STIRLING_VERSION>
 ```
 
-Örnek: `entera-pdf:1.1.0-stirling-2.13.1`
+Örnek: `entera-pdf:1.2.0-stirling-2.14.3`
 
 ## Admin — Sürüm ve staging (Faz 1)
 

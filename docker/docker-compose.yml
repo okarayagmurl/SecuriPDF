@@ -6,9 +6,9 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        STIRLING_VERSION: ${STIRLING_VERSION:-2.13.1}
+        STIRLING_VERSION: ${STIRLING_VERSION:-2.14.3}
         STIRLING_IMAGE: ${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}
-    image: entera-pdf:${IMAGE_TAG:-1.1.0-stirling-2.13.1}
+    image: entera-pdf:${IMAGE_TAG:-1.2.0-stirling-2.14.3}
     container_name: entera-pdf
     restart: unless-stopped
     expose:

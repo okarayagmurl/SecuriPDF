@@ -41,12 +41,12 @@ VERSION_FILE_TAG=""
 if [[ -f "${ROOT_DIR}/VERSION" ]]; then
   VERSION_FILE_TAG="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION")"
 fi
-IMAGE_TAG="${IMAGE_TAG:-${VERSION_FILE_TAG:-1.1.0-stirling-2.13.1}}"
+IMAGE_TAG="${IMAGE_TAG:-${VERSION_FILE_TAG:-1.2.0-stirling-2.14.3}}"
 STIRLING_VERSION="${STIRLING_VERSION:-$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirling-//p')}"
-STIRLING_VERSION="${STIRLING_VERSION:-2.13.1}"
+STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
 # Web/CLI yükseltme uyumu: bir önceki ana sürüm (override: PREV_VERSION=...)
-PREV_VERSION="${PREV_VERSION:-1.1.0-stirling-2.13.1}"
+PREV_VERSION="${PREV_VERSION:-1.1.1-stirling-2.13.1}"
 if [[ "${PREV_VERSION}" == "${IMAGE_TAG}" ]]; then
   PREV_VERSION=""
 fi

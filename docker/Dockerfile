@@ -2,7 +2,7 @@
 # Entera PDF - İnce sarmalayıcı katman
 # Upstream Stirling-PDF image'ını genişletir; core kod değiştirilmez.
 
-ARG STIRLING_VERSION=2.13.1
+ARG STIRLING_VERSION=2.14.3
 ARG STIRLING_IMAGE=docker.stirlingpdf.com/stirlingtools/stirling-pdf
 
 FROM ${STIRLING_IMAGE}:${STIRLING_VERSION}-fat AS base

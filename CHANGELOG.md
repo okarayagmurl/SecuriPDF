@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0-stirling-2.14.3 (2026-09-25)
+
+- Upstream Stirling-PDF **2.14.3** (2.13.1 → 2.14.3; bug fix / güvenlik / imza iyileştirmeleri)
+- Offline paket ve web güncelleme bu sürüme hizalandı
+
 ## 1.1.1-stirling-2.13.1 (2026-09-25)
 
 - Web üzerinden offline paket yükleme ve host updater ile güncelleme

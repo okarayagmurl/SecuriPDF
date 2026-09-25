@@ -129,10 +129,10 @@ services:
       context: ../services/platform
       dockerfile: Dockerfile
       args:
-        SECURIPDF_VERSION: ${IMAGE_TAG:-1.1.0-stirling-2.13.1}
+        SECURIPDF_VERSION: ${IMAGE_TAG:-1.2.0-stirling-2.14.3}
         SECURIPDF_BUILT_AT: ${SECURIPDF_BUILT_AT:-}
-        STIRLING_VERSION: ${STIRLING_VERSION:-2.13.1}
-    image: securipdf-platform:${IMAGE_TAG:-1.1.0-stirling-2.13.1}
+        STIRLING_VERSION: ${STIRLING_VERSION:-2.14.3}
+    image: securipdf-platform:${IMAGE_TAG:-1.2.0-stirling-2.14.3}
     container_name: securipdf-platform
     restart: unless-stopped
     expose:
@@ -175,8 +175,8 @@ services:
       HTTP_PORT: ${HTTP_PORT:-8080}
       HTTPS_PORT: ${HTTPS_PORT:-443}
       KEYCLOAK_HTTP_PORT: ${KEYCLOAK_HTTP_PORT:-8090}
-      IMAGE_TAG: ${IMAGE_TAG:-1.1.0-stirling-2.13.1}
-      STIRLING_VERSION: ${STIRLING_VERSION:-2.13.1}
+      IMAGE_TAG: ${IMAGE_TAG:-1.2.0-stirling-2.14.3}
+      STIRLING_VERSION: ${STIRLING_VERSION:-2.14.3}
       OAUTH2_PROXY_IMAGE: ${OAUTH2_PROXY_IMAGE:-quay.io/oauth2-proxy/oauth2-proxy:v7.8.2}
       KEYCLOAK_IMAGE: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.0}
       SECURIPDF_UPDATER_URL: ${SECURIPDF_UPDATER_URL:-http://host.docker.internal:8765}
