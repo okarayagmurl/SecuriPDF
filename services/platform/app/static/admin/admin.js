@@ -1499,6 +1499,20 @@
     const ui = vault.ui || {};
     document.getElementById('vaultDefaultList').value = ui.default_document_list || 'all';
 
+    var storage = data.storage || {};
+    var runtime = storage.runtime || {};
+    var sum = document.getElementById('storageBackendSummary');
+    var note = document.getElementById('storageBackendNote');
+    if (sum) {
+      var backend = storage.backend || 'local';
+      var configured = !!storage.configured;
+      sum.className = 'readiness-summary ' + (configured ? 'ready-ok' : 'ready-fail');
+      sum.textContent = configured
+        ? ('Depolama: ' + backend + (runtime.documentsRoot ? ' → ' + runtime.documentsRoot : ''))
+        : 'Depolama henüz yapılandırılmadı (/setup)';
+    }
+    if (note) note.textContent = runtime.note || '';
+
     const lic = data.license || {};
     fillLicenseFields(lic);
 

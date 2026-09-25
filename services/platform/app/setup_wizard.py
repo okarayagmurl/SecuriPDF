@@ -82,6 +82,9 @@ def get_storage_config(settings: Settings) -> dict[str, Any]:
     override = store._override()  # noqa: SLF001
     storage = override.get("storage") or {}
     backend = str(storage.get("backend") or "").strip().lower()
+    from .storage_paths import storage_runtime_info
+
+    runtime = storage_runtime_info(settings)
     return {
         "backend": backend or None,
         "configured": bool(storage.get("configured")) and backend in STORAGE_BACKENDS,
@@ -99,6 +102,7 @@ def get_storage_config(settings: Settings) -> dict[str, Any]:
             "username": (storage.get("shared") or {}).get("username", ""),
             "has_password": bool((storage.get("shared") or {}).get("password_enc")),
         },
+        "runtime": runtime,
     }
 
 
@@ -194,6 +198,10 @@ def save_storage_config(settings: Settings, payload: dict[str, Any], actor: str 
             except OSError as exc:
                 raise HTTPException(status_code=400, detail=f"Shared path yazilabilir degil: {exc}") from exc
         storage["shared"] = shared
+        # Belge blob'lari paylasilan kok altinda
+        vault = data.setdefault("vault", {})
+        vault["documents_path"] = str(Path(path) / "documents")
+        vault["archive_path"] = str(Path(path) / "archive")
 
     data["storage"] = storage
     store._save_override(data)  # noqa: SLF001

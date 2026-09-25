@@ -110,6 +110,8 @@
 
       <section class="card">
         <h2>Vault varsayılanları</h2>
+        <div id="storageBackendSummary" class="readiness-summary"></div>
+        <p id="storageBackendNote" class="hint"></p>
         <label>Varsayılan kota (bayt) <input id="vaultDefaultQuota" type="number"></label>
         <label>Maks. dosya (bayt) <input id="vaultMaxFile" type="number"></label>
         <label>Soft-delete (gün) <input id="vaultSoftDelete" type="number"></label>
@@ -697,6 +699,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=23"></script>
+  <script src="/admin/static/admin.js?v=24"></script>
 </body>
 </html>

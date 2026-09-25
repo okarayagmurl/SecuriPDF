@@ -59,6 +59,9 @@ Güncelleme paketi **her zaman offline `.tar.gz`**dır (GitHub/S3 paket kaynağ�
 
 **Not:** Belge/vault dosya depolama (local / S3 / shared folder) güncelleme paketinden **bağımsızdır**. İlk açılışta `/setup` sihirbazı (depolama + varsayılan yönetici) tamamlanana kadar Keycloak girişi kapalıdır (`OAUTH2_SKIP_AUTH_REGEX=^/.*$`); bitince updater auth kapısını secure moda alır.
 
+- **local / shared:** belge blob’ları seçilen yolda tutulur.
+- **S3 / MinIO:** bağlantı bilgisi kaydedilir; nesne depolama adapter’ı sonraki sürümde — şimdilik blob’lar yerel vault’ta kalır.
+
 ### Ön koşullar (web güncelleme hazır)
 
 - Updater agent erişilebilir (`0.0.0.0:8765`, Docker → host)

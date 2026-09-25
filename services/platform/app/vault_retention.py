@@ -10,14 +10,11 @@ from .audit import write_audit
 from .config import Settings
 from .database import DocumentRecord, utcnow
 from .settings_store import SettingsStore
+from .storage_paths import resolve_user_dir
 
 
 def _user_dir(settings: Settings, kind: str, user_id: str) -> Path:
-    roots = SettingsStore(settings).merged_vault().get("storage_roots", {})
-    root_name = roots.get(kind, kind)
-    path = settings.data_path / root_name / user_id
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return resolve_user_dir(settings, kind, user_id)
 
 
 def documents_ttl(settings: Settings) -> timedelta:

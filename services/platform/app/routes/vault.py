@@ -98,11 +98,9 @@ def _check_quota(db: Session, settings: Settings, user_id: str, add_bytes: int) 
 
 
 def _user_dir(settings: Settings, kind: str, user_id: str) -> Path:
-    roots = _vault_roots(settings)
-    root_name = roots.get(kind, kind)
-    path = settings.data_path / root_name / user_id
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    from ..storage_paths import resolve_user_dir
+
+    return resolve_user_dir(settings, kind, user_id)
 
 
 def _vault_roots(settings: Settings) -> dict:

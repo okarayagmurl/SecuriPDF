@@ -334,9 +334,12 @@ class SettingsStore:
         smtp = self.merged_smtp()
         smtp_public = {k: v for k, v in smtp.items() if k not in ("password", "password_encrypted")}
         smtp_public["password_set"] = self.has_smtp_password()
+        from .setup_wizard import get_storage_config
+
         return {
             "ldap": ldap_public,
             "vault": self.merged_vault(),
+            "storage": get_storage_config(self.settings),
             "license": self.merged_license(),
             "compliance": self.merged_compliance(),
             "branding": self.merged_branding(),
