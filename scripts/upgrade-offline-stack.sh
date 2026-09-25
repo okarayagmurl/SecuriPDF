@@ -42,12 +42,50 @@ HOST="${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-}}"
 }
 
 echo ""
-echo "[1/3] Image'lar yukleniyor..."
+echo "[1/4] Image'lar yukleniyor..."
 docker load -i "${IMAGES_TAR}"
 
+# MANIFEST.version -> .env IMAGE_TAG (aksi halde eski tag ile container ayakta kalir)
+NEW_TAG=""
+NEW_STIRLING=""
+if [[ -f "${ROOT_DIR}/MANIFEST.json" ]]; then
+  NEW_TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
+  NEW_STIRLING="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("stirling_version",""))' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
+fi
+if [[ -n "${NEW_TAG}" ]]; then
+  set_env_key() {
+    local key="$1" val="$2" tmp="${ENV_FILE}.tmp.$$"
+    if grep -q "^${key}=" "${ENV_FILE}"; then
+      grep -v "^${key}=" "${ENV_FILE}" > "${tmp}"
+      printf '%s=%s\n' "${key}" "${val}" >> "${tmp}"
+      mv "${tmp}" "${ENV_FILE}"
+    else
+      printf '%s=%s\n' "${key}" "${val}" >> "${ENV_FILE}"
+    fi
+  }
+  echo "[+] IMAGE_TAG -> ${NEW_TAG}"
+  set_env_key IMAGE_TAG "${NEW_TAG}"
+  if [[ -n "${NEW_STIRLING}" ]]; then
+    set_env_key STIRLING_VERSION "${NEW_STIRLING}"
+  fi
+  # shellcheck disable=SC1091
+  load_dotenv "${ENV_FILE}"
+fi
+
 echo ""
-echo "[2/3] Erisim URL + auth stack senkronu (${HOST})..."
+echo "[2/4] Erisim URL + auth stack senkronu (${HOST})..."
 bash "${DOCKER_DIR}/fix-access-url.sh" "${HOST}"
+
+# Yeni image tag ile servisleri yenile (fix-access-url zaten up yapar; tag degistiyse zorla recreate)
+if [[ -n "${NEW_TAG}" ]]; then
+  echo "[+] Container'lar yeni tag ile yenileniyor (${NEW_TAG})..."
+  (
+    cd "${DOCKER_DIR}"
+    COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.auth.yml)
+    [[ -f docker-compose.offline.yml ]] && COMPOSE+=(-f docker-compose.offline.yml)
+    "${COMPOSE[@]}" up -d --no-build --force-recreate entera-pdf securipdf-platform
+  )
+fi
 
 echo ""
 echo "[3/4] Dogrulama..."
