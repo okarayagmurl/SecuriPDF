@@ -473,6 +473,76 @@ def package_complete(upload_id: str) -> dict[str, Any]:
     return _assemble_and_extract(upload_id)
 
 
+# Fresh install: tum yollar acik (Keycloak yok). Secure: yalnizca setup + lisans.
+SKIP_AUTH_SETUP = r"^/.*$"
+SKIP_AUTH_SECURE = r"^/(api/license/v1/status|health|setup(/.*)?|api/setup(/.*)?)$"
+
+
+def _set_env_file_value(env_path: Path, key: str, value: str) -> None:
+    lines: list[str] = []
+    found = False
+    if env_path.is_file():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if line.strip().startswith(f"{key}=") or line.strip().startswith(f"export {key}="):
+                lines.append(f"{key}={value}")
+                found = True
+            else:
+                lines.append(line)
+    if not found:
+        lines.append(f"{key}={value}")
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def auth_gate_reload(mode: str | None = None) -> dict[str, Any]:
+    """oauth2-proxy SKIP_AUTH_REGEX guncelle ve container'i recreate et."""
+    mode_norm = (mode or "secure").strip().lower()
+    if mode_norm in ("setup", "open", "first-run"):
+        regex = SKIP_AUTH_SETUP
+        mode_norm = "setup"
+    else:
+        regex = SKIP_AUTH_SECURE
+        mode_norm = "secure"
+
+    env_path = _find_existing_env()
+    if not env_path:
+        raise RuntimeError("docker/.env bulunamadi — auth gate guncellenemedi")
+
+    _set_env_file_value(env_path, "OAUTH2_SKIP_AUTH_REGEX", regex)
+    docker_dir = env_path.parent
+    code, out = _run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "docker-compose.yml",
+            "-f",
+            "docker-compose.auth.yml",
+            "up",
+            "-d",
+            "--force-recreate",
+            "--no-deps",
+            "oauth2-proxy",
+        ],
+        cwd=docker_dir,
+    )
+    if code != 0:
+        return {
+            "ok": False,
+            "mode": mode_norm,
+            "regex": regex,
+            "env": str(env_path),
+            "error": out.strip()[:500] or f"exit {code}",
+        }
+    return {
+        "ok": True,
+        "mode": mode_norm,
+        "regex": regex,
+        "env": str(env_path),
+        "recreated": "oauth2-proxy",
+    }
+
+
 class UpdaterHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         return
@@ -522,6 +592,16 @@ class UpdaterHandler(BaseHTTPRequestHandler):
                     _json_response(self, 409, {"ok": False, "error": str(exc)})
                     return
                 _json_response(self, 202, {"ok": True, "job": job})
+                return
+            if path == "/auth-gate/reload":
+                body = _read_json_body(self) or {}
+                try:
+                    result = auth_gate_reload(str(body.get("mode") or "secure"))
+                except RuntimeError as exc:
+                    _json_response(self, 500, {"ok": False, "error": str(exc)})
+                    return
+                code = 200 if result.get("ok") else 500
+                _json_response(self, code, result)
                 return
             if path == "/package/init":
                 body = _read_json_body(self)

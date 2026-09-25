@@ -57,7 +57,7 @@ Güncelleme paketi **her zaman offline `.tar.gz`**dır (GitHub/S3 paket kaynağ�
 5. **Ön kontrol** → **Güncellemeyi uygula**.
 6. Host `securipdf-updater` agent gerekir (ilk kurulumda `install-updater.sh`).
 
-**Not:** Belge/vault dosya depolama (local / S3 / shared folder) güncelleme paketinden **bağımsızdır**; setup sihirbazında ayrıca yapılandırılır.
+**Not:** Belge/vault dosya depolama (local / S3 / shared folder) güncelleme paketinden **bağımsızdır**. İlk açılışta `/setup` sihirbazı (depolama + varsayılan yönetici) tamamlanana kadar Keycloak girişi kapalıdır (`OAUTH2_SKIP_AUTH_REGEX=^/.*$`); bitince updater auth kapısını secure moda alır.
 
 ### Ön koşullar (web güncelleme hazır)
 

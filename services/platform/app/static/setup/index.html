@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecuriPDF — İlk Kurulum</title>
+  <link rel="stylesheet" href="/setup/static/setup.css?v=1">
+</head>
+<body>
+  <div class="setup-shell">
+    <header class="setup-hero">
+      <p class="brand">SecuriPDF</p>
+      <h1>İlk kurulum</h1>
+      <p class="lede">Depolama ve varsayılan yönetici hesabını ayarlayın. Bu adımlar bitene kadar Keycloak girişi açılmaz.</p>
+    </header>
+
+    <div id="doneBanner" class="banner ok hidden">
+      Kurulum tamamlandı. <a id="doneLink" href="/oauth2/start?rd=/">Giriş yapın</a>
+    </div>
+    <div id="errorBanner" class="banner err hidden"></div>
+
+    <ol class="steps" id="stepList">
+      <li data-step="storage">1. Depolama</li>
+      <li data-step="user">2. Varsayılan kullanıcı</li>
+      <li data-step="finish">3. Bitir</li>
+    </ol>
+
+    <section id="panel-storage" class="panel">
+      <h2>Belge depolama</h2>
+      <p class="hint">PDF arşivi ve vault dosyaları için konum. Güncelleme paketinden bağımsızdır.</p>
+      <label>Backend
+        <select id="storageBackend">
+          <option value="local">Yerel disk (önerilen)</option>
+          <option value="s3">S3 / MinIO</option>
+          <option value="shared">Paylaşılan klasör (SMB mount yolu)</option>
+        </select>
+      </label>
+
+      <div id="storage-local" class="backend-fields">
+        <label>Veri yolu
+          <input id="localDataPath" type="text" value="/vault-data" autocomplete="off">
+        </label>
+      </div>
+
+      <div id="storage-s3" class="backend-fields hidden">
+        <label>Endpoint <input id="s3Endpoint" type="text" placeholder="https://s3.example.com" autocomplete="off"></label>
+        <label>Bucket <input id="s3Bucket" type="text" autocomplete="off"></label>
+        <label>Region <input id="s3Region" type="text" placeholder="us-east-1" autocomplete="off"></label>
+        <label>Prefix <input id="s3Prefix" type="text" placeholder="securipdf/" autocomplete="off"></label>
+        <label>Access key <input id="s3AccessKey" type="text" autocomplete="off"></label>
+        <label>Secret key <input id="s3SecretKey" type="password" autocomplete="new-password"></label>
+      </div>
+
+      <div id="storage-shared" class="backend-fields hidden">
+        <label>Mount yolu
+          <input id="sharedPath" type="text" placeholder="/mnt/securipdf-share" autocomplete="off">
+        </label>
+        <label>Kullanıcı (opsiyonel) <input id="sharedUser" type="text" autocomplete="off"></label>
+        <label>Parola (opsiyonel) <input id="sharedPass" type="password" autocomplete="new-password"></label>
+      </div>
+
+      <button type="button" id="btnSaveStorage" class="primary">Depolamayı kaydet</button>
+      <p id="storageStatus" class="status"></p>
+    </section>
+
+    <section id="panel-user" class="panel">
+      <h2>Varsayılan yönetici</h2>
+      <p class="hint">Keycloak’ta <code>pdf-admin</code> rolüyle yerel hesap oluşturulur (AD olmadan ilk giriş).</p>
+      <label>Kullanıcı adı <input id="userName" type="text" value="admin" autocomplete="username"></label>
+      <label>E-posta <input id="userEmail" type="email" placeholder="admin@local" autocomplete="email"></label>
+      <label>Parola <input id="userPass" type="password" autocomplete="new-password"></label>
+      <label>Parola (tekrar) <input id="userPass2" type="password" autocomplete="new-password"></label>
+      <button type="button" id="btnCreateUser" class="primary">Kullanıcıyı oluştur</button>
+      <p id="userStatus" class="status"></p>
+    </section>
+
+    <section id="panel-finish" class="panel">
+      <h2>Kurulumu tamamla</h2>
+      <p class="hint">Depolama ve varsayılan kullanıcı kaydedildikten sonra giriş kapısı açılır.</p>
+      <ul id="finishChecklist" class="checklist"></ul>
+      <button type="button" id="btnComplete" class="primary" disabled>Kurulumu bitir</button>
+      <p id="finishStatus" class="status"></p>
+    </section>
+  </div>
+  <script src="/setup/static/setup.js?v=1"></script>
+</body>
+</html>

@@ -158,6 +158,8 @@ if [[ "${DO_DEPLOY}" -eq 1 ]]; then
   APP_HOST="${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-localhost}}"
   echo ""
   echo "SecuriPDF (offline): http://${APP_HOST}:${HTTP_PORT}"
+  echo "Ilk kurulum:         http://${APP_HOST}:${HTTP_PORT}/setup"
   echo "Admin:               http://${APP_HOST}:${HTTP_PORT}/admin"
   echo "Keycloak:            http://${APP_HOST}:${KEYCLOAK_HTTP_PORT:-8090}"
+  echo "Not: Setup bitene kadar Keycloak girisi kapali olmali (OAUTH2_SKIP_AUTH_REGEX=^/.*$)."
 fi

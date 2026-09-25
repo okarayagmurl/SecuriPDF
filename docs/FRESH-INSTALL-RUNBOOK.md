@@ -154,15 +154,16 @@ curl -sf http://127.0.0.1:8080/nginx-health
 curl -sf http://127.0.0.1:8080/api/license/v1/status
 ```
 
-Tarayıcı: `http://SUNUCU_IP:8080` · Admin: `/admin` · Keycloak: `:8090`
+Tarayıcı: `http://SUNUCU_IP:8080` → ilk açılışta **`/setup`** (depolama + varsayılan yönetici). Bitince Keycloak girişi açılır. Admin: `/admin` · Keycloak: `:8090`
 
-### 3.7 İlk admin checklist
+### 3.7 İlk kurulum sihirbazı + admin checklist
 
-1. **Yapılandırma** → LDAP kaydet → Keycloak'a uygula
-2. **Lisans & Araçlar** → paket + erişim profilleri
-3. **Kullanıcılar** → profil ata, AD sync
-4. **Operasyon** → FQDN, ilk yedek
-5. **Genel bakış** → kurulum / prod hazırlık yeşil
+1. **`/setup`** → depolama (local / S3 / share) + varsayılan `pdf-admin` kullanıcı
+2. Giriş → **Yapılandırma** → LDAP kaydet → Keycloak'a uygula
+3. **Lisans & Araçlar** → paket + erişim profilleri
+4. **Kullanıcılar** → profil ata, AD sync
+5. **Operasyon** → FQDN, ilk yedek
+6. **Genel bakış** → kurulum / prod hazırlık yeşil
 
 ---
 

@@ -1,0 +1,196 @@
+:root {
+  --bg: #eef2f7;
+  --card: #fff;
+  --primary: #1d4ed8;
+  --primary-dark: #1e40af;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --ok: #166534;
+  --ok-bg: #dcfce7;
+  --err: #991b1b;
+  --err-bg: #fee2e2;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 500px at 10% -10%, #dbeafe 0%, transparent 55%),
+    radial-gradient(900px 400px at 100% 0%, #ccfbf1 0%, transparent 50%),
+    var(--bg);
+}
+
+.setup-shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 3rem;
+}
+
+.setup-hero {
+  margin-bottom: 1.5rem;
+}
+
+.brand {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--primary-dark);
+}
+
+.setup-hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+}
+
+.lede {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.steps {
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.25rem;
+  flex-wrap: wrap;
+}
+
+.steps li {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.steps li.done {
+  background: var(--ok-bg);
+  border-color: #86efac;
+  color: var(--ok);
+}
+
+.steps li.current {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: var(--primary-dark);
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.panel h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.hint {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.75rem;
+}
+
+input, select {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.45rem;
+  font: inherit;
+  background: #fff;
+}
+
+input:focus, select:focus {
+  outline: 2px solid #bfdbfe;
+  border-color: #60a5fa;
+}
+
+.backend-fields { margin-bottom: 0.5rem; }
+.hidden { display: none !important; }
+
+.primary {
+  appearance: none;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 650;
+  font-size: 0.9rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.primary:hover { background: var(--primary-dark); }
+.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 1.25rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.status.ok { color: var(--ok); }
+.status.err { color: var(--err); }
+
+.banner {
+  padding: 0.85rem 1rem;
+  border-radius: 0.55rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.banner.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.banner.err {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.checklist {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.checklist li.ok { color: var(--ok); }
+.checklist li.bad { color: var(--err); }
+
+code {
+  font-size: 0.85em;
+  background: #f1f5f9;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+}
