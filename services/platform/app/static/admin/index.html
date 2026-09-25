@@ -109,9 +109,39 @@
       </section>
 
       <section class="card">
-        <h2>Vault varsayılanları</h2>
+        <h2>Belge depolama (backend)</h2>
+        <p class="hint">İlk kurulumda <code>/setup</code> ile seçilir; sonrasında buradan değiştirilebilir. Shared = sunucuda mount edilmiş yol. S3 bağlantısı kaydedilir; blob şimdilik yerel kalır.</p>
         <div id="storageBackendSummary" class="readiness-summary"></div>
         <p id="storageBackendNote" class="hint"></p>
+        <label>Backend
+          <select id="storageBackend">
+            <option value="local">Yerel disk</option>
+            <option value="shared">Paylaşılan klasör (SMB mount yolu)</option>
+            <option value="s3">S3 / MinIO</option>
+          </select>
+        </label>
+        <div id="admin-storage-local" class="backend-fields">
+          <label>Veri yolu <input id="storageLocalDataPath" type="text" value="/vault-data" autocomplete="off"></label>
+        </div>
+        <div id="admin-storage-shared" class="backend-fields" hidden>
+          <label>Mount yolu <input id="storageSharedPath" type="text" placeholder="/mnt/securipdf-share" autocomplete="off"></label>
+          <label>Kullanıcı (opsiyonel) <input id="storageSharedUser" type="text" autocomplete="off"></label>
+          <label>Parola (boş = değiştirme) <input id="storageSharedPass" type="password" autocomplete="new-password"></label>
+        </div>
+        <div id="admin-storage-s3" class="backend-fields" hidden>
+          <label>Endpoint <input id="storageS3Endpoint" type="text" placeholder="https://s3.example.com" autocomplete="off"></label>
+          <label>Bucket <input id="storageS3Bucket" type="text" autocomplete="off"></label>
+          <label>Region <input id="storageS3Region" type="text" placeholder="us-east-1" autocomplete="off"></label>
+          <label>Prefix <input id="storageS3Prefix" type="text" placeholder="securipdf/" autocomplete="off"></label>
+          <label>Access key <input id="storageS3AccessKey" type="text" autocomplete="off"></label>
+          <label>Secret key (boş = değiştirme) <input id="storageS3SecretKey" type="password" autocomplete="new-password"></label>
+        </div>
+        <button type="button" id="btnSaveStorage">Depolama kaydet</button>
+        <pre id="storageResult"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Vault varsayılanları</h2>
         <label>Varsayılan kota (bayt) <input id="vaultDefaultQuota" type="number"></label>
         <label>Maks. dosya (bayt) <input id="vaultMaxFile" type="number"></label>
         <label>Soft-delete (gün) <input id="vaultSoftDelete" type="number"></label>
@@ -699,6 +729,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=25"></script>
+  <script src="/admin/static/admin.js?v=26"></script>
 </body>
 </html>

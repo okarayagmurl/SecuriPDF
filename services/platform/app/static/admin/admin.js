@@ -1514,6 +1514,30 @@
     }
     if (note) note.textContent = runtime.note || '';
 
+    var backendEl = document.getElementById('storageBackend');
+    if (backendEl) {
+      backendEl.value = storage.backend || 'local';
+      toggleAdminStorageFields();
+    }
+    if (storage.local) {
+      var lp = document.getElementById('storageLocalDataPath');
+      if (lp && storage.local.data_path) lp.value = storage.local.data_path;
+    }
+    if (storage.shared) {
+      var sp = document.getElementById('storageSharedPath');
+      var su = document.getElementById('storageSharedUser');
+      if (sp) sp.value = storage.shared.path || '';
+      if (su) su.value = storage.shared.username || '';
+    }
+    if (storage.s3) {
+      var set = function (id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; };
+      set('storageS3Endpoint', storage.s3.endpoint);
+      set('storageS3Bucket', storage.s3.bucket);
+      set('storageS3Region', storage.s3.region);
+      set('storageS3Prefix', storage.s3.prefix);
+      set('storageS3AccessKey', storage.s3.access_key);
+    }
+
     const lic = data.license || {};
     fillLicenseFields(lic);
 
@@ -1599,6 +1623,54 @@
     try {
       show('ldapResult', await api('/ldap/apply', { method: 'POST' }));
       loadSetupChecklist();
+    } catch (e) { alert(e.message); }
+  });
+
+  function toggleAdminStorageFields() {
+    var b = (document.getElementById('storageBackend') || {}).value || 'local';
+    var local = document.getElementById('admin-storage-local');
+    var shared = document.getElementById('admin-storage-shared');
+    var s3 = document.getElementById('admin-storage-s3');
+    if (local) local.hidden = b !== 'local';
+    if (shared) shared.hidden = b !== 'shared';
+    if (s3) s3.hidden = b !== 's3';
+  }
+
+  var storageBackendSelect = document.getElementById('storageBackend');
+  if (storageBackendSelect) {
+    storageBackendSelect.addEventListener('change', toggleAdminStorageFields);
+  }
+
+  document.getElementById('btnSaveStorage').addEventListener('click', async () => {
+    var backend = val('storageBackend') || 'local';
+    var body = { backend: backend };
+    if (backend === 'local') {
+      body.data_path = val('storageLocalDataPath') || '/vault-data';
+    } else if (backend === 'shared') {
+      body.path = val('storageSharedPath');
+      body.username = val('storageSharedUser') || undefined;
+      var sp = val('storageSharedPass');
+      if (sp) body.password = sp;
+    } else {
+      body.endpoint = val('storageS3Endpoint');
+      body.bucket = val('storageS3Bucket');
+      body.region = val('storageS3Region') || undefined;
+      body.prefix = val('storageS3Prefix') || undefined;
+      body.access_key = val('storageS3AccessKey');
+      var sk = val('storageS3SecretKey');
+      if (sk) body.secret_key = sk;
+    }
+    try {
+      const data = await api('/settings/storage', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      document.getElementById('storageSharedPass').value = '';
+      document.getElementById('storageS3SecretKey').value = '';
+      show('storageResult', data.storage || data);
+      if (data.settings) fillSettings(data.settings);
+      else loadSettings();
     } catch (e) { alert(e.message); }
   });
 

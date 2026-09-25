@@ -108,6 +108,21 @@ class VaultSettingsUpdate(BaseModel):
     default_document_list: str | None = Field(None, pattern="^(all|root_only)$")
 
 
+class StorageSettingsUpdate(BaseModel):
+    backend: str
+    data_path: str | None = None
+    db_path: str | None = None
+    endpoint: str | None = None
+    bucket: str | None = None
+    region: str | None = None
+    prefix: str | None = None
+    access_key: str | None = None
+    secret_key: str | None = None
+    path: str | None = None
+    username: str | None = None
+    password: str | None = None
+
+
 class LicenseSettingsUpdate(BaseModel):
     package: str | None = None
     expires_at: str | None = None
@@ -541,6 +556,26 @@ def admin_update_vault(
     result = SettingsStore(settings).update_section("vault", payload, user.user_id)
     write_audit(settings, user.user_id, "admin.settings.vault", "vault", payload)
     return result
+
+
+@router.put("/settings/storage")
+def admin_update_storage(
+    body: StorageSettingsUpdate,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    from ..setup_wizard import save_storage_config
+
+    storage = save_storage_config(settings, body.model_dump(exclude_none=True), actor=user.user_id)
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.settings.storage",
+        body.backend,
+        {"backend": body.backend},
+    )
+    return {"storage": storage, "settings": SettingsStore(settings).public_view()}
 
 
 @router.put("/settings/license")
