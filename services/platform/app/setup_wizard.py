@@ -38,12 +38,22 @@ def ensure_legacy_setup_complete(settings: Settings) -> bool:
         return True
     legacy = False
     try:
-        if settings.db_path.is_file() and settings.db_path.stat().st_size > 4096:
+        # SQLite bos sayfa genelde 4096; WAL/SHM veya herhangi bir icerik = mevcut kurulum
+        if settings.db_path.is_file() and settings.db_path.stat().st_size >= 4096:
             legacy = True
+        for extra in (
+            settings.data_path / "metadata.db-wal",
+            settings.data_path / "jobs",
+            settings.data_path / "backups",
+            settings.data_path / "documents",
+        ):
+            if extra.exists():
+                legacy = True
+                break
     except OSError:
         pass
-    override = settings.data_path / "config" / "admin-settings.yml"
-    if override.is_file():
+    cfg = settings.data_path / "config"
+    if cfg.is_dir() and any(cfg.iterdir()):
         legacy = True
     if not legacy:
         return False
