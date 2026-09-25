@@ -1506,9 +1506,10 @@
     if (sum) {
       var backend = storage.backend || 'local';
       var configured = !!storage.configured;
+      var labels = { local: 'Yerel disk', s3: 'S3 / MinIO', shared: 'Paylaşılan klasör' };
       sum.className = 'readiness-summary ' + (configured ? 'ready-ok' : 'ready-fail');
       sum.textContent = configured
-        ? ('Depolama: ' + backend + (runtime.documentsRoot ? ' → ' + runtime.documentsRoot : ''))
+        ? ((labels[backend] || backend) + (runtime.documentsRoot ? ' → ' + runtime.documentsRoot : ''))
         : 'Depolama henüz yapılandırılmadı (/setup)';
     }
     if (note) note.textContent = runtime.note || '';

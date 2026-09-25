@@ -72,9 +72,9 @@ def storage_runtime_info(settings: Settings) -> dict[str, Any]:
             "Nesne depolama adapter'i sonraki surumde etkinlestirilecek."
         )
     elif backend == "shared":
-        note = f"Paylasilan klasor: {root}"
+        note = "Paylasilan klasor mount yolu kullaniliyor; yazma izni host tarafinda olmali."
     else:
-        note = f"Yerel depo: {root}"
+        note = "Belge, imza ve sertifika dosyalari bu kok altinda saklanir."
     return {
         "backend": backend if override.get("configured") else None,
         "configured": bool(override.get("configured")),
