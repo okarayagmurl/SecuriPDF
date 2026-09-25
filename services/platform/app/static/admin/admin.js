@@ -8,8 +8,13 @@
     try { data = JSON.parse(text); } catch { data = text; }
     if (!res.ok) {
       var msg = res.statusText;
-      if (typeof data === 'string') msg = data;
-      else if (data && data.detail) {
+      if (typeof data === 'string') {
+        if (data.indexOf('<html') >= 0 || data.indexOf('<!DOCTYPE') >= 0) {
+          msg = 'Oturum dusmus veya proxy HTML dondurdu (HTTP ' + res.status + '). Sayfayi yenileyip tekrar deneyin.';
+        } else {
+          msg = data;
+        }
+      } else if (data && data.detail) {
         if (typeof data.detail === 'string') msg = data.detail;
         else if (Array.isArray(data.detail)) msg = data.detail.map(function (d) { return d.msg || JSON.stringify(d); }).join('; ');
         else msg = JSON.stringify(data.detail);
@@ -17,6 +22,27 @@
       throw new Error(msg);
     }
     return data;
+  }
+
+  async function apiWithRetry(path, options, retries) {
+    retries = retries == null ? 4 : retries;
+    var lastErr = null;
+    for (var attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await api(path, options);
+      } catch (e) {
+        lastErr = e;
+        var msg = (e && e.message) ? String(e.message) : String(e);
+        var retryable = /Failed to fetch|NetworkError|oturu|proxy|timeout|502|503|504/i.test(msg);
+        if (!retryable || attempt === retries) throw e;
+        setUpgradeProgress(
+          null,
+          'Ag hatasi, yeniden denenecek (' + (attempt + 1) + '/' + retries + ')…'
+        );
+        await new Promise(function (r) { setTimeout(r, 1500 * (attempt + 1)); });
+      }
+    }
+    throw lastErr;
   }
 
   function show(id, data) {
@@ -1229,8 +1255,10 @@
     var fill = document.getElementById('upgradeProgressFill');
     var label = document.getElementById('upgradeProgressText');
     if (wrap) wrap.hidden = false;
-    if (fill) fill.style.width = Math.max(0, Math.min(100, percent)) + '%';
-    if (label) label.textContent = text || (Math.round(percent) + '%');
+    if (fill && percent != null && !isNaN(percent)) {
+      fill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    }
+    if (label) label.textContent = text || (percent != null ? (Math.round(percent) + '%') : label.textContent);
   }
 
   async function uploadOfflinePackage(file) {
@@ -1239,44 +1267,52 @@
       throw new Error('Dosya .tar.gz veya .tgz olmalı');
     }
     setUpgradeProgress(0, 'Yükleme başlatılıyor…');
-    var init = await api('/ops/upgrade/package/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: name, size: file.size })
-    });
-    var uploadId = init.uploadId;
-    var chunkSize = init.chunkSize || (8 * 1024 * 1024);
-    var total = file.size;
-    var index = 0;
-    var offset = 0;
-    while (offset < total) {
-      var end = Math.min(offset + chunkSize, total);
-      var blob = file.slice(offset, end);
-      var buf = await blob.arrayBuffer();
-      await api('/ops/upgrade/package/' + encodeURIComponent(uploadId) + '/chunk?index=' + index, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: buf
+    var keepAlive = setInterval(function () {
+      // Oturum / proxy canli tutma (uzun yuklemelerde Failed to fetch onleme)
+      fetch(API + '/ops/upgrade/updater', { method: 'GET', credentials: 'same-origin' }).catch(function () {});
+    }, 60000);
+    try {
+      var init = await apiWithRetry('/ops/upgrade/package/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: name, size: file.size })
       });
-      offset = end;
-      index += 1;
-      var pct = (100 * offset) / total;
-      setUpgradeProgress(pct, 'Yükleniyor: ' + Math.round(pct) + '% (' + index + ' parça)');
+      var uploadId = init.uploadId;
+      var chunkSize = init.chunkSize || (8 * 1024 * 1024);
+      var total = file.size;
+      var index = 0;
+      var offset = 0;
+      while (offset < total) {
+        var end = Math.min(offset + chunkSize, total);
+        var blob = file.slice(offset, end);
+        var buf = await blob.arrayBuffer();
+        await apiWithRetry('/ops/upgrade/package/' + encodeURIComponent(uploadId) + '/chunk?index=' + index, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: buf
+        }, 5);
+        offset = end;
+        index += 1;
+        var pct = (100 * offset) / total;
+        setUpgradeProgress(pct, 'Yükleniyor: ' + Math.round(pct) + '% (' + index + ' parça)');
+      }
+      setUpgradeProgress(99, 'Paket açılıyor ve hazırlanıyor (birkaç dakika sürebilir)…');
+      var result = await apiWithRetry('/ops/upgrade/package/' + encodeURIComponent(uploadId) + '/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      }, 2);
+      setUpgradeProgress(100, 'Hazır');
+      if (result.manifest) {
+        try {
+          document.getElementById('upgradeStagingJson').value = JSON.stringify(result.manifest, null, 2);
+        } catch (e) { /* ignore */ }
+      }
+      show('upgradePackageResult', result);
+      return result;
+    } finally {
+      clearInterval(keepAlive);
     }
-    setUpgradeProgress(99, 'Paket açılıyor ve hazırlanıyor (birkaç dakika sürebilir)…');
-    var result = await api('/ops/upgrade/package/' + encodeURIComponent(uploadId) + '/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
-    });
-    setUpgradeProgress(100, 'Hazır');
-    if (result.manifest) {
-      try {
-        document.getElementById('upgradeStagingJson').value = JSON.stringify(result.manifest, null, 2);
-      } catch (e) { /* ignore */ }
-    }
-    show('upgradePackageResult', result);
-    return result;
   }
 
   document.getElementById('btnUpgradePackageUpload').addEventListener('click', async function () {
