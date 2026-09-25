@@ -33,6 +33,11 @@ _UPLOAD_META: dict[str, dict[str, Any]] = {}
 def _load_config() -> dict[str, str]:
     global _CONFIG
     data: dict[str, str] = {}
+    # systemd EnvironmentFile prosesi baslatirken SECURIPDF_OFFLINE_DIR enjekte eder;
+    # paket upload sonrasi dosya guncellenir — dosya degeri ortam degiskeninden onceliklidir.
+    for key in ("SECURIPDF_OFFLINE_DIR", "SECURIPDF_UPDATER_TOKEN", "SECURIPDF_UPDATER_PORT", "SECURIPDF_UPDATER_HOST"):
+        if os.environ.get(key):
+            data[key] = os.environ[key]
     if CONFIG_PATH.exists():
         for line in CONFIG_PATH.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -40,9 +45,6 @@ def _load_config() -> dict[str, str]:
                 continue
             key, val = line.split("=", 1)
             data[key.strip()] = val.strip().strip('"')
-    for key in ("SECURIPDF_OFFLINE_DIR", "SECURIPDF_UPDATER_TOKEN"):
-        if os.environ.get(key):
-            data[key] = os.environ[key]
     _CONFIG = data
     return data
 
@@ -54,6 +56,7 @@ def _save_config_value(key: str, value: str) -> None:
     lines = [f"{k}={v}\n" for k, v in sorted(cfg.items())]
     CONFIG_PATH.write_text("".join(lines), encoding="utf-8")
     os.chmod(CONFIG_PATH, 0o600)
+    os.environ[key] = value
     global _CONFIG
     _CONFIG = cfg
 
