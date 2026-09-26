@@ -1506,7 +1506,7 @@
     if (sum) {
       var backend = storage.backend || 'local';
       var configured = !!storage.configured;
-      var labels = { local: 'Yerel disk', s3: 'S3 / MinIO', shared: 'Paylaşılan klasör' };
+      var labels = { local: 'Yerel disk', s3: 'S3 / MinIO', shared: 'SMB ağ paylaşımı' };
       sum.className = 'readiness-summary ' + (configured ? 'ready-ok' : 'ready-fail');
       sum.textContent = configured
         ? ((labels[backend] || backend) + (runtime.documentsRoot ? ' → ' + runtime.documentsRoot : ''))
@@ -1525,10 +1525,12 @@
       if (lp && storage.local.data_path) lp.value = storage.local.data_path;
     }
     if (storage.shared) {
-      var sp = document.getElementById('storageSharedPath');
-      var su = document.getElementById('storageSharedUser');
-      if (sp) sp.value = storage.shared.path || '';
-      if (su) su.value = storage.shared.username || '';
+      var set = function (id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; };
+      set('storageSmbHost', storage.shared.host);
+      set('storageSmbShare', storage.shared.share);
+      set('storageSmbPath', storage.shared.path);
+      set('storageSmbDomain', storage.shared.domain);
+      set('storageSharedUser', storage.shared.username);
     }
     if (storage.s3) {
       var set = function (id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; };
@@ -1675,8 +1677,11 @@
     if (backend === 'local') {
       body.data_path = val('storageLocalDataPath') || '/vault-data';
     } else if (backend === 'shared') {
-      body.path = val('storageSharedPath');
-      body.username = val('storageSharedUser') || undefined;
+      body.host = val('storageSmbHost');
+      body.share = val('storageSmbShare');
+      body.path = val('storageSmbPath') || undefined;
+      body.domain = val('storageSmbDomain') || undefined;
+      body.username = val('storageSharedUser');
       var sp = val('storageSharedPass');
       if (sp) body.password = sp;
     } else {
@@ -1766,6 +1771,36 @@
       await loadLicensePanel();
     } catch (e) { alert(e.message); }
   });
+
+  var licenseFileInput = document.getElementById('licenseFileInput');
+  if (licenseFileInput) {
+    licenseFileInput.addEventListener('change', function () {
+      var f = licenseFileInput.files && licenseFileInput.files[0];
+      if (!f) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var ta = document.getElementById('licenseFileJson');
+        if (ta) ta.value = String(reader.result || '');
+      };
+      reader.readAsText(f);
+    });
+  }
+  var btnActivateLicenseFile = document.getElementById('btnActivateLicenseFile');
+  if (btnActivateLicenseFile) {
+    btnActivateLicenseFile.addEventListener('click', async function () {
+      var raw = val('licenseFileJson');
+      if (!raw) { alert('Lisans JSON veya dosya gerekli'); return; }
+      try {
+        var data = await api('/license/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_json: raw })
+        });
+        show('licenseActivateResult', data);
+        await loadLicensePanel();
+      } catch (e) { alert(e.message); }
+    });
+  }
 
   document.getElementById('btnLoadLicenseStatus').addEventListener('click', async () => {
     try {

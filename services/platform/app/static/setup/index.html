@@ -32,7 +32,7 @@
         <select id="storageBackend">
           <option value="local">Yerel disk (önerilen)</option>
           <option value="s3">S3 / MinIO (dosyalar bucket’ta; erişilemezse 503)</option>
-          <option value="shared">Paylaşılan klasör (container’a bind edilmiş yol)</option>
+          <option value="shared">SMB ağ paylaşımı</option>
         </select>
       </label>
 
@@ -52,11 +52,13 @@
       </div>
 
       <div id="storage-shared" class="backend-fields hidden">
-        <label>Mount yolu
-          <input id="sharedPath" type="text" placeholder="/mnt/securipdf-share" autocomplete="off">
-        </label>
-        <label>Kullanıcı (opsiyonel) <input id="sharedUser" type="text" autocomplete="off"></label>
-        <label>Parola (opsiyonel) <input id="sharedPass" type="password" autocomplete="new-password"></label>
+        <p class="hint">SMB paylaşımına uygulama bağlanır; host’ta mount gerekmez.</p>
+        <label>Dosya sunucusu <input id="smbHost" type="text" placeholder="fileserver.sirket.local" autocomplete="off"></label>
+        <label>Paylaşım adı <input id="smbShare" type="text" placeholder="SecuriPDF" autocomplete="off"></label>
+        <label>Alt klasör (opsiyonel) <input id="smbPath" type="text" placeholder="vault" autocomplete="off"></label>
+        <label>Domain (opsiyonel) <input id="smbDomain" type="text" placeholder="ENTERA" autocomplete="off"></label>
+        <label>Kullanıcı <input id="sharedUser" type="text" autocomplete="off"></label>
+        <label>Parola <input id="sharedPass" type="password" autocomplete="new-password"></label>
       </div>
 
       <button type="button" id="btnSaveStorage" class="primary">Depolamayı kaydet</button>
@@ -82,6 +84,6 @@
       <p id="finishStatus" class="status"></p>
     </section>
   </div>
-  <script src="/setup/static/setup.js?v=2"></script>
+  <script src="/setup/static/setup.js?v=3"></script>
 </body>
 </html>

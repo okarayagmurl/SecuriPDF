@@ -98,12 +98,20 @@ def get_storage_config(settings: Settings) -> dict[str, Any]:
             "has_secret": bool((storage.get("s3") or {}).get("secret_key_enc")),
         },
         "shared": {
+            "host": (storage.get("shared") or {}).get("host", ""),
+            "share": (storage.get("shared") or {}).get("share", ""),
             "path": (storage.get("shared") or {}).get("path", ""),
             "username": (storage.get("shared") or {}).get("username", ""),
+            "domain": (storage.get("shared") or {}).get("domain", ""),
             "has_password": bool((storage.get("shared") or {}).get("password_enc")),
+            "mode": (
+                "smb"
+                if (storage.get("shared") or {}).get("host") and (storage.get("shared") or {}).get("share")
+                else ("path" if (storage.get("shared") or {}).get("path") else None)
+            ),
         },
         "runtime": runtime,
-        "health": None,  # Admin /settings/storage/health ile canli kontrol
+        "health": None,
     }
 
 
@@ -185,39 +193,79 @@ def save_storage_config(settings: Settings, payload: dict[str, Any], actor: str 
             store._save_override(data)  # noqa: SLF001
             raise
 
-    else:  # shared
+    else:  # shared — SMB (tercih) veya eski container path
+        host = str(payload.get("host") or payload.get("smb_host") or "").strip()
+        share = str(payload.get("share") or payload.get("smb_share") or "").strip()
         path = str(payload.get("path") or "").strip()
-        if not path:
-            raise HTTPException(status_code=400, detail="Shared folder path zorunlu")
-        shared: dict[str, Any] = {
-            "path": path,
-            "username": str(payload.get("username") or "").strip(),
-        }
+        username = str(payload.get("username") or "").strip()
+        domain = str(payload.get("domain") or "").strip()
         password = str(payload.get("password") or "").strip()
-        if password:
-            shared["password_enc"] = base64.b64encode(
-                encrypt_bytes(settings.master_key, password.encode("utf-8"))
-            ).decode("ascii")
-        elif (data.get("storage") or {}).get("shared", {}).get("password_enc"):
-            shared["password_enc"] = data["storage"]["shared"]["password_enc"]
-        from .blob_store import probe_filesystem
 
-        p = Path(path)
-        try:
-            probe_filesystem(p, require_exists=True)
-        except HTTPException as exc:
+        shared: dict[str, Any] = {}
+        prev_shared = (data.get("storage") or {}).get("shared") or {}
+
+        if host and share:
+            if not username:
+                raise HTTPException(status_code=400, detail="SMB kullanici adi zorunlu")
+            shared = {
+                "host": host,
+                "share": share,
+                "path": path,
+                "username": username,
+                "domain": domain,
+            }
+            if password:
+                shared["password_enc"] = base64.b64encode(
+                    encrypt_bytes(settings.master_key, password.encode("utf-8"))
+                ).decode("ascii")
+            elif prev_shared.get("password_enc"):
+                shared["password_enc"] = prev_shared["password_enc"]
+            else:
+                raise HTTPException(status_code=400, detail="SMB parola zorunlu")
+            storage["shared"] = shared
+            data["storage"] = storage
+            store._save_override(data)  # noqa: SLF001
+            try:
+                from .smb_store import probe_smb
+
+                probe_smb(settings)
+            except Exception:
+                data["storage"] = prev_storage
+                store._save_override(data)  # noqa: SLF001
+                raise
+        elif path:
+            # Geriye uyumluluk: container ici mount yolu
+            shared = {
+                "path": path,
+                "username": username,
+            }
+            if password:
+                shared["password_enc"] = base64.b64encode(
+                    encrypt_bytes(settings.master_key, password.encode("utf-8"))
+                ).decode("ascii")
+            elif prev_shared.get("password_enc"):
+                shared["password_enc"] = prev_shared["password_enc"]
+            from .blob_store import probe_filesystem
+
+            try:
+                probe_filesystem(Path(path), require_exists=True)
+            except HTTPException as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"{exc.detail} Tercih: SMB sunucu+paylasim+kullanici/parola "
+                        "(host mount gerekmez)."
+                    ),
+                ) from exc
+            storage["shared"] = shared
+            vault = data.setdefault("vault", {})
+            vault["documents_path"] = str(Path(path) / "documents")
+            vault["archive_path"] = str(Path(path) / "archive")
+        else:
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    f"{exc.detail} "
-                    "Shared: host'ta SMB/NFS mount edin, platform container'a volume bind edin "
-                    "(ornek: /mnt/share:/vault-share), yol olarak container ic yolunu yazin."
-                ),
-            ) from exc
-        storage["shared"] = shared
-        vault = data.setdefault("vault", {})
-        vault["documents_path"] = str(Path(path) / "documents")
-        vault["archive_path"] = str(Path(path) / "archive")
+                detail="SMB icin host+share+kullanici+parola veya (eski) container path gerekli",
+            )
 
     data["storage"] = storage
     store._save_override(data)  # noqa: SLF001

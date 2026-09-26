@@ -127,11 +127,18 @@ class KeycloakLdapApplier:
         return created["id"]
 
     def apply(self, ldap: dict[str, Any], bind_password: str) -> dict[str, Any]:
-        host = ldap.get("host") or os.getenv("LDAP_HOST", "192.168.6.10")
-        base_dn = ldap.get("base_dn") or os.getenv("LDAP_BASE_DN", "dc=entera,dc=test")
-        users_dn = ldap.get("users_dn") or os.getenv("LDAP_USERS_DN") or f"CN=Users,{base_dn}"
-        groups_dn = ldap.get("groups_dn") or os.getenv("LDAP_GROUPS_DN") or base_dn
-        bind_dn = ldap.get("bind_dn") or os.getenv("LDAP_BIND_DN") or f"CN=svc-securipdf,{users_dn}"
+        host = str(ldap.get("host") or "").strip()
+        base_dn = str(ldap.get("base_dn") or "").strip()
+        if not host or not base_dn:
+            raise HTTPException(
+                status_code=400,
+                detail="LDAP host ve base_dn Admin panelden kaydedilmeli (lab varsayilani yok)",
+            )
+        users_dn = str(ldap.get("users_dn") or "").strip() or f"CN=Users,{base_dn}"
+        groups_dn = str(ldap.get("groups_dn") or "").strip() or base_dn
+        bind_dn = str(ldap.get("bind_dn") or "").strip()
+        if not bind_dn:
+            raise HTTPException(status_code=400, detail="LDAP bind_dn zorunlu")
         group_filter = ldap.get("group_filter") or "(cn=SecuriPDF-*)"
         groups = ldap.get("groups") or {}
         group_user = groups.get("user") or "SecuriPDF-Users"

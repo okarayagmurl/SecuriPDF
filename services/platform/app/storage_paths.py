@@ -73,13 +73,23 @@ def storage_runtime_info(settings: Settings) -> dict[str, Any]:
             "Metadata SQLite yerel kalir."
         )
     elif backend == "shared":
-        root = documents_root(settings)
-        documents_root_display = str(root)
-        note = (
-            "Paylaşılan klasör = container icinden gorunen yol "
-            "(host SMB/NFS mount + docker volume bind). "
-            "Yol yoksa veya yazilamazsa kayit ve belge islemleri reddedilir."
-        )
+        from .smb_store import smb_mode
+
+        if smb_mode(settings):
+            s = override.get("shared") or {}
+            documents_root_display = f"\\\\{s.get('host')}\\{s.get('share')}\\{s.get('path') or ''}".rstrip("\\")
+            note = (
+                "SMB ag paylasimi: kimlik bilgileri Admin'den girilir, host mount gerekmez. "
+                "Erisilemezse yukleme/indirme 503."
+            )
+            blob_mode = "smb"
+        else:
+            root = documents_root(settings)
+            documents_root_display = str(root)
+            note = (
+                "Eski yol modu (container mount). Yeni kurulumlarda SMB alanlarini kullanin "
+                "(sunucu + paylasim + kullanici/parola)."
+            )
     else:
         root = documents_root(settings)
         documents_root_display = str(root)

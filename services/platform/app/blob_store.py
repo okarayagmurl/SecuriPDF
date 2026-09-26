@@ -63,8 +63,17 @@ def is_s3_ref(ref: str) -> bool:
     return str(ref or "").startswith("s3://")
 
 
+def is_smb_ref(ref: str) -> bool:
+    return str(ref or "").startswith("smb://")
+
+
+def _smb_rel(ref: str) -> str:
+    return str(ref)[len("smb://") :].lstrip("/")
+
+
 def make_blob_ref(settings: Settings, kind: str, user_id: str, filename: str) -> str:
-    if storage_backend(settings) == "s3":
+    backend = storage_backend(settings)
+    if backend == "s3":
         cfg = _s3_cfg(settings)
         bucket = str(cfg.get("bucket") or "").strip()
         if not bucket:
@@ -72,6 +81,11 @@ def make_blob_ref(settings: Settings, kind: str, user_id: str, filename: str) ->
         prefix = str(cfg.get("prefix") or "").strip().strip("/")
         parts = [p for p in (prefix, kind, user_id, filename) if p]
         return f"s3://{bucket}/{'/'.join(parts)}"
+    if backend == "shared":
+        from .smb_store import smb_mode
+
+        if smb_mode(settings):
+            return f"smb://{kind}/{user_id}/{filename}"
     return str(resolve_user_dir(settings, kind, user_id) / filename)
 
 
@@ -95,6 +109,11 @@ def blob_write(settings: Settings, ref: str, data: bytes) -> None:
         except Exception as exc:  # noqa: BLE001
             raise StorageUnavailable(f"{UNREACHABLE} (S3 yazma: {exc})") from exc
         return
+    if is_smb_ref(ref):
+        from .smb_store import smb_write
+
+        smb_write(settings, _smb_rel(ref), data)
+        return
     try:
         path = Path(ref)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -113,6 +132,10 @@ def blob_read(settings: Settings, ref: str) -> bytes:
             raise
         except Exception as exc:  # noqa: BLE001
             raise StorageUnavailable(f"{UNREACHABLE} (S3 okuma: {exc})") from exc
+    if is_smb_ref(ref):
+        from .smb_store import smb_read
+
+        return smb_read(settings, _smb_rel(ref))
     try:
         path = Path(ref)
         if not path.is_file():
@@ -130,6 +153,10 @@ def blob_exists(settings: Settings, ref: str) -> bool:
             return True
         except Exception:  # noqa: BLE001
             return False
+    if is_smb_ref(ref):
+        from .smb_store import smb_exists
+
+        return smb_exists(settings, _smb_rel(ref))
     try:
         return Path(ref).is_file()
     except OSError:
@@ -143,6 +170,11 @@ def blob_delete(settings: Settings, ref: str) -> None:
             _s3_client(settings).delete_object(Bucket=bucket, Key=key)
         except Exception:  # noqa: BLE001
             pass
+        return
+    if is_smb_ref(ref):
+        from .smb_store import smb_delete
+
+        smb_delete(settings, _smb_rel(ref))
         return
     try:
         Path(ref).unlink(missing_ok=True)
@@ -161,8 +193,7 @@ def probe_filesystem(root: Path, *, require_exists: bool = True) -> None:
     try:
         if require_exists and not root.exists():
             raise StorageUnavailable(
-                f"Depolama yolu yok veya container icinden gorunmuyor: {root}. "
-                "Shared kullanıyorsanız host mount + docker volume bind gerekir."
+                f"Depolama yolu yok veya container icinden gorunmuyor: {root}."
             )
         root.mkdir(parents=True, exist_ok=True)
         if not root.is_dir():
@@ -211,9 +242,19 @@ def check_storage_health(settings: Settings) -> dict[str, Any]:
             probe_s3(settings)
             s3 = override.get("s3") or {}
             result["target"] = f"s3://{s3.get('bucket')}/{s3.get('prefix') or ''}".rstrip("/")
+        elif backend == "shared":
+            from .smb_store import probe_smb, smb_mode, smb_unc
+
+            if smb_mode(settings):
+                probe_smb(settings)
+                result["target"] = smb_unc(settings)
+            else:
+                root = documents_root(settings)
+                probe_filesystem(root, require_exists=True)
+                result["target"] = str(root)
         else:
             root = documents_root(settings)
-            probe_filesystem(root, require_exists=(backend == "shared"))
+            probe_filesystem(root, require_exists=False)
             result["target"] = str(root)
         result["reachable"] = True
     except HTTPException as exc:

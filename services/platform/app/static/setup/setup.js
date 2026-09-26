@@ -81,7 +81,10 @@
       $('s3AccessKey').value = storage.s3.access_key || '';
     }
     if (storage.shared) {
-      $('sharedPath').value = storage.shared.path || '';
+      if ($('smbHost')) $('smbHost').value = storage.shared.host || '';
+      if ($('smbShare')) $('smbShare').value = storage.shared.share || '';
+      if ($('smbPath')) $('smbPath').value = storage.shared.path || '';
+      if ($('smbDomain')) $('smbDomain').value = storage.shared.domain || '';
       $('sharedUser').value = storage.shared.username || '';
     }
     if (data.defaultUsername) {
@@ -122,7 +125,10 @@
       body.access_key = $('s3AccessKey').value.trim();
       body.secret_key = $('s3SecretKey').value;
     } else {
-      body.path = $('sharedPath').value.trim();
+      body.host = $('smbHost').value.trim();
+      body.share = $('smbShare').value.trim();
+      body.path = $('smbPath').value.trim() || undefined;
+      body.domain = $('smbDomain').value.trim() || undefined;
       body.username = $('sharedUser').value.trim();
       body.password = $('sharedPass').value;
     }

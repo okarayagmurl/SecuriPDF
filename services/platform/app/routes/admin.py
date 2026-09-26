@@ -118,9 +118,13 @@ class StorageSettingsUpdate(BaseModel):
     prefix: str | None = None
     access_key: str | None = None
     secret_key: str | None = None
+    # SMB (shared)
+    host: str | None = None
+    share: str | None = None
     path: str | None = None
     username: str | None = None
     password: str | None = None
+    domain: str | None = None
 
 
 class LicenseSettingsUpdate(BaseModel):
@@ -130,6 +134,10 @@ class LicenseSettingsUpdate(BaseModel):
     apply_package_limits: bool | None = None
     limits: dict[str, int] | None = None
     enabled_tools: list[str] | None = None
+
+
+class LicenseActivateRequest(BaseModel):
+    license_json: str = Field(min_length=20, description="Imzali .lic JSON icerigi")
 
 
 class PackageApplyRequest(BaseModel):
@@ -1178,6 +1186,40 @@ def admin_apply_license_package(
     )
     return {"ok": True, "license": result.get("license"), "status": LicenseService(settings).status()}
 
+
+@router.post("/license/activate")
+def admin_activate_license_file(
+    body: LicenseActivateRequest,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    """Imzali .lic dosyasini dogrula ve admin-settings'e yaz."""
+    require_admin(user)
+    from ..license_file import parse_and_verify, payload_to_settings
+
+    verified = parse_and_verify(body.license_json)
+    payload = payload_to_settings(verified)
+    package = str(payload.get("package") or "")
+    packages = (load_license_packages(settings).get("packages") or {})
+    if package in packages and "enabled_tools" not in payload:
+        payload["enabled_tools"] = resolve_package_tool_ids(settings, package)
+        pkg_limits = packages[package].get("limits") or {}
+        if pkg_limits and not payload.get("limits"):
+            payload["limits"] = pkg_limits
+    result = SettingsStore(settings).update_section("license", payload, user.user_id)
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.license.activate_file",
+        package,
+        {"customer": verified.get("customer"), "license_key": payload.get("license_key")},
+    )
+    return {
+        "ok": True,
+        "customer": verified.get("customer"),
+        "license": result.get("license"),
+        "status": LicenseService(settings).status(),
+    }
 
 @router.get("/tool-catalog")
 def admin_tool_catalog(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):

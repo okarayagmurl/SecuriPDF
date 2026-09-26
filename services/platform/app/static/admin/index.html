@@ -112,16 +112,15 @@
         <h2>Belge depolama (backend)</h2>
         <p class="hint">
           <strong>Yerel:</strong> container volume (<code>/vault-data</code>).
-          <strong>Shared:</strong> host’ta SMB/NFS mount + docker volume bind; yol container içinden görünmeli (ör. host <code>/mnt/share</code> → container <code>/vault-share</code>).
-          <strong>S3:</strong> dosyalar bucket’a yazılır; erişilemezse yükleme/indirme <strong>503</strong> (yerel yedek yok).
-        </p>
+          <strong>Shared / SMB:</strong> sunucu + paylaşım + kullanıcı/parola (arayüzden; host mount yok).
+          <strong>S3:</strong> dosyalar bucket’a; erişilemezse 503.
         <div id="storageBackendSummary" class="readiness-summary"></div>
         <p id="storageBackendNote" class="hint"></p>
         <p id="storageHealthLine" class="hint"></p>
         <label>Backend
           <select id="storageBackend">
             <option value="local">Yerel disk</option>
-            <option value="shared">Paylaşılan klasör (container yolu)</option>
+            <option value="shared">SMB ağ paylaşımı</option>
             <option value="s3">S3 / MinIO</option>
           </select>
         </label>
@@ -129,10 +128,13 @@
           <label>Veri yolu <input id="storageLocalDataPath" type="text" value="/vault-data" autocomplete="off"></label>
         </div>
         <div id="admin-storage-shared" class="backend-fields" hidden>
-          <label>Container içi mount yolu <input id="storageSharedPath" type="text" placeholder="/vault-share" autocomplete="off"></label>
-          <p class="hint">Kullanıcı/parola alanları yalnızca not içindir; uygulama SMB’ye kendi bağlanmaz.</p>
-          <label>Not — kullanıcı <input id="storageSharedUser" type="text" autocomplete="off"></label>
-          <label>Not — parola <input id="storageSharedPass" type="password" autocomplete="new-password"></label>
+          <p class="hint">SMB paylaşımına uygulama doğrudan bağlanır (host’ta mount gerekmez). Kaydetmeden önce erişim testi yapılır.</p>
+          <label>Dosya sunucusu (host) <input id="storageSmbHost" type="text" placeholder="fileserver.sirket.local" autocomplete="off"></label>
+          <label>Paylaşım adı <input id="storageSmbShare" type="text" placeholder="SecuriPDF" autocomplete="off"></label>
+          <label>Alt klasör (opsiyonel) <input id="storageSmbPath" type="text" placeholder="vault" autocomplete="off"></label>
+          <label>Domain (opsiyonel) <input id="storageSmbDomain" type="text" placeholder="ENTERA" autocomplete="off"></label>
+          <label>Kullanıcı <input id="storageSharedUser" type="text" autocomplete="off"></label>
+          <label>Parola (boş = değiştirme) <input id="storageSharedPass" type="password" autocomplete="new-password"></label>
         </div>
         <div id="admin-storage-s3" class="backend-fields" hidden>
           <label>Endpoint <input id="storageS3Endpoint" type="text" placeholder="https://s3.example.com" autocomplete="off"></label>
@@ -353,6 +355,16 @@
       </section>
 
       <div class="license-details-row full">
+      <section class="card">
+        <h2>Lisans dosyası (.lic)</h2>
+        <p class="hint">Entera License Manager ile üretilen imzalı dosyayı yapıştırın. İmza doğrulanır, paket/limitler uygulanır.</p>
+        <label>Dosya seç <input id="licenseFileInput" type="file" accept=".lic,.json,application/json,text/plain"></label>
+        <label>JSON içeriği <textarea id="licenseFileJson" rows="8" placeholder='{"v":1,"payload":{...},"sig":"..."}'></textarea></label>
+        <div class="row-actions">
+          <button type="button" id="btnActivateLicenseFile">Lisansı etkinleştir</button>
+        </div>
+        <pre id="licenseActivateResult"></pre>
+      </section>
       <section class="card">
         <h2>Lisans detayları</h2>
         <label>Lisans anahtarı <input id="licenseKey" type="text"></label>
@@ -738,6 +750,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=27"></script>
+  <script src="/admin/static/admin.js?v=29"></script>
 </body>
 </html>

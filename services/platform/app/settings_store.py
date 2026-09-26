@@ -64,33 +64,39 @@ class SettingsStore:
             yaml.safe_dump(data, handle, allow_unicode=True, default_flow_style=False)
 
     def merged_ldap(self) -> dict[str, Any]:
-        sec = _load_yaml(self.security_path)
-        base = sec.get("authentication", {}).get("ldap", {})
-        ad = _load_yaml(Path("/config/ad.yml"))
-        if ad.get("connection"):
-            conn = ad["connection"]
-            base = _deep_merge(
-                {
-                    "host": conn.get("host"),
-                    "url": conn.get("url"),
-                    "base_dn": conn.get("base_dn"),
-                    "users_dn": conn.get("users_dn"),
-                    "bind_dn": conn.get("bind_dn"),
-                    "groups": ad.get("groups", {}),
-                },
-                base,
-            )
+        """LDAP: yalnizca admin override + (varsa) operasyonel env.
+        ad.yml artik bos sablon; Entera lab degerleri Admin UI'ya sizmaz.
+        """
         override = self._override().get("ldap", {})
-        merged = _deep_merge(base, override)
-        if override.get("groups_dn"):
-            merged["groups_dn"] = override["groups_dn"]
-        elif not merged.get("groups_dn"):
-            merged["groups_dn"] = merged.get("base_dn") or os.getenv("LDAP_GROUPS_DN", "")
-        if override.get("group_filter"):
-            merged["group_filter"] = override["group_filter"]
-        elif not merged.get("group_filter"):
-            merged["group_filter"] = os.getenv("LDAP_GROUP_FILTER", "(cn=SecuriPDF-*)")
-        # .env operasyonel kaynak — ad.yml'deki varsayilan bind hesabini ezmesin
+        merged: dict[str, Any] = {
+            "host": "",
+            "url": "",
+            "base_dn": "",
+            "users_dn": "",
+            "groups_dn": "",
+            "bind_dn": "",
+            "group_filter": "(cn=SecuriPDF-*)",
+            "groups": {"user": "SecuriPDF-Users", "admin": "SecuriPDF-Admins"},
+            "configured": bool(override.get("configured")),
+        }
+        # Opsiyonel: ad.yml doluysa (eski kurulum) baglanti oku — bos alanlari ezme
+        ad = _load_yaml(Path("/config/ad.yml"))
+        conn = ad.get("connection") or {}
+        for key in ("host", "url", "base_dn", "users_dn", "bind_dn"):
+            val = str(conn.get(key) or "").strip()
+            if val:
+                merged[key] = val
+        if ad.get("groups"):
+            merged["groups"] = {**merged["groups"], **(ad.get("groups") or {})}
+
+        merged = _deep_merge(merged, override)
+        if not merged.get("groups_dn"):
+            merged["groups_dn"] = merged.get("base_dn") or ""
+        if not merged.get("group_filter"):
+            merged["group_filter"] = "(cn=SecuriPDF-*)"
+
+        # .env yalnizca gercekten set edilmisse (lab .env sifir kurulumda LDAP_HOST dolu olabilir —
+        # public_view bunu ayri ele alir)
         for env_key, field in (
             ("LDAP_HOST", "host"),
             ("LDAP_BASE_DN", "base_dn"),
@@ -101,7 +107,34 @@ class SettingsStore:
             env_val = os.getenv(env_key, "").strip()
             if env_val:
                 merged[field] = env_val
+
+        if merged.get("host") or merged.get("base_dn") or merged.get("bind_dn"):
+            merged["configured"] = True
         return merged
+
+    def ldap_for_admin_ui(self) -> dict[str, Any]:
+        """Admin formu: kaydedilmemisse bos goster (env/ad.yml lab sizintisi yok)."""
+        override = self._override().get("ldap", {})
+        if override.get("configured") or any(
+            str(override.get(k) or "").strip() for k in ("host", "base_dn", "bind_dn", "users_dn")
+        ):
+            data = self.merged_ldap()
+        else:
+            data = {
+                "host": "",
+                "url": "",
+                "base_dn": "",
+                "users_dn": "",
+                "groups_dn": "",
+                "bind_dn": "",
+                "group_filter": "(cn=SecuriPDF-*)",
+                "groups": {"user": "SecuriPDF-Users", "admin": "SecuriPDF-Admins"},
+                "configured": False,
+            }
+        public = {k: v for k, v in data.items() if k not in ("bind_password", "bind_password_encrypted")}
+        public["bind_password_set"] = self.has_bind_password()
+        public["configured"] = bool(data.get("configured"))
+        return public
 
     def merged_vault(self) -> dict[str, Any]:
         base = _load_yaml(self.vault_config_path)
@@ -328,16 +361,13 @@ class SettingsStore:
         return bool(self.get_bind_password())
 
     def public_view(self) -> dict[str, Any]:
-        ldap = self.merged_ldap()
-        ldap_public = {k: v for k, v in ldap.items() if k not in ("bind_password", "bind_password_encrypted")}
-        ldap_public["bind_password_set"] = self.has_bind_password()
         smtp = self.merged_smtp()
         smtp_public = {k: v for k, v in smtp.items() if k not in ("password", "password_encrypted")}
         smtp_public["password_set"] = self.has_smtp_password()
         from .setup_wizard import get_storage_config
 
         return {
-            "ldap": ldap_public,
+            "ldap": self.ldap_for_admin_ui(),
             "vault": self.merged_vault(),
             "storage": get_storage_config(self.settings),
             "license": self.merged_license(),
@@ -379,6 +409,7 @@ class SettingsStore:
                 merged_groups.update({k: v for k, v in groups.items() if v})
                 section_data["groups"] = merged_groups
             section_data.update(payload)
+            section_data["configured"] = True
         elif section == "smtp":
             smtp_pwd = payload.pop("password", None)
             if smtp_pwd:
