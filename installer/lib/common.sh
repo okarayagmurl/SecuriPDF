@@ -56,14 +56,49 @@ run_ps1() {
     source "${DOCKER_DIR}/load-env.sh"
     load_dotenv "${ENV_FILE}"
   fi
+  ensure_pwsh
+  pwsh -NoProfile -File "${DOCKER_DIR}/${script}" "$@"
+}
+
+ensure_pwsh() {
   if command -v pwsh &>/dev/null; then
-    pwsh -NoProfile -File "${DOCKER_DIR}/${script}" "$@"
-  else
-    die "PowerShell (pwsh) gerekli. Ubuntu: sudo apt install powershell"
+    return 0
   fi
+  local pwsh_debs=""
+  for candidate in \
+    "${ROOT_DIR}/offline/debs-pwsh" \
+    "${INSTALLER_DIR}/../offline/debs-pwsh"; do
+    if [[ -d "${candidate}" ]] && compgen -G "${candidate}/powershell_*.deb" >/dev/null; then
+      pwsh_debs="${candidate}"
+      break
+    fi
+  done
+  if [[ -z "${pwsh_debs}" ]]; then
+    die "pwsh gerekli (Keycloak bootstrap). offline/debs-pwsh icinde powershell_*.deb yok — once prerequisites veya: sudo dpkg -i offline/debs-pwsh/powershell_*.deb"
+  fi
+  log "pwsh bulunamadi — offline deb kuruluyor: ${pwsh_debs}"
+  local apt_cmd=()
+  if [[ "${EUID}" -eq 0 ]]; then
+    apt_cmd=(dpkg)
+  else
+    apt_cmd=(sudo dpkg)
+  fi
+  # Yalniz powershell_*.deb — docker debs ile karismasin
+  if ! "${apt_cmd[@]}" -i "${pwsh_debs}"/powershell_*.deb; then
+    if [[ "${EUID}" -eq 0 ]]; then
+      apt-get -f install -y -q || true
+      dpkg -i "${pwsh_debs}"/powershell_*.deb
+    else
+      sudo apt-get -f install -y -q || true
+      sudo dpkg -i "${pwsh_debs}"/powershell_*.deb
+    fi
+  fi
+  command -v pwsh &>/dev/null || die "pwsh kurulamadi (${pwsh_debs})"
+  log "pwsh hazir: $(command -v pwsh)"
 }
 
 bootstrap_keycloak() {
+  ensure_pwsh
   [[ -x "${DOCKER_DIR}/bootstrap-stack-auth.sh" ]] || die "bootstrap-stack-auth.sh bulunamadi"
   log "Keycloak realm bootstrap (bekleme + dogrulama)..."
   "${DOCKER_DIR}/bootstrap-stack-auth.sh"

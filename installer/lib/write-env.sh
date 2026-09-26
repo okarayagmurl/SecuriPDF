@@ -98,6 +98,8 @@ OAUTH2_SKIP_DISCOVERY=$([[ "${INSTALLER_INSECURE_ISSUER}" == "true" ]] && echo t
 OAUTH2_ALLOW_UNVERIFIED_EMAIL=true
 OAUTH2_INSECURE_TLS=$([[ "${INSTALLER_PROD}" == "1" ]] && echo false || echo true)
 OAUTH2_COOKIE_SECURE=${INSTALLER_COOKIE_SECURE}
+# Setup bitene kadar Keycloak kapali; updater secure moda alir
+OAUTH2_SKIP_AUTH_REGEX=^/.*$
 
 VAULT_MASTER_KEY=${vault_key}
 BREAK_GLASS_PASSWORD=${INSTALLER_BREAK_GLASS}

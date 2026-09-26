@@ -40,14 +40,16 @@ fi
 
 # PowerShell offline (opsiyonel)
 PWSH_DEBS="${ROOT_DIR}/offline/debs-pwsh"
-if [[ -d "${PWSH_DEBS}" ]] && ls "${PWSH_DEBS}"/*.deb &>/dev/null; then
+if [[ -d "${PWSH_DEBS}" ]] && ls "${PWSH_DEBS}"/powershell_*.deb &>/dev/null; then
   echo "PowerShell (pwsh) kuruluyor: ${PWSH_DEBS}"
-  apt-get install -y -qq "${PWSH_DEBS}"/*.deb || {
-    dpkg -i "${PWSH_DEBS}"/*.deb || true
-    apt-get -f install -y -q
-  }
+  # Yalniz powershell_*.deb — docker/containerd debleriyle karistirma
+  if ! dpkg -i "${PWSH_DEBS}"/powershell_*.deb; then
+    apt-get -f install -y -q || true
+    dpkg -i "${PWSH_DEBS}"/powershell_*.deb
+  fi
+  command -v pwsh >/dev/null && echo "pwsh: $(command -v pwsh)" || echo "UYARI: pwsh PATH'te yok" >&2
 else
-  echo "UYARI: offline/debs-pwsh bos — Keycloak bootstrap icin pwsh gerekir." >&2
+  echo "UYARI: offline/debs-pwsh icinde powershell_*.deb yok — Keycloak bootstrap icin pwsh gerekir." >&2
 fi
 
 systemctl enable docker 2>/dev/null || true

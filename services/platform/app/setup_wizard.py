@@ -33,28 +33,28 @@ def is_setup_complete(settings: Settings) -> bool:
 
 
 def ensure_legacy_setup_complete(settings: Settings) -> bool:
-    """Mevcut kurulumlar (metadata.db / admin-settings) first-run'i gecmis sayilir."""
+    """Onceki surumden gelen kurulumlari first-run disinda tut.
+
+    Not: init_db'den ONCE cagrilmali — taze olusturulan metadata.db legacy degildir.
+    Yalnizca gercek kullanim izleri (belge/job/backup veya admin-settings) sayilir.
+    """
     if is_setup_complete(settings):
         return True
     legacy = False
     try:
-        # SQLite bos sayfa genelde 4096; WAL/SHM veya herhangi bir icerik = mevcut kurulum
-        if settings.db_path.is_file() and settings.db_path.stat().st_size >= 4096:
-            legacy = True
         for extra in (
-            settings.data_path / "metadata.db-wal",
             settings.data_path / "jobs",
             settings.data_path / "backups",
             settings.data_path / "documents",
         ):
-            if extra.exists():
+            if extra.exists() and (extra.is_file() or any(extra.iterdir())):
                 legacy = True
                 break
+        admin_yml = settings.data_path / "config" / "admin-settings.yml"
+        if admin_yml.is_file() and admin_yml.stat().st_size > 0:
+            legacy = True
     except OSError:
         pass
-    cfg = settings.data_path / "config"
-    if cfg.is_dir() and any(cfg.iterdir()):
-        legacy = True
     if not legacy:
         return False
     mark_setup_complete(settings, actor="legacy-migrate")

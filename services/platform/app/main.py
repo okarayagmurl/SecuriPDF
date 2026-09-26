@@ -24,8 +24,9 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     settings.data_path.mkdir(parents=True, exist_ok=True)
     settings.audit_log_path.parent.mkdir(parents=True, exist_ok=True)
-    session_factory = init_db(settings)
+    # init_db oncesi: taze metadata.db legacy sayilmasin
     ensure_legacy_setup_complete(settings)
+    session_factory = init_db(settings)
 
     vault_cfg = {}
     vault_path = Path("/config/vault.yml")
