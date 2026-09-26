@@ -578,6 +578,17 @@ def admin_update_storage(
     return {"storage": storage, "settings": SettingsStore(settings).public_view()}
 
 
+@router.get("/settings/storage/health")
+def admin_storage_health(
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    from ..blob_store import check_storage_health
+
+    return check_storage_health(settings)
+
+
 @router.put("/settings/license")
 def admin_update_license(
     body: LicenseSettingsUpdate,

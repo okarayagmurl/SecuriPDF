@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy.orm import Session
 
 from .audit import write_audit
 from .auth import encrypt_bytes, new_id
+from .blob_store import blob_write, make_blob_ref, require_storage_writable
 from .config import Settings
 from .database import DocumentRecord, FolderRecord, UserQuotaRecord, utcnow
 from .document_names import resolve_document_filename
-from .storage_paths import resolve_user_dir
-
-
-def _user_dir(settings: Settings, kind: str, user_id: str) -> Path:
-    return resolve_user_dir(settings, kind, user_id)
 
 
 def _quota(db: Session, settings: Settings, user_id: str) -> UserQuotaRecord:
@@ -66,8 +60,9 @@ def store_document_bytes(
         raise ValueError("Belge numarasi zaten kullaniliyor")
 
     doc_id = doc_id or new_id("doc")
-    storage_path = _user_dir(settings, scope, user_id) / f"{doc_id}.enc"
-    storage_path.write_bytes(encrypt_bytes(settings, data))
+    require_storage_writable(settings)
+    storage_path = make_blob_ref(settings, scope, user_id, f"{doc_id}.enc")
+    blob_write(settings, storage_path, encrypt_bytes(settings, data))
 
     name, resolved_mime = resolve_document_filename(filename, mime_type, data)
 

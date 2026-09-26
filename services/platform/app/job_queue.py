@@ -213,9 +213,11 @@ def _process_email_job(settings: Settings, db: Session, row: JobRecord, meta: di
     db.commit()
 
     try:
-        payload = Path(doc_row.storage_path).read_bytes()
+        from .blob_store import blob_read
+
+        payload = blob_read(settings, doc_row.storage_path)
         data = decrypt_bytes(settings, payload)
-    except OSError:
+    except Exception:
         _finalize_failed_row(settings, row, "STORAGE_READ_FAILED")
         db.commit()
         return

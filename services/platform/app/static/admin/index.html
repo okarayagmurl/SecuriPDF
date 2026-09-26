@@ -110,13 +110,18 @@
 
       <section class="card">
         <h2>Belge depolama (backend)</h2>
-        <p class="hint">İlk kurulumda <code>/setup</code> ile seçilir; sonrasında buradan değiştirilebilir. Shared = sunucuda mount edilmiş yol. S3 bağlantısı kaydedilir; blob şimdilik yerel kalır.</p>
+        <p class="hint">
+          <strong>Yerel:</strong> container volume (<code>/vault-data</code>).
+          <strong>Shared:</strong> host’ta SMB/NFS mount + docker volume bind; yol container içinden görünmeli (ör. host <code>/mnt/share</code> → container <code>/vault-share</code>).
+          <strong>S3:</strong> dosyalar bucket’a yazılır; erişilemezse yükleme/indirme <strong>503</strong> (yerel yedek yok).
+        </p>
         <div id="storageBackendSummary" class="readiness-summary"></div>
         <p id="storageBackendNote" class="hint"></p>
+        <p id="storageHealthLine" class="hint"></p>
         <label>Backend
           <select id="storageBackend">
             <option value="local">Yerel disk</option>
-            <option value="shared">Paylaşılan klasör (SMB mount yolu)</option>
+            <option value="shared">Paylaşılan klasör (container yolu)</option>
             <option value="s3">S3 / MinIO</option>
           </select>
         </label>
@@ -124,9 +129,10 @@
           <label>Veri yolu <input id="storageLocalDataPath" type="text" value="/vault-data" autocomplete="off"></label>
         </div>
         <div id="admin-storage-shared" class="backend-fields" hidden>
-          <label>Mount yolu <input id="storageSharedPath" type="text" placeholder="/mnt/securipdf-share" autocomplete="off"></label>
-          <label>Kullanıcı (opsiyonel) <input id="storageSharedUser" type="text" autocomplete="off"></label>
-          <label>Parola (boş = değiştirme) <input id="storageSharedPass" type="password" autocomplete="new-password"></label>
+          <label>Container içi mount yolu <input id="storageSharedPath" type="text" placeholder="/vault-share" autocomplete="off"></label>
+          <p class="hint">Kullanıcı/parola alanları yalnızca not içindir; uygulama SMB’ye kendi bağlanmaz.</p>
+          <label>Not — kullanıcı <input id="storageSharedUser" type="text" autocomplete="off"></label>
+          <label>Not — parola <input id="storageSharedPass" type="password" autocomplete="new-password"></label>
         </div>
         <div id="admin-storage-s3" class="backend-fields" hidden>
           <label>Endpoint <input id="storageS3Endpoint" type="text" placeholder="https://s3.example.com" autocomplete="off"></label>
@@ -136,7 +142,10 @@
           <label>Access key <input id="storageS3AccessKey" type="text" autocomplete="off"></label>
           <label>Secret key (boş = değiştirme) <input id="storageS3SecretKey" type="password" autocomplete="new-password"></label>
         </div>
-        <button type="button" id="btnSaveStorage">Depolama kaydet</button>
+        <div class="row-actions">
+          <button type="button" id="btnSaveStorage">Depolama kaydet</button>
+          <button type="button" id="btnStorageHealth" class="secondary">Erişim testi</button>
+        </div>
         <pre id="storageResult"></pre>
       </section>
 
@@ -729,6 +738,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=26"></script>
+  <script src="/admin/static/admin.js?v=27"></script>
 </body>
 </html>

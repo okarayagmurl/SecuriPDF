@@ -1513,6 +1513,7 @@
         : 'Depolama henüz yapılandırılmadı (/setup)';
     }
     if (note) note.textContent = runtime.note || '';
+    loadStorageHealth();
 
     var backendEl = document.getElementById('storageBackend');
     if (backendEl) {
@@ -1626,6 +1627,33 @@
     } catch (e) { alert(e.message); }
   });
 
+  function renderStorageHealth(h) {
+    var el = document.getElementById('storageHealthLine');
+    var sum = document.getElementById('storageBackendSummary');
+    if (!el) return;
+    if (!h) {
+      el.textContent = '';
+      return;
+    }
+    if (h.reachable) {
+      el.textContent = 'Erişim: OK' + (h.target ? ' (' + h.target + ')' : '');
+      el.style.color = '#166534';
+      if (sum) sum.className = 'readiness-summary ready-ok';
+    } else {
+      el.textContent = 'Erişim: YOK — ' + (h.error || 'depolama alanına ulaşılamıyor');
+      el.style.color = '#991b1b';
+      if (sum) sum.className = 'readiness-summary ready-fail';
+    }
+  }
+
+  async function loadStorageHealth() {
+    try {
+      renderStorageHealth(await api('/settings/storage/health'));
+    } catch (e) {
+      renderStorageHealth({ reachable: false, error: e.message });
+    }
+  }
+
   function toggleAdminStorageFields() {
     var b = (document.getElementById('storageBackend') || {}).value || 'local';
     var local = document.getElementById('admin-storage-local');
@@ -1671,8 +1699,20 @@
       show('storageResult', data.storage || data);
       if (data.settings) fillSettings(data.settings);
       else loadSettings();
+      loadStorageHealth();
     } catch (e) { alert(e.message); }
   });
+
+  var btnStorageHealth = document.getElementById('btnStorageHealth');
+  if (btnStorageHealth) {
+    btnStorageHealth.addEventListener('click', async () => {
+      try {
+        var h = await api('/settings/storage/health');
+        renderStorageHealth(h);
+        show('storageResult', h);
+      } catch (e) { alert(e.message); }
+    });
+  }
 
   document.getElementById('btnSaveVault').addEventListener('click', async () => {
     const body = {};

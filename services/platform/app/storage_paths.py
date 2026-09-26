@@ -17,7 +17,7 @@ def storage_backend(settings: Settings) -> str:
 
 
 def documents_root(settings: Settings) -> Path:
-    """Belge/imza/sertifika blob kökü (kullanıcı alt klasörleri buranın altında)."""
+    """Filesystem tabanlı blob kökü (local/shared). S3 için anlamlı değil."""
     store = SettingsStore(settings)
     override = storage_override(settings)
     backend = storage_backend(settings)
@@ -26,17 +26,11 @@ def documents_root(settings: Settings) -> Path:
     if backend == "shared":
         shared_path = str((override.get("shared") or {}).get("path") or "").strip()
         if shared_path:
-            base = Path(shared_path)
-            # Shared kök altında standart alt klasörler
-            return base
+            return Path(shared_path)
 
-    # local / s3 (s3 blob henüz yerel vault'ta): vault documents_path veya data_path
     doc_root = roots.get("documents", "documents")
     root = Path(str(doc_root))
     if root.is_absolute():
-        # documents_path absolut ise onun parent'ı vault kökü olabilir;
-        # kind alt yolları resolve_user_dir'de eklenir — burada vault base döndür.
-        # Eğer documents_path = /vault-data/documents ise base = /vault-data
         if root.name in ("documents", "archive", "signatures", "certificates"):
             return root.parent
         return root
@@ -47,7 +41,7 @@ def documents_root(settings: Settings) -> Path:
 
 
 def resolve_user_dir(settings: Settings, kind: str, user_id: str) -> Path:
-    """kind: documents | archive | signatures | certificates."""
+    """kind: documents | archive | signatures | certificates (yalnizca FS backend)."""
     roots = SettingsStore(settings).merged_vault().get("storage_roots", {})
     root_name = str(roots.get(kind, kind))
     named = Path(root_name)
@@ -62,23 +56,40 @@ def resolve_user_dir(settings: Settings, kind: str, user_id: str) -> Path:
 def storage_runtime_info(settings: Settings) -> dict[str, Any]:
     override = storage_override(settings)
     backend = storage_backend(settings)
-    root = documents_root(settings)
     note = ""
     blob_mode = "filesystem"
+    documents_root_display = ""
+
     if backend == "s3":
-        blob_mode = "filesystem-deferred"
+        blob_mode = "s3"
+        s3 = override.get("s3") or {}
+        endpoint = str(s3.get("endpoint") or "")
+        bucket = str(s3.get("bucket") or "")
+        prefix = str(s3.get("prefix") or "")
+        documents_root_display = f"s3://{bucket}/{prefix}".rstrip("/")
         note = (
-            "S3 baglanti bilgisi kayitli; belge blob'lari su an yerel vault'ta tutulur. "
-            "Nesne depolama adapter'i sonraki surumde etkinlestirilecek."
+            f"Belge dosyalari S3/MinIO'ya yazilir ({endpoint or 'aws'}). "
+            "Erisilemezse yukleme/indirme 503 doner; sessizce yerele dusulmez. "
+            "Metadata SQLite yerel kalir."
         )
     elif backend == "shared":
-        note = "Paylasilan klasor mount yolu kullaniliyor; yazma izni host tarafinda olmali."
+        root = documents_root(settings)
+        documents_root_display = str(root)
+        note = (
+            "Paylaşılan klasör = container icinden gorunen yol "
+            "(host SMB/NFS mount + docker volume bind). "
+            "Yol yoksa veya yazilamazsa kayit ve belge islemleri reddedilir."
+        )
     else:
+        root = documents_root(settings)
+        documents_root_display = str(root)
+        blob_mode = "filesystem"
         note = "Belge, imza ve sertifika dosyalari bu kok altinda saklanir."
+
     return {
         "backend": backend if override.get("configured") else None,
         "configured": bool(override.get("configured")),
         "blobMode": blob_mode,
-        "documentsRoot": str(root),
+        "documentsRoot": documents_root_display,
         "note": note,
     }

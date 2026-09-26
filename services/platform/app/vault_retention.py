@@ -7,14 +7,10 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from .audit import write_audit
+from .blob_store import blob_move, make_blob_ref, require_storage_writable
 from .config import Settings
 from .database import DocumentRecord, utcnow
 from .settings_store import SettingsStore
-from .storage_paths import resolve_user_dir
-
-
-def _user_dir(settings: Settings, kind: str, user_id: str) -> Path:
-    return resolve_user_dir(settings, kind, user_id)
 
 
 def documents_ttl(settings: Settings) -> timedelta:
@@ -45,14 +41,10 @@ def move_document_to_archive(
 ) -> None:
     if getattr(row, "storage_scope", "documents") == "archive":
         return
-    old_path = Path(row.storage_path)
-    if not old_path.is_file():
-        raise FileNotFoundError("Depolama dosyasi bulunamadi")
-    payload = old_path.read_bytes()
-    new_path = _user_dir(settings, "archive", row.user_id) / f"{row.id}.enc"
-    new_path.write_bytes(payload)
-    old_path.unlink(missing_ok=True)
-    row.storage_path = str(new_path)
+    require_storage_writable(settings)
+    dest = make_blob_ref(settings, "archive", row.user_id, f"{row.id}.enc")
+    blob_move(settings, row.storage_path, dest)
+    row.storage_path = dest
     row.storage_scope = "archive"
     row.folder_id = None
     row.modified_at = utcnow()

@@ -9,6 +9,13 @@ from sqlalchemy.orm import Session
 
 from ..audit import read_document_activity, write_audit
 from ..auth import AuthUser, decrypt_bytes, encrypt_bytes, get_current_user, new_id, require_admin
+from ..blob_store import (
+    blob_move,
+    blob_read,
+    blob_write,
+    make_blob_ref,
+    require_storage_writable,
+)
 from ..config import Settings, get_settings
 from ..document_names import resolve_document_filename
 from ..http_util import content_disposition
@@ -25,6 +32,7 @@ from ..database import (
 )
 from ..settings_store import SettingsStore
 from ..vault_retention import archive_at, move_document_to_archive
+from ..storage_paths import resolve_user_dir
 
 router = APIRouter(tags=["vault"])
 
@@ -66,7 +74,7 @@ def _load_user_document(
     row = db.get(DocumentRecord, doc_id)
     if not row or row.deleted_at or row.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Belge bulunamadi")
-    payload = Path(row.storage_path).read_bytes()
+    payload = blob_read(settings, row.storage_path)
     data = decrypt_bytes(settings, payload)
     return row, data
 
@@ -98,8 +106,6 @@ def _check_quota(db: Session, settings: Settings, user_id: str, add_bytes: int) 
 
 
 def _user_dir(settings: Settings, kind: str, user_id: str) -> Path:
-    from ..storage_paths import resolve_user_dir
-
     return resolve_user_dir(settings, kind, user_id)
 
 
@@ -283,8 +289,9 @@ async def upload_document(
 
     _check_quota(db, settings, user.user_id, len(data))
     doc_id = new_id("doc")
-    storage_path = _user_dir(settings, scope, user.user_id) / f"{doc_id}.enc"
-    storage_path.write_bytes(encrypt_bytes(settings, data))
+    require_storage_writable(settings)
+    storage_path = make_blob_ref(settings, scope, user.user_id, f"{doc_id}.enc")
+    blob_write(settings, storage_path, encrypt_bytes(settings, data))
 
     name, resolved_mime = resolve_document_filename(
         file.filename or f"{doc_id}.pdf",
@@ -299,7 +306,7 @@ async def upload_document(
         name=name,
         size_bytes=len(data),
         mime_type=resolved_mime,
-        storage_path=str(storage_path),
+        storage_path=storage_path,
         folder_id=folder_id,
         storage_scope=scope,
         pinned=0,
@@ -455,14 +462,10 @@ def restore_document(
         raise HTTPException(status_code=404, detail="Belge bulunamadi")
     if getattr(row, "storage_scope", "documents") != "archive":
         raise HTTPException(status_code=400, detail="Belge arsivde degil")
-    old_path = Path(row.storage_path)
-    if not old_path.is_file():
-        raise HTTPException(status_code=500, detail="Depolama dosyasi bulunamadi")
-    payload = old_path.read_bytes()
-    new_path = _user_dir(settings, "documents", user.user_id) / f"{row.id}.enc"
-    new_path.write_bytes(payload)
-    old_path.unlink(missing_ok=True)
-    row.storage_path = str(new_path)
+    require_storage_writable(settings)
+    dest = make_blob_ref(settings, "documents", user.user_id, f"{row.id}.enc")
+    blob_move(settings, row.storage_path, dest)
+    row.storage_path = dest
     row.storage_scope = "documents"
     row.folder_id = None
     row.active_since = utcnow()
@@ -562,15 +565,16 @@ async def upload_signature(
         raise HTTPException(status_code=413, detail="Dosya boyutu limiti asildi")
     _check_quota(db, settings, user.user_id, len(data))
     sig_id = new_id("sig")
-    path = _user_dir(settings, "signatures", user.user_id) / f"{sig_id}.enc"
-    path.write_bytes(encrypt_bytes(settings, data))
+    require_storage_writable(settings)
+    path = make_blob_ref(settings, "signatures", user.user_id, f"{sig_id}.enc")
+    blob_write(settings, path, encrypt_bytes(settings, data))
     row = SignatureRecord(
         id=sig_id,
         user_id=user.user_id,
         label=label,
         size_bytes=len(data),
         mime_type=file.content_type or "image/png",
-        storage_path=str(path),
+        storage_path=path,
         created_at=utcnow(),
     )
     db.add(row)
@@ -586,7 +590,7 @@ def get_signature(sig_id: str, db: Session = Depends(get_db), user: AuthUser = D
     row = db.get(SignatureRecord, sig_id)
     if not row or row.deleted_at or row.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Imza bulunamadi")
-    data = decrypt_bytes(settings, Path(row.storage_path).read_bytes())
+    data = decrypt_bytes(settings, blob_read(settings, row.storage_path))
     return Response(content=data, media_type=row.mime_type)
 
 
@@ -635,10 +639,11 @@ async def upload_certificate(
         raise HTTPException(status_code=413, detail="Dosya boyutu limiti asildi")
     _check_quota(db, settings, user.user_id, len(data))
     cert_id = new_id("cert")
-    path = _user_dir(settings, "certificates", user.user_id) / f"{cert_id}.enc"
+    require_storage_writable(settings)
+    path = make_blob_ref(settings, "certificates", user.user_id, f"{cert_id}.enc")
     # password metadata ile birlikte sifrelenir
     bundle = {"pfx": data.hex(), "password": password or ""}
-    path.write_bytes(encrypt_bytes(settings, str(bundle).encode("utf-8")))
+    blob_write(settings, path, encrypt_bytes(settings, str(bundle).encode("utf-8")))
     row = CertificateRecord(
         id=cert_id,
         user_id=user.user_id,
@@ -646,7 +651,7 @@ async def upload_certificate(
         subject=label or file.filename,
         expires_at=None,
         size_bytes=len(data),
-        storage_path=str(path),
+        storage_path=path,
         created_at=utcnow(),
     )
     db.add(row)

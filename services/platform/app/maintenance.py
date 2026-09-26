@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .config import Settings
 from .database import CertificateRecord, DocumentRecord, SignatureRecord, utcnow
+from .blob_store import blob_delete
 
 
 def purge_soft_deleted(db: Session, settings: Settings, soft_delete_days: int = 30) -> int:
@@ -21,9 +22,10 @@ def purge_soft_deleted(db: Session, settings: Settings, soft_delete_days: int = 
             model.deleted_at < cutoff,
         ).all()
         for row in rows:
-            storage = Path(row.storage_path)
-            if storage.exists():
-                storage.unlink(missing_ok=True)
+            try:
+                blob_delete(settings, row.storage_path)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[maintenance] blob silinemedi {row.storage_path}: {exc}", flush=True)
             db.delete(row)
             removed += 1
 

@@ -103,6 +103,7 @@ def get_storage_config(settings: Settings) -> dict[str, Any]:
             "has_password": bool((storage.get("shared") or {}).get("password_enc")),
         },
         "runtime": runtime,
+        "health": None,  # Admin /settings/storage/health ile canli kontrol
     }
 
 
@@ -129,6 +130,7 @@ def save_storage_config(settings: Settings, payload: dict[str, Any], actor: str 
 
     store = SettingsStore(settings)
     data = store._override()  # noqa: SLF001
+    prev_storage = data.get("storage")
     storage: dict[str, Any] = {"backend": backend, "configured": True}
 
     if backend == "local":
@@ -170,6 +172,18 @@ def save_storage_config(settings: Settings, payload: dict[str, Any], actor: str 
         else:
             raise HTTPException(status_code=400, detail="S3 secret_key zorunlu")
         storage["s3"] = s3
+        # Gecici olarak kaydetmeden once erisim testi — once override'a yaz
+        data["storage"] = storage
+        store._save_override(data)  # noqa: SLF001
+        try:
+            from .blob_store import probe_s3
+
+            probe_s3(settings)
+        except Exception:
+            # Basarisizsa onceki storage'i geri koy
+            data["storage"] = prev_storage
+            store._save_override(data)  # noqa: SLF001
+            raise
 
     else:  # shared
         path = str(payload.get("path") or "").strip()
@@ -186,19 +200,21 @@ def save_storage_config(settings: Settings, payload: dict[str, Any], actor: str 
             ).decode("ascii")
         elif (data.get("storage") or {}).get("shared", {}).get("password_enc"):
             shared["password_enc"] = data["storage"]["shared"]["password_enc"]
-        # Mount edilmis path ise yazma testi
+        from .blob_store import probe_filesystem
+
         p = Path(path)
-        if p.exists():
-            try:
-                if not p.is_dir():
-                    raise HTTPException(status_code=400, detail="Shared path bir dizin olmali")
-                probe = p / ".securipdf-write-test"
-                probe.write_text("ok", encoding="utf-8")
-                probe.unlink(missing_ok=True)
-            except OSError as exc:
-                raise HTTPException(status_code=400, detail=f"Shared path yazilabilir degil: {exc}") from exc
+        try:
+            probe_filesystem(p, require_exists=True)
+        except HTTPException as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{exc.detail} "
+                    "Shared: host'ta SMB/NFS mount edin, platform container'a volume bind edin "
+                    "(ornek: /mnt/share:/vault-share), yol olarak container ic yolunu yazin."
+                ),
+            ) from exc
         storage["shared"] = shared
-        # Belge blob'lari paylasilan kok altinda
         vault = data.setdefault("vault", {})
         vault["documents_path"] = str(Path(path) / "documents")
         vault["archive_path"] = str(Path(path) / "archive")

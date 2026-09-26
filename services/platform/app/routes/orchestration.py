@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..auth import AuthUser, decrypt_bytes, get_current_user
+from ..blob_store import blob_read
 from ..config import Settings, get_settings
 from ..database import CertificateRecord, SignatureRecord, get_db
 from ..http_util import content_disposition
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/orchestration", tags=["orchestration"])
 
 
 def _load_cert_bundle(settings: Settings, storage_path: str) -> tuple[bytes, str]:
-    raw = decrypt_bytes(settings, Path(storage_path).read_bytes())
+    raw = decrypt_bytes(settings, blob_read(settings, storage_path))
     try:
         bundle = ast.literal_eval(raw.decode("utf-8"))
         pfx_hex = bundle.get("pfx", "")
@@ -40,7 +41,7 @@ def signature_for_stirling(
     row = db.get(SignatureRecord, sig_id)
     if not row or row.deleted_at or row.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Imza bulunamadi")
-    data = decrypt_bytes(settings, Path(row.storage_path).read_bytes())
+    data = decrypt_bytes(settings, blob_read(settings, row.storage_path))
     write_audit(settings, user.user_id, "orchestration.signature", sig_id)
     return Response(content=data, media_type=row.mime_type, headers={"X-SecuriPDF-Signature-Id": sig_id})
 

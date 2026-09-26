@@ -31,8 +31,8 @@
       <label>Backend
         <select id="storageBackend">
           <option value="local">Yerel disk (önerilen)</option>
-          <option value="s3">S3 / MinIO (bağlantı kaydı; blob şimdilik yerel)</option>
-          <option value="shared">Paylaşılan klasör (SMB mount yolu)</option>
+          <option value="s3">S3 / MinIO (dosyalar bucket’ta; erişilemezse 503)</option>
+          <option value="shared">Paylaşılan klasör (container’a bind edilmiş yol)</option>
         </select>
       </label>
 
