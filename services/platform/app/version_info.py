@@ -64,6 +64,12 @@ def upgrade_compatible(installed: str, manifest: dict[str, Any]) -> bool:
     target = str(manifest.get("version") or "").strip()
     if not target or target == installed:
         return False
+    kind = str(manifest.get("package_kind") or "full").strip().lower()
+    if kind == "delta":
+        from_ver = str(manifest.get("from_version") or "").strip()
+        if not from_ver or installed != from_ver:
+            return False
+        return target != installed
     allowed = manifest.get("upgrade_from") or []
     if allowed and installed not in allowed:
         return False
@@ -190,6 +196,8 @@ def get_upgrade_available(settings: Settings) -> dict[str, Any]:
         "reason": reason,
         "staging": {
             "version": target,
+            "packageKind": staging.get("package_kind") or "full",
+            "fromVersion": staging.get("from_version"),
             "stirlingVersion": staging.get("stirling_version"),
             "builtAt": staging.get("built_at"),
             "changelog": staging.get("changelog"),

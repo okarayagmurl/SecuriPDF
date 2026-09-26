@@ -13,6 +13,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 OFFLINE_DIR="${SECURIPDF_OFFLINE_DIR:-${REPO_ROOT}}"
 TOKEN="${SECURIPDF_UPDATER_TOKEN:-}"
 PORT="${SECURIPDF_UPDATER_PORT:-8765}"
+DIAG_PASSWORD="${SECURIPDF_DIAG_PASSWORD:-}"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "HATA: root gerekli (sudo)" >&2
@@ -24,6 +25,7 @@ if [[ -z "${TOKEN}" && -f "${OFFLINE_DIR}/docker/.env" ]]; then
   source "${OFFLINE_DIR}/docker/load-env.sh"
   load_dotenv "${OFFLINE_DIR}/docker/.env"
   TOKEN="${SECURIPDF_UPDATER_TOKEN:-}"
+  DIAG_PASSWORD="${DIAG_PASSWORD:-${SECURIPDF_DIAG_PASSWORD:-}}"
 fi
 
 if [[ -z "${TOKEN}" ]]; then
@@ -35,14 +37,26 @@ if [[ -z "${TOKEN}" ]]; then
   echo "UYARI: SECURIPDF_UPDATER_TOKEN uretildi — docker/.env ile eslestirin." >&2
 fi
 
-mkdir -p /etc/securipdf /var/lib/securipdf/jobs /var/lib/securipdf/uploads /var/lib/securipdf/packages
-install -m 0755 "${SCRIPT_DIR}/updater.py" /usr/local/bin/securipdf-updater.py
+if [[ -z "${DIAG_PASSWORD}" ]]; then
+  if command -v openssl &>/dev/null; then
+    DIAG_PASSWORD="$(openssl rand -hex 8)"
+  else
+    DIAG_PASSWORD="$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  fi
+  echo "UYARI: SECURIPDF_DIAG_PASSWORD uretildi — not edin (teshis sayfasi)." >&2
+fi
+
+mkdir -p /etc/securipdf /var/lib/securipdf/jobs /var/lib/securipdf/uploads /var/lib/securipdf/packages /usr/local/lib/securipdf
+install -m 0755 "${SCRIPT_DIR}/updater.py" /usr/local/lib/securipdf/updater.py
+install -m 0644 "${SCRIPT_DIR}/diag_page.py" /usr/local/lib/securipdf/diag_page.py
+ln -sfn /usr/local/lib/securipdf/updater.py /usr/local/bin/securipdf-updater.py
 
 cat > /etc/securipdf/updater.env <<EOF
 SECURIPDF_OFFLINE_DIR=${OFFLINE_DIR}
 SECURIPDF_UPDATER_TOKEN=${TOKEN}
 SECURIPDF_UPDATER_PORT=${PORT}
 SECURIPDF_UPDATER_HOST=0.0.0.0
+SECURIPDF_DIAG_PASSWORD=${DIAG_PASSWORD}
 EOF
 chmod 600 /etc/securipdf/updater.env
 
@@ -55,7 +69,8 @@ Wants=docker.service
 [Service]
 Type=simple
 EnvironmentFile=/etc/securipdf/updater.env
-ExecStart=/usr/bin/python3 /usr/local/bin/securipdf-updater.py
+WorkingDirectory=/usr/local/lib/securipdf
+ExecStart=/usr/bin/python3 /usr/local/lib/securipdf/updater.py
 Restart=on-failure
 RestartSec=5
 
@@ -91,10 +106,13 @@ if [[ -f "${ENV_FILE}" ]]; then
   }
   set_env SECURIPDF_UPDATER_TOKEN "${TOKEN}"
   set_env SECURIPDF_UPDATER_URL "http://host.docker.internal:${PORT}"
-  echo "docker/.env guncellendi: SECURIPDF_UPDATER_*"
+  set_env SECURIPDF_DIAG_PASSWORD "${DIAG_PASSWORD}"
+  echo "docker/.env guncellendi: SECURIPDF_UPDATER_* + DIAG"
 fi
 
 echo "Offline dizin: ${OFFLINE_DIR}"
 echo "Updater dinleme: 0.0.0.0:${PORT} (Docker host.docker.internal erisimi icin)"
 echo "Dogrula: curl -sf -H \"Authorization: Bearer ${TOKEN}\" http://127.0.0.1:${PORT}/health"
+echo "Teşhis (SSO bagimsiz): http://<sunucu-ip>:${PORT}/diag"
+echo "  Parola: ${DIAG_PASSWORD}"
 echo "Platform container'i yeniden baslatin: cd docker && docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d securipdf-platform"

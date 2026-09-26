@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
 import threading
 import uuid
@@ -15,6 +16,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+
+# diag_page.py ayni dizinde (gelistirme) veya /usr/local/lib/securipdf/
+_UPDATER_DIR = Path(__file__).resolve().parent
+if str(_UPDATER_DIR) not in sys.path:
+    sys.path.insert(0, str(_UPDATER_DIR))
+from diag_page import (  # noqa: E402
+    collect_diagnostics,
+    diag_password,
+    login_page,
+    make_session_token,
+    password_ok,
+    render_diag_page,
+    session_ok,
+)
 
 CONFIG_PATH = Path(os.environ.get("SECURIPDF_UPDATER_CONFIG", "/etc/securipdf/updater.env"))
 JOBS_DIR = Path(os.environ.get("SECURIPDF_UPDATER_JOBS", "/var/lib/securipdf/jobs"))
@@ -203,21 +218,31 @@ def collect_status() -> dict[str, Any]:
         docker_err = out.strip()[:500]
 
     images_tar = root / "images/securipdf-images.tar" if root else None
+    images_delta = root / "images/securipdf-images-delta.tar" if root else None
     env_file = root / "docker/.env" if root else None
     upgrade_script = root / "scripts/upgrade-offline-stack.sh" if root else None
+    has_images = bool(
+        (images_tar and images_tar.is_file()) or (images_delta and images_delta.is_file())
+    )
 
     return {
         "ok": True,
         "offlineDir": str(root) if root else None,
         "dockerOk": docker_ok,
         "dockerError": docker_err or None,
-        "imagesTarExists": bool(images_tar and images_tar.is_file()),
+        "imagesTarExists": has_images,
+        "imagesKind": (
+            "full"
+            if images_tar and images_tar.is_file()
+            else ("delta" if images_delta and images_delta.is_file() else None)
+        ),
         "envExists": bool(env_file and env_file.is_file()),
         "upgradeScriptExists": bool(upgrade_script and upgrade_script.is_file()),
         "activeJobId": _ACTIVE_JOB,
         "listen": f"{LISTEN_HOST}:{LISTEN_PORT}",
         "uploadsDir": str(UPLOADS_DIR),
         "packagesDir": str(PACKAGES_DIR),
+        "diagEnabled": bool(diag_password(_load_config())),
     }
 
 
@@ -234,7 +259,12 @@ def run_preflight() -> dict[str, Any]:
 
     add("offline_dir", "Offline kurulum dizini", bool(status.get("offlineDir")), "Web paket yükleme veya updater.env")
     add("docker", "Docker daemon erisimi", status.get("dockerOk") is True, status.get("dockerError") or "")
-    add("images_tar", "Image arsivi (images/securipdf-images.tar)", status.get("imagesTarExists") is True, "Paketi web'den yükleyin")
+    add(
+        "images_tar",
+        "Image arsivi (full veya delta)",
+        status.get("imagesTarExists") is True,
+        f"kind={status.get('imagesKind')}",
+    )
     add("env", "docker/.env mevcut", status.get("envExists") is True, "Mevcut kurulum .env kopyalanmalı")
     add("upgrade_script", "upgrade-offline-stack.sh", status.get("upgradeScriptExists") is True, "")
 
@@ -465,7 +495,8 @@ def _assemble_and_extract(upload_id: str) -> dict[str, Any]:
         "offlineDir": str(package_dir.resolve()),
         "manifest": manifest,
         "envCopiedFrom": str(env_src) if env_src else None,
-        "imagesTarExists": (package_dir / "images" / "securipdf-images.tar").is_file(),
+    "imagesTarExists": (package_dir / "images" / "securipdf-images.tar").is_file()
+    or (package_dir / "images" / "securipdf-images-delta.tar").is_file(),
     }
 
 
@@ -543,6 +574,97 @@ def auth_gate_reload(mode: str | None = None) -> dict[str, Any]:
     }
 
 
+def _html_response(
+    handler: BaseHTTPRequestHandler,
+    code: int,
+    body: str,
+    *,
+    set_cookie: str | None = None,
+    location: str | None = None,
+) -> None:
+    raw = body.encode("utf-8")
+    handler.send_response(code)
+    handler.send_header("Content-Type", "text/html; charset=utf-8")
+    handler.send_header("Content-Length", str(len(raw)))
+    handler.send_header("Cache-Control", "no-store")
+    if set_cookie:
+        handler.send_header("Set-Cookie", set_cookie)
+    if location:
+        handler.send_header("Location", location)
+    handler.end_headers()
+    handler.wfile.write(raw)
+
+
+def _diag_path(raw: str) -> str:
+    path = (raw or "/").split("?")[0]
+    if path.rstrip("/") == "/diag":
+        return "/diag"
+    return path.rstrip("/") or "/"
+
+
+def _handle_diag_get(handler: BaseHTTPRequestHandler, path: str) -> bool:
+    if not path.startswith("/diag"):
+        return False
+    cfg = _load_config()
+    if path == "/diag/logout":
+        _html_response(
+            handler,
+            302,
+            "",
+            set_cookie="securipdf_diag=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
+            location="/diag",
+        )
+        return True
+    if not diag_password(cfg):
+        _html_response(
+            handler,
+            503,
+            "<html><body><h1>Teşhis kapalı</h1><p>SECURIPDF_DIAG_PASSWORD tanımlı değil "
+            "(install-updater.sh veya /etc/securipdf/updater.env).</p></body></html>",
+        )
+        return True
+    authed = session_ok(cfg, handler.headers.get("Cookie"))
+    if path == "/diag/api":
+        if not authed:
+            _json_response(handler, 401, {"ok": False, "error": "Teşhis oturumu gerekli"})
+            return True
+        _json_response(handler, 200, collect_diagnostics(cfg, _offline_dir))
+        return True
+    if path == "/diag":
+        if not authed:
+            _html_response(handler, 200, login_page())
+            return True
+        _html_response(handler, 200, render_diag_page(collect_diagnostics(cfg, _offline_dir)))
+        return True
+    _json_response(handler, 404, {"ok": False, "error": "Bulunamadi"})
+    return True
+
+
+def _handle_diag_post(handler: BaseHTTPRequestHandler, path: str) -> bool:
+    if path != "/diag/login":
+        return False
+    cfg = _load_config()
+    if not diag_password(cfg):
+        _html_response(handler, 503, login_page("Teşhis parolası yapılandırılmamış"))
+        return True
+    length = int(handler.headers.get("Content-Length", "0") or 0)
+    raw = handler.rfile.read(length) if length > 0 else b""
+    form = parse_qs(raw.decode("utf-8", errors="replace"))
+    password = (form.get("password") or [""])[0]
+    if not password_ok(cfg, password):
+        _html_response(handler, 401, login_page("Parola hatalı"))
+        return True
+    token = make_session_token(cfg)
+    body = '<html><head><meta http-equiv="refresh" content="0;url=/diag"></head><body>OK</body></html>'
+    _html_response(
+        handler,
+        200,
+        body,
+        set_cookie=f"securipdf_diag={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400",
+    )
+    return True
+
+
 class UpdaterHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         return
@@ -554,10 +676,11 @@ class UpdaterHandler(BaseHTTPRequestHandler):
         return False
 
     def do_GET(self) -> None:
+        path = _diag_path(urlparse(self.path).path)
+        if _handle_diag_get(self, path):
+            return
         if self._unauthorized():
             return
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
         if path == "/health":
             _json_response(self, 200, {"ok": True})
             return
@@ -575,10 +698,12 @@ class UpdaterHandler(BaseHTTPRequestHandler):
         _json_response(self, 404, {"ok": False, "error": "Bulunamadi"})
 
     def do_POST(self) -> None:
+        path = _diag_path(urlparse(self.path).path)
+        if path == "/diag/login" or urlparse(self.path).path.rstrip("/") == "/diag/login":
+            if _handle_diag_post(self, "/diag/login"):
+                return
         if self._unauthorized():
             return
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
         try:
             if path == "/preflight":
                 _read_json_body(self)

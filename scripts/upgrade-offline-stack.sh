@@ -12,9 +12,26 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKER_DIR="${ROOT_DIR}/docker"
 ENV_FILE="${DOCKER_DIR}/.env"
 IMAGES_TAR="${ROOT_DIR}/images/securipdf-images.tar"
+IMAGES_DELTA_TAR="${ROOT_DIR}/images/securipdf-images-delta.tar"
+PACKAGE_KIND="full"
+FROM_VERSION=""
+NEW_TAG=""
+NEW_STIRLING=""
+
+if [[ -f "${ROOT_DIR}/MANIFEST.json" ]]; then
+  PACKAGE_KIND="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("package_kind") or "full")' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || echo full)"
+  FROM_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("from_version") or "")' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
+  NEW_TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
+  NEW_STIRLING="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("stirling_version",""))' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
+fi
+
+if [[ "${PACKAGE_KIND}" == "delta" ]]; then
+  IMAGES_TAR="${IMAGES_DELTA_TAR}"
+fi
 
 echo "=== SecuriPDF offline stack guncelleme ==="
 echo "Paket: ${ROOT_DIR}"
+echo "Tur: ${PACKAGE_KIND}"
 
 command -v docker &>/dev/null || { echo "HATA: docker yok" >&2; exit 1; }
 docker info &>/dev/null || { echo "HATA: docker yetkisi yok (sudo veya docker grubu)" >&2; exit 1; }
@@ -35,6 +52,21 @@ fi
 source "${DOCKER_DIR}/load-env.sh"
 load_dotenv "${ENV_FILE}"
 
+# Delta: kurulu IMAGE_TAG from_version ile eslesmeli
+if [[ "${PACKAGE_KIND}" == "delta" ]]; then
+  CUR_TAG="${IMAGE_TAG:-}"
+  if [[ -z "${FROM_VERSION}" ]]; then
+    echo "HATA: delta MANIFEST.from_version bos" >&2
+    exit 1
+  fi
+  if [[ "${CUR_TAG}" != "${FROM_VERSION}" ]]; then
+    echo "HATA: delta paket ${FROM_VERSION} -> ${NEW_TAG} icin; kurulu IMAGE_TAG=${CUR_TAG}" >&2
+    echo "  Full offline paket kullanin veya dogru path delta secin." >&2
+    exit 1
+  fi
+  echo "[+] Delta dogrulandi: ${FROM_VERSION} -> ${NEW_TAG}"
+fi
+
 HOST="${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-}}"
 [[ -n "${HOST}" && "${HOST}" != "localhost" ]] || {
   echo "HATA: PUBLIC_FQDN/KEYCLOAK_HOSTNAME gecerli degil (.env). Ornek: 192.168.6.175" >&2
@@ -42,16 +74,10 @@ HOST="${PUBLIC_FQDN:-${KEYCLOAK_HOSTNAME:-}}"
 }
 
 echo ""
-echo "[1/4] Image'lar yukleniyor..."
+echo "[1/4] Image'lar yukleniyor (${PACKAGE_KIND})..."
 docker load -i "${IMAGES_TAR}"
 
-# MANIFEST.version -> .env IMAGE_TAG (aksi halde eski tag ile container ayakta kalir)
-NEW_TAG=""
-NEW_STIRLING=""
-if [[ -f "${ROOT_DIR}/MANIFEST.json" ]]; then
-  NEW_TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
-  NEW_STIRLING="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("stirling_version",""))' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
-fi
+# MANIFEST.version -> .env IMAGE_TAG
 if [[ -n "${NEW_TAG}" ]]; then
   set_env_key() {
     local key="$1" val="$2" tmp="${ENV_FILE}.tmp.$$"

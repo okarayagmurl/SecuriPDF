@@ -6,7 +6,31 @@
 entera-pdf:<ENTERA_VERSION>-stirling-<STIRLING_VERSION>
 ```
 
-Örnek: `entera-pdf:1.2.0-stirling-2.14.3`
+Örnek: `entera-pdf:1.2.1-stirling-2.14.3`
+
+## Paket türleri
+
+| Tür | Build | Boyut | Kullanım |
+|-----|-------|-------|----------|
+| **full** | `./scripts/build-offline-bundle.sh` | Büyük (~tüm image’lar + debs) | Sıfır kurulum |
+| **delta** | `./scripts/build-offline-delta.sh --from <kurulu>` | Küçük (çoğunlukla platform+entera) | Kurulu sürüm → yeni sürüm |
+
+Delta `MANIFEST.json`: `package_kind=delta`, `from_version`, `version` (hedef).  
+`upgrade-offline-stack.sh` kurulu `IMAGE_TAG == from_version` değilse reddeder.
+
+```bash
+# Build makinesi
+./scripts/build-offline-delta.sh --from 1.2.0-stirling-2.14.3
+# → dist/securipdf-1.2.0-..._to_1.2.1-...-delta.tar.gz
+
+# Müşteri
+tar xzf securipdf-*-delta.tar.gz
+cd securipdf-*-delta
+# .env updater veya elle mevcut kurulumdan
+sudo bash scripts/upgrade-offline-stack.sh
+```
+
+Teşhis (SSO yok): [DIAG.md](DIAG.md) — `http://<ip>:8765/diag`
 
 ## Admin — Sürüm ve staging (Faz 1)
 

@@ -46,7 +46,7 @@ STIRLING_VERSION="${STIRLING_VERSION:-$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirl
 STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
 # Web/CLI yükseltme uyumu: bir önceki ana sürüm (override: PREV_VERSION=...)
-PREV_VERSION="${PREV_VERSION:-1.1.1-stirling-2.13.1}"
+PREV_VERSION="${PREV_VERSION:-1.2.0-stirling-2.14.3}"
 if [[ "${PREV_VERSION}" == "${IMAGE_TAG}" ]]; then
   PREV_VERSION=""
 fi
@@ -198,6 +198,7 @@ fi
 cat > "${STAGING}/MANIFEST.json" <<EOF
 {
   "product": "SecuriPDF",
+  "package_kind": "full",
   "version": "${IMAGE_TAG}",
   "stirling_version": "${STIRLING_VERSION}",
   "built_at": "${SECURIPDF_BUILT_AT}",
@@ -224,7 +225,9 @@ cat > "${STAGING}/MANIFEST.json" <<EOF
   "install": "cd installer && ./install.sh",
   "install_offline_cli": "./install-offline.sh --load-images --deploy --verify",
   "upgrade_cli": "sudo bash scripts/upgrade-offline-stack.sh",
+  "delta_build": "./scripts/build-offline-delta.sh --from <ONCEKI_SURUM>",
   "updater_install": "sudo SECURIPDF_OFFLINE_DIR=. bash scripts/securipdf-updater/install-updater.sh",
+  "diag_url": "http://<host>:8765/diag",
   "offline_debs": "offline/debs",
   "offline_pwsh_debs": "offline/debs-pwsh"
 }
