@@ -12,14 +12,13 @@ cat VERSION   # 1.2.1-stirling-2.14.3
 # Deb'ler yoksa (ilk kez)
 sudo bash scripts/ubuntu/download-offline-debs.sh
 
-# Full paket (sıfır kurulum)
-chmod +x scripts/build-offline-bundle.sh scripts/build-offline-delta.sh
-./scripts/build-offline-bundle.sh
-# → dist/securipdf-1.2.1-stirling-2.14.3-offline.tar.gz
+# Full paket (delta otomatik üretilir — PREV_VERSION varsa)
+chmod +x scripts/build-offline-bundle.sh scripts/build-offline-delta.sh scripts/verify-offline-bundle.sh
+bash scripts/build-offline-bundle.sh
+# Delta atlamak icin: SKIP_DELTA=1 bash scripts/build-offline-bundle.sh
 
-# (Opsiyonel) Path/delta — mevcut 1.2.0 müşteriler için
-./scripts/build-offline-delta.sh --from 1.2.0-stirling-2.14.3
-# → dist/securipdf-1.2.0-..._to_1.2.1-...-delta.tar.gz
+# Dogrulama
+bash scripts/verify-offline-bundle.sh
 ```
 
 ## B) Test sunucusu — temiz kurulum (192.168.6.175)

@@ -248,7 +248,7 @@ if command -v sha256sum &>/dev/null; then
 fi
 
 echo ""
-echo "=== Tamam ==="
+echo "=== Tamam (full) ==="
 echo "Paket: ${OUTPUT_ROOT}/${VERSION_DIR}.tar.gz"
 echo "Boyut: $(du -h "${OUTPUT_ROOT}/${VERSION_DIR}.tar.gz" | cut -f1)"
 echo ""
@@ -258,7 +258,22 @@ echo "  cd ${VERSION_DIR}"
 echo "  sudo bash scripts/ubuntu/install-prerequisites-offline.sh"
 echo "  cd installer && ./install.sh"
 echo ""
-echo "Mevcut kurulumu guncelleme:"
-echo "  tar xzf ${VERSION_DIR}.tar.gz"
-echo "  cd ${VERSION_DIR}"
-echo "  sudo ./scripts/upgrade-offline-stack.sh"
+echo "Mevcut kurulumu guncelleme (full paket):"
+echo "  tar xzf ${VERSION_DIR}.tar.gz && cd ${VERSION_DIR}"
+echo "  sudo bash scripts/upgrade-offline-stack.sh"
+
+# Path/delta her full build sonunda (PREV_VERSION varsa)
+SKIP_DELTA="${SKIP_DELTA:-0}"
+if [[ "${SKIP_DELTA}" != "1" && -n "${PREV_VERSION}" && "${PREV_VERSION}" != "${IMAGE_TAG}" ]]; then
+  echo ""
+  echo "=== Delta paket (otomatik) ==="
+  echo "From: ${PREV_VERSION} -> To: ${IMAGE_TAG}"
+  chmod +x "${SCRIPT_DIR}/build-offline-delta.sh" 2>/dev/null || true
+  bash "${SCRIPT_DIR}/build-offline-delta.sh" \
+    --from "${PREV_VERSION}" \
+    --to "${IMAGE_TAG}" \
+    --output "${OUTPUT_ROOT}"
+else
+  echo ""
+  echo "Delta atlandi (SKIP_DELTA=${SKIP_DELTA} PREV_VERSION='${PREV_VERSION}')."
+fi
