@@ -140,6 +140,18 @@ class LicenseActivateRequest(BaseModel):
     license_json: str = Field(min_length=20, description="Imzali .lic JSON icerigi")
 
 
+class LicenseRequestCreate(BaseModel):
+    company: str = Field(min_length=2, max_length=200)
+    contact_email: str | None = None
+    contact_name: str | None = None
+    requested_package: str = "professional"
+    notes: str | None = None
+
+
+class DemoStartRequest(BaseModel):
+    days: int | None = Field(default=None, ge=1, le=90)
+
+
 class PackageApplyRequest(BaseModel):
     package: str = Field(min_length=1)
 
@@ -1133,16 +1145,22 @@ def admin_update_tools(
 @router.get("/license")
 def admin_license(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
     require_admin(user)
-    return LicenseService(settings).status()
+    from ..license_identity import license_runtime
+
+    return license_runtime(settings)
 
 
 @router.get("/license/packages")
 def admin_license_packages(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
     require_admin(user)
+    from ..license_identity import license_runtime
+
     data = load_license_packages(settings)
-    current = LicenseService(settings).status()
+    current = license_runtime(settings)
     packages = []
     for key, spec in (data.get("packages") or {}).items():
+        if key == "demo":
+            continue  # Demo Admin paket kartlarindan secilmez; ayri "Demo baslat"
         tool_ids = resolve_package_tool_ids(settings, key)
         packages.append(
             {
@@ -1164,6 +1182,8 @@ def admin_apply_license_package(
     settings: Settings = Depends(get_settings),
 ):
     require_admin(user)
+    if body.package == "demo":
+        raise HTTPException(status_code=400, detail="Demo icin /license/demo/start kullanin")
     packages = (load_license_packages(settings).get("packages") or {})
     if body.package not in packages:
         raise HTTPException(status_code=400, detail=f"Bilinmeyen paket: {body.package}")
@@ -1172,6 +1192,7 @@ def admin_apply_license_package(
         "package": body.package,
         "enabled_tools": tool_ids,
         "apply_package_limits": True,
+        "license_type": "legacy",
     }
     pkg_limits = packages[body.package].get("limits")
     if pkg_limits:
@@ -1184,7 +1205,51 @@ def admin_apply_license_package(
         body.package,
         {"toolCount": len(tool_ids)},
     )
-    return {"ok": True, "license": result.get("license"), "status": LicenseService(settings).status()}
+    from ..license_identity import license_runtime
+
+    return {"ok": True, "license": result.get("license"), "status": license_runtime(settings)}
+
+
+@router.post("/license/request")
+def admin_create_license_request(
+    body: LicenseRequestCreate,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    """Musteri .req dosyasi uretir — Entera License Manager'a gonderilir."""
+    require_admin(user)
+    from ..license_identity import build_license_request
+
+    req = build_license_request(
+        settings,
+        company=body.company,
+        contact_email=body.contact_email or "",
+        contact_name=body.contact_name or "",
+        requested_package=body.requested_package,
+        notes=body.notes or "",
+    )
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.license.request",
+        req["request_id"],
+        {"company": req["company"], "package": req["requested_package"]},
+    )
+    return {"ok": True, "request": req, "filename": f"securipdf-{req['request_id']}.req"}
+
+
+@router.post("/license/demo/start")
+def admin_start_demo(
+    body: DemoStartRequest = DemoStartRequest(),
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    from ..license_identity import start_demo_license
+
+    result = start_demo_license(settings, days=body.days, actor=user.user_id)
+    write_audit(settings, user.user_id, "admin.license.demo_start", "demo", {"days": body.days})
+    return result
 
 
 @router.post("/license/activate")
@@ -1193,33 +1258,25 @@ def admin_activate_license_file(
     user: AuthUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
 ):
-    """Imzali .lic dosyasini dogrula ve admin-settings'e yaz."""
+    """Imzali .lic dosyasini dogrula (installation_id eslesmeli) ve uygula."""
     require_admin(user)
-    from ..license_file import parse_and_verify, payload_to_settings
+    from ..license_file import parse_and_verify
+    from ..license_identity import activate_signed_payload
 
     verified = parse_and_verify(body.license_json)
-    payload = payload_to_settings(verified)
-    package = str(payload.get("package") or "")
-    packages = (load_license_packages(settings).get("packages") or {})
-    if package in packages and "enabled_tools" not in payload:
-        payload["enabled_tools"] = resolve_package_tool_ids(settings, package)
-        pkg_limits = packages[package].get("limits") or {}
-        if pkg_limits and not payload.get("limits"):
-            payload["limits"] = pkg_limits
-    result = SettingsStore(settings).update_section("license", payload, user.user_id)
+    result = activate_signed_payload(settings, verified, actor=user.user_id)
     write_audit(
         settings,
         user.user_id,
         "admin.license.activate_file",
-        package,
-        {"customer": verified.get("customer"), "license_key": payload.get("license_key")},
+        str(verified.get("package") or ""),
+        {
+            "customer": verified.get("customer"),
+            "installation_id": verified.get("installation_id"),
+            "license_key": verified.get("license_key"),
+        },
     )
-    return {
-        "ok": True,
-        "customer": verified.get("customer"),
-        "license": result.get("license"),
-        "status": LicenseService(settings).status(),
-    }
+    return result
 
 @router.get("/tool-catalog")
 def admin_tool_catalog(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):

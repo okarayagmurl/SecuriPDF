@@ -14,17 +14,15 @@ Hedef: 2 sayfa (A4) veya tek katlanır broşür. Marka: Entera / SecuriPDF. Offl
 
 ## Sayfa 2 — Paketler ve kurulum
 
-| | Başlangıç | Profesyonel | Kurumsal |
-|---|-----------|-------------|---------|
-| Kullanıcı | 25 | 150 | 500 |
-| Eşzamanlı oturum | 10 | 30 | 50 |
-| Araç seti | Temel | Geniş | Tam whitelist |
-| Depolama | Yerel / SMB / S3 | aynı | aynı |
-| LDAP / AD | Var | Var | Var |
+| | Demo | Başlangıç | Profesyonel | Kurumsal |
+|---|------|-----------|-------------|---------|
+| Süre | 30 gün | Sözleşme | Sözleşme | Sözleşme |
+| Kullanıcı | 5 | 25 | 150 | 500 |
+| Lisans | Admin’den demo | Entera `.lic` | Entera `.lic` | Entera `.lic` |
 
-- **Kurulum:** tek sunucu, Docker, ilk açılışta kurulum sihirbazı (depolama + yönetici)
-- **Güncelleme:** offline `.tar.gz` — Admin’den veya paket script’i
-- **Lisans:** Entera’dan `.lic` dosyası; Admin’den yükleme
+- **Lisans:** Müşteri web’den talep (`.req`) → Entera License Manager → `.lic` yükleme
+- **Kurulum:** tek sunucu, Docker, kurulum sihirbazı
+- **Güncelleme:** offline `.tar.gz`
 - **CTA:** demo / teklif iletişimi
 
 ## Vurgulanacak farklılaştırıcılar

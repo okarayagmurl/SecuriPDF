@@ -147,7 +147,12 @@
     if (!pkgEl) return;
     pkgEl.textContent = status.packageLabel || status.package || '—';
     var descEl = document.getElementById('licenseSummaryDesc');
-    if (descEl) descEl.textContent = status.packageDescription || 'Paket seçin veya güncelleyin.';
+    if (descEl) {
+      var bits = [];
+      if (status.customer) bits.push(status.customer);
+      if (status.packageDescription) bits.push(status.packageDescription);
+      descEl.textContent = bits.join(' · ') || 'Paket seçin, demo başlatın veya .lic yükleyin.';
+    }
     var toolsEl = document.getElementById('licenseSummaryTools');
     if (toolsEl) toolsEl.textContent = status.enabledToolCount != null ? status.enabledToolCount : (status.enabledTools || []).length;
     var expEl = document.getElementById('licenseSummaryExpiry');
@@ -159,8 +164,14 @@
     if (validEl) {
       if (status.valid) validEl.textContent = 'Geçerli';
       else if (status.expired) validEl.textContent = 'Süresi dolmuş';
-      else validEl.textContent = 'Kontrol edin';
+      else validEl.textContent = 'Geçersiz / lisans yok';
     }
+    var typeEl = document.getElementById('licenseSummaryType');
+    if (typeEl) typeEl.textContent = status.licenseType || '—';
+    var meta = document.getElementById('licenseInstallMeta');
+    if (meta) meta.textContent = 'Kurulum ID: ' + (status.installationId || '—');
+    var demoAct = document.getElementById('licenseDemoActions');
+    if (demoAct) demoAct.hidden = !status.canStartDemo;
   }
 
   function renderPackageCards(packages, currentId) {
@@ -1798,6 +1809,52 @@
         });
         show('licenseActivateResult', data);
         await loadLicensePanel();
+      } catch (e) { alert(e.message); }
+    });
+  }
+
+  var btnStartDemo = document.getElementById('btnStartDemo');
+  if (btnStartDemo) {
+    btnStartDemo.addEventListener('click', async function () {
+      if (!confirm('30 günlük demo lisansı başlatılsın mı?')) return;
+      try {
+        var data = await api('/license/demo/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: 30 })
+        });
+        show('licenseResult', data.runtime || data);
+        await loadLicensePanel();
+      } catch (e) { alert(e.message); }
+    });
+  }
+
+  var btnCreateLicenseRequest = document.getElementById('btnCreateLicenseRequest');
+  if (btnCreateLicenseRequest) {
+    btnCreateLicenseRequest.addEventListener('click', async function () {
+      var company = val('licReqCompany');
+      if (!company) { alert('Şirket / müşteri adı zorunlu'); return; }
+      try {
+        var data = await api('/license/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company: company,
+            contact_name: val('licReqContact') || undefined,
+            contact_email: val('licReqEmail') || undefined,
+            requested_package: val('licReqPackage') || 'professional',
+            notes: val('licReqNotes') || undefined
+          })
+        });
+        show('licenseRequestResult', data.request);
+        var blob = new Blob([JSON.stringify(data.request, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = data.filename || 'securipdf-request.req';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
       } catch (e) { alert(e.message); }
     });
   }

@@ -292,13 +292,41 @@
             <p class="license-kicker">Aktif lisans</p>
             <h2 id="licenseSummaryPackage">—</h2>
             <p id="licenseSummaryDesc" class="hint">Paket seçin veya güncelleyin.</p>
+            <p class="hint" id="licenseInstallMeta">Kurulum ID: —</p>
           </div>
           <div class="license-summary-stats">
             <div class="stat-pill"><span id="licenseSummaryTools">0</span> araç</div>
             <div class="stat-pill" id="licenseSummaryExpiry">—</div>
             <div class="stat-pill" id="licenseSummaryValid">—</div>
+            <div class="stat-pill" id="licenseSummaryType">—</div>
           </div>
         </div>
+        <div class="row-actions" id="licenseDemoActions" hidden>
+          <button type="button" id="btnStartDemo" class="secondary">30 günlük demo başlat</button>
+          <span class="hint">İmza gerekmez; süre dolunca ticari .lic yükleyin.</span>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Lisans talebi (.req)</h2>
+        <p class="hint">Entera’ya gönderilecek talep dosyasını üretin. License Manager bu dosya ile müşteriye bağlı, bu kurulum kimliğine kilitli .lic üretir.</p>
+        <div class="form-grid">
+          <label>Şirket / müşteri adı <input id="licReqCompany" type="text" autocomplete="organization"></label>
+          <label>İletişim adı <input id="licReqContact" type="text" autocomplete="name"></label>
+          <label>E-posta <input id="licReqEmail" type="email" autocomplete="email"></label>
+          <label>İstenen paket
+            <select id="licReqPackage">
+              <option value="starter">Başlangıç</option>
+              <option value="professional" selected>Profesyonel</option>
+              <option value="enterprise">Kurumsal</option>
+            </select>
+          </label>
+        </div>
+        <label>Not <input id="licReqNotes" type="text" placeholder="Opsiyonel"></label>
+        <div class="row-actions">
+          <button type="button" id="btnCreateLicenseRequest">Talep oluştur ve indir</button>
+        </div>
+        <pre id="licenseRequestResult"></pre>
       </section>
 
       <section class="card full">
@@ -357,7 +385,7 @@
       <div class="license-details-row full">
       <section class="card">
         <h2>Lisans dosyası (.lic)</h2>
-        <p class="hint">Entera License Manager ile üretilen imzalı dosyayı yapıştırın. İmza doğrulanır, paket/limitler uygulanır.</p>
+        <p class="hint">Entera License Manager ile .req’ten üretilen imzalı .lic dosyasını yükleyin. Kurulum kimliği eşleşmelidir.</p>
         <label>Dosya seç <input id="licenseFileInput" type="file" accept=".lic,.json,application/json,text/plain"></label>
         <label>JSON içeriği <textarea id="licenseFileJson" rows="8" placeholder='{"v":1,"payload":{...},"sig":"..."}'></textarea></label>
         <div class="row-actions">
@@ -750,6 +778,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=29"></script>
+  <script src="/admin/static/admin.js?v=30"></script>
 </body>
 </html>

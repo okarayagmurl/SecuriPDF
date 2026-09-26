@@ -67,6 +67,10 @@ def build_payload(
     enabled_tools: list[str] | None = None,
     license_key: str | None = None,
     notes: str = "",
+    installation_id: str = "",
+    request_id: str = "",
+    customer_id: str = "",
+    license_type: str = "commercial",
 ) -> dict[str, Any]:
     issued = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     limits: dict[str, int] = {}
@@ -79,15 +83,35 @@ def build_payload(
         "package": package.strip(),
         "customer": customer.strip(),
         "license_key": license_key or generate_license_key(package, customer),
+        "license_type": license_type.strip() or "commercial",
         "issued_at": issued,
         "expires_at": expires_at,
         "limits": limits,
         "apply_package_limits": True,
         "notes": notes.strip(),
     }
+    if installation_id:
+        payload["installation_id"] = installation_id.strip()
+    if request_id:
+        payload["request_id"] = request_id.strip()
+    if customer_id:
+        payload["customer_id"] = customer_id.strip()
     if enabled_tools is not None:
         payload["enabled_tools"] = list(enabled_tools)
     return payload
+
+
+def read_request(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(data, dict):
+        raise ValueError("Gecersiz .req")
+    if data.get("type") != "license_request":
+        raise ValueError("Dosya lisans talebi (.req) degil")
+    if data.get("product") != PRODUCT:
+        raise ValueError("Urun uyusmuyor")
+    if not data.get("installation_id"):
+        raise ValueError("installation_id yok")
+    return data
 
 
 def sign_license(payload: dict[str, Any], private_key: Ed25519PrivateKey) -> dict[str, Any]:
@@ -133,7 +157,7 @@ def write_lic(path: Path, doc: dict[str, Any]) -> None:
 
 
 def read_lic(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def load_packages(packages_yml: Path) -> dict[str, Any]:

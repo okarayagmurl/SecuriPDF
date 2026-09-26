@@ -3,6 +3,28 @@
 # enterprise: enabled_tools tools.yml ile sync-tools-config tarafından güncellenir.
 
 packages:
+  demo:
+    label: Demo
+    description: Sureli deneme (Admin'den baslatilir; Entera imzasi gerekmez).
+    limits:
+      max_users: 5
+      max_concurrent_sessions: 2
+    enabled_tools:
+      - merge-pdfs
+      - split-pages
+      - compress-pdf
+      - ocr-pdf
+      - pdf-to-word
+      - file-to-pdf
+      - img-to-pdf
+      - pdf-to-img
+      - rotate-pdf
+      - add-password
+      - remove-password
+      - add-watermark
+      - flatten
+      - repair
+
   starter:
     label: Başlangıç
     description: Temel birleştirme, bölme, dönüşüm ve güvenlik araçları.

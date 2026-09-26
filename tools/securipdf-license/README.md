@@ -1,46 +1,39 @@
 # SecuriPDF License Manager
 
-Tek araç: **lisans üretimi (generator)** + **doğrulama / inceleme (manager)**.
+Entera tarafı: **müşteri kaydı** + müşteri web’den gelen **`.req` talebinden imzalı `.lic` üretimi**.
 
-## Kurulum (geliştirme)
+## Akış
 
-```bash
-pip install cryptography pyyaml
-cd tools/securipdf-license
-python cli.py packages
-```
+1. Müşteri Admin → Lisans → **Talep oluştur ve indir** (`.req`)
+2. Entera: müşteri kaydet (GUI veya CLI) → `.req` ile lisans üret
+3. Müşteri Admin → **Lisans dosyası** ile `.lic` yükle (kurulum kimliği eşleşmeli)
+4. Demo: müşteri Admin’de **30 günlük demo başlat** (imza yok, süre bitince ticari `.lic`)
 
-Vendor private key: `keys/vendor.ed25519.priv` (gitignore — Entera ops’ta saklanır).
-Public key platformda gömülü: `services/platform/app/license_file.py`.
-
-## Komutlar
-
-```bash
-# Katalog
-python cli.py packages
-
-# Lisans üret
-python cli.py generate -p professional -c "Musteri A.S." -e 2027-12-31 -o musteri.lic
-
-# Dogrula
-python cli.py verify musteri.lic
-
-# Ozet
-python cli.py info musteri.lic
-```
-
-## Windows exe
+## GUI (önerilen)
 
 ```powershell
 cd tools\securipdf-license
-pip install pyinstaller cryptography pyyaml
-pyinstaller --onefile --name SecuriPDF-LicenseManager cli.py
-# dist\SecuriPDF-LicenseManager.exe
+python gui.py
+# veya exe: SecuriPDF-LicenseManager.exe  (args yoksa gui acilir)
 ```
 
-Exe ile aynı klasöre `keys\vendor.ed25519.priv` koyun veya `--key` verin.
+## CLI
 
-## Müşteri tarafı
+```bash
+python cli.py customer-add -n "ACME A.S." --email satis@acme.com
+python cli.py customer-list
+python cli.py issue -r musteri.req --auto-create -e 2027-12-31 -o acme.lic
+python cli.py verify acme.lic
+```
 
-Üretilen `.lic` dosyası Admin → Lisans → **Lisans dosyası yükle** ile uygulanır.
-Platform imzayı public key ile doğrular; süresi dolmuşsa reddeder.
+Müşteri deposu: `data/customers.json` (gitignore).
+
+Private key: `keys/vendor.ed25519.priv` (gitignore). Public key platformda gömülü.
+
+## Windows exe
+
+```bat
+build-exe.bat
+```
+
+`dist\SecuriPDF-LicenseManager.exe` — yanına `keys\vendor.ed25519.priv` koyun.

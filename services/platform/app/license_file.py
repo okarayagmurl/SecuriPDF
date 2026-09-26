@@ -28,7 +28,9 @@ def parse_and_verify(raw: str | bytes | dict[str, Any]) -> dict[str, Any]:
     if isinstance(raw, dict):
         doc = raw
     else:
-        text = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
+        text = raw.decode("utf-8-sig") if isinstance(raw, (bytes, bytearray)) else str(raw)
+        if text.startswith("\ufeff"):
+            text = text.lstrip("\ufeff")
         try:
             doc = json.loads(text)
         except json.JSONDecodeError as exc:
@@ -62,9 +64,18 @@ def payload_to_settings(payload: dict[str, Any]) -> dict[str, Any]:
         "package": str(payload.get("package") or "starter"),
         "license_key": str(payload.get("license_key") or ""),
         "apply_package_limits": bool(payload.get("apply_package_limits", True)),
+        "license_type": str(payload.get("license_type") or "commercial"),
     }
     if payload.get("expires_at"):
         out["expires_at"] = str(payload["expires_at"])
+    if payload.get("issued_at"):
+        out["issued_at"] = str(payload["issued_at"])
+    if payload.get("installation_id"):
+        out["installation_id"] = str(payload["installation_id"])
+    if payload.get("request_id"):
+        out["request_id"] = str(payload["request_id"])
+    if payload.get("customer_id"):
+        out["customer_id"] = str(payload["customer_id"])
     limits = payload.get("limits")
     if isinstance(limits, dict) and limits:
         out["limits"] = {k: int(v) for k, v in limits.items() if v is not None}

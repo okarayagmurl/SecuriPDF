@@ -1,5 +1,6 @@
 keys/*.priv
 keys/*.key
+data/
 dist/
 build/
 *.spec

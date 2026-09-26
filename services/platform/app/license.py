@@ -72,6 +72,15 @@ class LicenseService:
         pkg_def = self._package_def()
         tools = self.enabled_tools()
         limits = self._limits()
+        license_type = str(self._config.get("license_type") or "").strip().lower()
+        if not license_type:
+            if pkg in ("", "unlicensed", "unknown", "none"):
+                license_type = "none"
+            else:
+                license_type = "legacy"
+        valid = not expired and pkg not in ("unlicensed", "unknown", "none", "") and bool(tools or pkg == "enterprise")
+        if license_type == "none":
+            valid = False
         return {
             "product": self._config.get("product", "SecuriPDF"),
             "package": pkg,
@@ -79,12 +88,15 @@ class LicenseService:
             "packageDescription": pkg_def.get("description", ""),
             "version": self._config.get("version", "1.0"),
             "licenseKey": self._config.get("license_key"),
+            "licenseType": license_type,
+            "customer": self._config.get("customer") or "",
+            "installationId": self._config.get("installation_id") or "",
             "expiresAt": expires,
             "expired": expired,
             "limits": limits,
             "enabledTools": tools,
             "enabledToolCount": len(tools),
-            "valid": not expired,
+            "valid": valid,
         }
 
     def public_status(self) -> dict[str, Any]:
@@ -93,7 +105,13 @@ class LicenseService:
         return data
 
     def assert_tool_allowed(self, tool_id: str) -> None:
-        enabled = self.enabled_tools()
+        st = self.status()
+        if not st.get("valid"):
+            raise HTTPException(
+                status_code=403,
+                detail="Lisans gecersiz veya suresi dolmus. Admin > Lisans: demo baslatin veya .lic yukleyin.",
+            )
+        enabled = st.get("enabledTools") or []
         if enabled and tool_id not in enabled:
             raise HTTPException(status_code=403, detail=f"Lisans paketinde '{tool_id}' araci acik degil")
 

@@ -1,48 +1,36 @@
 # SecuriPDF lisans modeli
 
+## Akış (müşteri bazlı)
+
+```
+Musteri Admin                     Entera License Manager (exe)
+     |                                      |
+     | 1) Kurulum ID olusur                 |
+     | 2) .req talep indir  --------------->| 3) Musteri kaydet
+     |                                      | 4) issue(.req) → .lic
+     | 5) .lic yukle <----------------------|
+     |    (installation_id kilitli)         |
+```
+
+**Demo:** Admin → «30 günlük demo başlat» — imza yok, `license_type=demo`, süre dolunca araçlar kapanır; ticari `.lic` gerekir.
+
 ## Roller
 
 | Rol | Araç | Ne yapar |
 |-----|------|----------|
-| Entera (satış/ops) | `SecuriPDF-LicenseManager.exe` | Paket seçer, müşteri + bitiş tarihi ile imzalı `.lic` üretir; doğrular |
-| Müşteri admin | Admin → Lisans | `.lic` yükler / anahtar girer; paket ve araçları görür |
-| Platform | `LicenseService` | Araç erişimi + oturum limitlerini uygular |
+| Entera | `SecuriPDF-LicenseManager.exe` | Müşteri kaydı, `.req` → `.lic`, doğrulama |
+| Müşteri admin | Admin → Lisans | Talep (.req), demo, `.lic` yükleme |
+| Platform | `LicenseService` | Araç + oturum limitleri; imza + kurulum kimliği |
 
-## Paketler (`config/license-packages.yml`)
+## Dosyalar
 
-- **starter** — temel birleştirme/bölme/dönüşüm
-- **professional** — geniş dönüşüm + güvenlik
-- **enterprise** — tüm whitelist araçları
+- **`.req`** — imzasız talep: `installation_id`, şirket, istenen paket, iletişim
+- **`.lic`** — Ed25519 imzalı: paket, limitler, `installation_id`, `customer_id`, `request_id`
 
-## Dosya formatı (`.lic`)
+## Paketler
 
-Ed25519 imzalı JSON:
-
-```json
-{
-  "v": 1,
-  "payload": {
-    "product": "SecuriPDF",
-    "package": "professional",
-    "customer": "Musteri A.S.",
-    "license_key": "SPDF-...",
-    "issued_at": "2026-09-26T10:00:00Z",
-    "expires_at": "2027-12-31T23:59:59Z",
-    "limits": { "max_users": 150, "max_concurrent_sessions": 30 },
-    "apply_package_limits": true
-  },
-  "sig": "<base64>"
-}
-```
-
-Private key yalnızca Entera’da; public key platform image içinde.
-
-## Akış
-
-1. Ops: `SecuriPDF-LicenseManager generate -p professional -c "..." -e 2027-12-31 -o musteri.lic`
-2. Müşteri: Admin → Lisans dosyası yapıştır/yükle → etkinleştir
-3. Platform imzayı doğrular, `admin-settings` override’a yazar
+`demo` · `starter` · `professional` · `enterprise` — `config/license-packages.yml`
 
 ## Broşür
 
-İçerik taslağı: [BROCHURE-OUTLINE.md](BROCHURE-OUTLINE.md)
+[BROCHURE-OUTLINE.md](BROCHURE-OUTLINE.md)
