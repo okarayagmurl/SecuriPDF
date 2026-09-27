@@ -79,9 +79,9 @@ ensure_pwsh() {
   log "pwsh bulunamadi — offline deb kuruluyor: ${pwsh_debs}"
   # Yalniz powershell_*.deb. apt-get -f yok: taban kutuphane surumunu dusurmesin.
   if [[ "${EUID}" -eq 0 ]]; then
-    apt-get install -y --no-downgrades "${pwsh_debs}"/powershell_*.deb
+    apt-get install -y "${pwsh_debs}"/powershell_*.deb
   else
-    sudo apt-get install -y --no-downgrades "${pwsh_debs}"/powershell_*.deb
+    sudo apt-get install -y "${pwsh_debs}"/powershell_*.deb
   fi
   command -v pwsh &>/dev/null || die "pwsh kurulamadi (${pwsh_debs})"
   log "pwsh hazir: $(command -v pwsh)"

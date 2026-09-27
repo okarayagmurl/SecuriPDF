@@ -51,7 +51,9 @@ if [[ -d "${DEBS_DIR}" ]] && ls "${DEBS_DIR}"/*.deb &>/dev/null; then
     installable+=("${deb}")
   done
   if [[ "${#installable[@]}" -gt 0 ]]; then
-    apt-get install -y --no-downgrades "${installable[@]}"
+    # Surum dusurme yukaridaki filtrede elenir. --no-downgrades, .deb
+    # dosyalariyla apt-get'te "not understood" hatasi verir.
+    apt-get install -y "${installable[@]}"
   else
     echo "Kurulacak yeni Docker .deb yok."
   fi
@@ -70,7 +72,7 @@ PWSH_DEBS="${ROOT_DIR}/offline/debs-pwsh"
 if [[ -d "${PWSH_DEBS}" ]] && ls "${PWSH_DEBS}"/powershell_*.deb &>/dev/null; then
   echo "PowerShell (pwsh) kuruluyor: ${PWSH_DEBS}"
   # Yalniz powershell_*.deb. apt-get -f kullanma: bozuk libc/systemd deb'lerini geri ceker.
-  apt-get install -y --no-downgrades "${PWSH_DEBS}"/powershell_*.deb
+  apt-get install -y "${PWSH_DEBS}"/powershell_*.deb
   command -v pwsh >/dev/null && echo "pwsh: $(command -v pwsh)" || echo "UYARI: pwsh PATH'te yok" >&2
 else
   echo "UYARI: offline/debs-pwsh icinde powershell_*.deb yok — Keycloak bootstrap icin pwsh gerekir." >&2
