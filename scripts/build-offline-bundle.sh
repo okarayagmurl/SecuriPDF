@@ -47,8 +47,13 @@ if [[ -n "${VERSION_FILE_TAG}" ]]; then
 else
   IMAGE_TAG="${IMAGE_TAG:-1.2.1-stirling-2.14.3}"
 fi
-STIRLING_VERSION="${STIRLING_VERSION:-$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirling-//p')}"
-STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
+# Stirling surumu paket etiketinden gelsin; docker/.env eski STIRLING_VERSION pin'i ezmesin
+PARSED_STIRLING="$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirling-//p')"
+if [[ -n "${PARSED_STIRLING}" ]]; then
+  STIRLING_VERSION="${PARSED_STIRLING}"
+else
+  STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
+fi
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
 # Web/CLI yükseltme uyumu: bir önceki ana sürüm (override: PREV_VERSION=...)
 # Bos string .env'den gelirse default'a dus
@@ -153,9 +158,10 @@ copy_tree() {
   local dst="$2"
   mkdir -p "${dst}"
   if command -v rsync &>/dev/null; then
-    rsync -a --exclude '__pycache__' --exclude '.git' "${src}/" "${dst}/"
+    rsync -a --exclude '__pycache__' --exclude '.git' --exclude '.env' "${src}/" "${dst}/"
   else
     cp -a "${src}/." "${dst}/"
+    rm -f "${dst}/.env"
   fi
 }
 
