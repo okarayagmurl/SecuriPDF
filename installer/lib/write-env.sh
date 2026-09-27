@@ -31,14 +31,25 @@ write_env() {
   kc_db="$(rand_base64 16)"
   updater_token="$(rand_hex 16)"
 
+  local image_tag="" stirling_version=""
+  if [[ -f "${ROOT_DIR}/MANIFEST.json" ]]; then
+    image_tag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version") or "")' "${ROOT_DIR}/MANIFEST.json" 2>/dev/null || true)"
+  fi
+  if [[ -z "${image_tag}" && -f "${ROOT_DIR}/VERSION" ]]; then
+    image_tag="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION")"
+  fi
+  image_tag="${image_tag:-1.2.1-stirling-2.14.3}"
+  stirling_version="$(echo "${image_tag}" | sed -n 's/.*-stirling-//p')"
+  stirling_version="${stirling_version:-2.14.3}"
+
   mkdir -p "${DOCKER_DIR}"
   cat > "${ENV_FILE}" <<EOF
 # SecuriPDF — installer tarafindan olusturuldu ($(date -Iseconds))
 # LDAP: Admin panel > Active Directory > Kaydet > Keycloak'a uygula
 
 ENTERA_VERSION=1.1.0
-STIRLING_VERSION=2.14.3
-IMAGE_TAG=1.2.0-stirling-2.14.3
+STIRLING_VERSION=${stirling_version}
+IMAGE_TAG=${image_tag}
 STIRLING_IMAGE=docker.stirlingpdf.com/stirlingtools/stirling-pdf
 
 HTTP_PORT=${http_port}
