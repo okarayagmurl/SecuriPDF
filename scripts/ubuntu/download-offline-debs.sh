@@ -20,6 +20,23 @@ PWSH_DIR="${ROOT_DIR}/offline/debs-pwsh"
 export DEBIAN_FRONTEND=noninteractive
 mkdir -p "${DEBS_DIR}" "${PWSH_DIR}"
 
+prune_base_debs() {
+  local dir="$1"
+  local deb pkg
+  [[ -d "${dir}" ]] || return 0
+  shopt -s nullglob
+  for deb in "${dir}"/*.deb; do
+    pkg="$(dpkg-deb -f "${deb}" Package 2>/dev/null || true)"
+    case "${pkg}" in
+      libc6|libc6-dev|libc-bin|libc-dev-bin|libsystemd0|systemd|systemd-sysv|libtinfo6|libncurses6|libncursesw6|libgcc-s1|gcc-14-base|libstdc++6)
+        echo "  cikarildi (taban OS): ${pkg}"
+        rm -f "${deb}"
+        ;;
+    esac
+  done
+  shopt -u nullglob
+}
+
 ARCH="$(dpkg --print-architecture)"
 CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
 VERSION_ID="$(. /etc/os-release && echo "${VERSION_ID}")"
@@ -45,6 +62,10 @@ apt-get download docker-ce docker-ce-cli containerd.io docker-buildx-plugin dock
   $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks \
     --no-replaces --no-enhances docker-ce docker-compose-plugin 2>/dev/null | grep '^\w' | sort -u) \
   2>/dev/null || apt-get download docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Taban OS kutuphanelerini paketleme. Musteri makinesi daha yeni point-release ise
+# bu deb'ler apt'yi kirar (libc6 / libsystemd0 / libtinfo6 surum dusurme).
+prune_base_debs "${DEBS_DIR}"
 
 download_pwsh_via_apt() {
   local ms_prod="/tmp/packages-microsoft-prod.deb"
@@ -104,7 +125,8 @@ else
   fi
 fi
 
-PWSH_COUNT=$(find "${PWSH_DIR}" -name '*.deb' 2>/dev/null | wc -l)
+prune_base_debs "${PWSH_DIR}"
+PWSH_COUNT=$(find "${PWSH_DIR}" -name 'powershell_*.deb' 2>/dev/null | wc -l)
 if [[ "${PWSH_OK}" -eq 0 || "${PWSH_COUNT}" -eq 0 ]]; then
   echo "  HATA: PowerShell deb indirilemedi." >&2
   exit 1

@@ -10,7 +10,10 @@ preflight() {
   docker compose version &>/dev/null || die "Docker Compose plugin gerekli"
 
   if ! docker info &>/dev/null; then
-    die "Docker daemon calismiyor veya yetki yok (docker grubu?)"
+    if ! systemctl is-active --quiet docker 2>/dev/null; then
+      die "Docker daemon calismiyor. sudo systemctl start docker"
+    fi
+    die "Docker yetkisi yok. sudo usermod -aG docker ${USER} && newgrp docker   sonra install.sh'i yeniden calistirin"
   fi
 
   local avail_kb

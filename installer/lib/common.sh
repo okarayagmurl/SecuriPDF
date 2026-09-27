@@ -77,21 +77,11 @@ ensure_pwsh() {
     die "pwsh gerekli (Keycloak bootstrap). offline/debs-pwsh icinde powershell_*.deb yok — once prerequisites veya: sudo dpkg -i offline/debs-pwsh/powershell_*.deb"
   fi
   log "pwsh bulunamadi — offline deb kuruluyor: ${pwsh_debs}"
-  local apt_cmd=()
+  # Yalniz powershell_*.deb. apt-get -f yok: taban kutuphane surumunu dusurmesin.
   if [[ "${EUID}" -eq 0 ]]; then
-    apt_cmd=(dpkg)
+    apt-get install -y --no-downgrades "${pwsh_debs}"/powershell_*.deb
   else
-    apt_cmd=(sudo dpkg)
-  fi
-  # Yalniz powershell_*.deb — docker debs ile karismasin
-  if ! "${apt_cmd[@]}" -i "${pwsh_debs}"/powershell_*.deb; then
-    if [[ "${EUID}" -eq 0 ]]; then
-      apt-get -f install -y -q || true
-      dpkg -i "${pwsh_debs}"/powershell_*.deb
-    else
-      sudo apt-get -f install -y -q || true
-      sudo dpkg -i "${pwsh_debs}"/powershell_*.deb
-    fi
+    sudo apt-get install -y --no-downgrades "${pwsh_debs}"/powershell_*.deb
   fi
   command -v pwsh &>/dev/null || die "pwsh kurulamadi (${pwsh_debs})"
   log "pwsh hazir: $(command -v pwsh)"
