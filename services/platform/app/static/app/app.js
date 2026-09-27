@@ -23,6 +23,7 @@
     currentTool: null,
     activeToolId: null,
     toolsCategoryFilter: '',
+    toolsSearchQuery: '',
     jobsPollTimer: null,
     activeJobId: null
   };
@@ -938,6 +939,14 @@
     });
   }
 
+  function toolMatchesSearch(tool, query) {
+    if (!query) return true;
+    var hay = ((tool.title || '') + ' ' + (tool.description || '') + ' ' + (tool.id || ''))
+      .toLocaleLowerCase('tr-TR');
+    var parts = query.toLocaleLowerCase('tr-TR').split(/\s+/).filter(Boolean);
+    return parts.every(function (part) { return hay.indexOf(part) !== -1; });
+  }
+
   function renderToolsPage() {
     var nav = $('toolsCategoryNav');
     var host = $('toolsGrid');
@@ -948,9 +957,14 @@
       return;
     }
 
-    var categories = state.categories.length
+    var query = state.toolsSearchQuery || '';
+    var categories = (state.categories.length
       ? state.categories
-      : [{ id: 'other', label: 'Diğer', tools: state.tools }];
+      : [{ id: 'other', label: 'Diğer', tools: state.tools }]
+    ).map(function (cat) {
+      var tools = (cat.tools || []).filter(function (t) { return toolMatchesSearch(t, query); });
+      return { id: cat.id, label: cat.label, tools: tools };
+    });
 
     if (nav) {
       var tabs = '<button type="button" class="tools-cat-tab' +
@@ -989,9 +1003,13 @@
       );
     });
 
-    host.innerHTML = sections.length
-      ? sections.join('')
-      : '<p class="hint">Bu kategoride araç yok.</p>';
+    if (!sections.length) {
+      host.innerHTML = query
+        ? '<p class="hint">Aramanızla eşleşen araç yok.</p>'
+        : '<p class="hint">Bu kategoride araç yok.</p>';
+    } else {
+      host.innerHTML = sections.join('');
+    }
     bindToolCards(host);
     if (state.activeToolId) highlightToolCard(state.activeToolId);
   }
@@ -6472,6 +6490,21 @@
   });
 
   bindOptional('btnNewFolder', 'click', createFolder);
+
+  var toolsSearchInput = $('toolsSearchInput');
+  if (toolsSearchInput) {
+    toolsSearchInput.addEventListener('input', function () {
+      state.toolsSearchQuery = toolsSearchInput.value.trim();
+      renderToolsPage();
+    });
+    toolsSearchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        toolsSearchInput.value = '';
+        state.toolsSearchQuery = '';
+        renderToolsPage();
+      }
+    });
+  }
 
   var docSearchInput = $('docSearchInput');
   if (docSearchInput) {

@@ -2234,6 +2234,21 @@ body {
   margin: 0;
 }
 
+.tools-search-wrap {
+  flex: 1 1 16rem;
+  max-width: 22rem;
+  margin-left: auto;
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  .tools-search-wrap {
+    flex-basis: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+}
+
 .tools-category-nav {
   display: flex;
   flex-wrap: wrap;
