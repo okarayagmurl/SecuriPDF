@@ -55,8 +55,12 @@ if [[ "${FROM_VERSION}" == "${TO_VERSION}" ]]; then
   exit 1
 fi
 
-STIRLING_VERSION="${STIRLING_VERSION:-$(echo "${TO_VERSION}" | sed -n 's/.*-stirling-//p')}"
-STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
+PARSED_STIRLING="$(echo "${TO_VERSION}" | sed -n 's/.*-stirling-//p')"
+if [[ -n "${PARSED_STIRLING}" ]]; then
+  STIRLING_VERSION="${PARSED_STIRLING}"
+else
+  STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
+fi
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
 FROM_SAFE="${FROM_VERSION//\//_}"
 TO_SAFE="${TO_VERSION//\//_}"
@@ -116,9 +120,10 @@ copy_tree() {
   local src="$1" dst="$2"
   mkdir -p "${dst}"
   if command -v rsync &>/dev/null; then
-    rsync -a --exclude '__pycache__' --exclude '.git' "${src}/" "${dst}/"
+    rsync -a --exclude '__pycache__' --exclude '.git' --exclude '.env' "${src}/" "${dst}/"
   else
     cp -a "${src}/." "${dst}/"
+    rm -f "${dst}/.env"
   fi
 }
 copy_tree "${DOCKER_DIR}" "${STAGING}/docker"
