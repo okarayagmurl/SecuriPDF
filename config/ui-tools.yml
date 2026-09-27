@@ -497,7 +497,7 @@ tools:
 
   - id: pdf-to-html
     title: PDF → HTML
-    description: PDF belgesini HTML web sayfasına dönüştürün.
+    description: PDF belgesini HTML sayfasına dönüştürür. Sonuç, sayfa ve görselleri içeren bir ZIP dosyasıdır.
     category: convert
     icon: convert
     apiPath: /api/v1/convert/pdf/html
@@ -775,7 +775,7 @@ tools:
 
   - id: pdf-to-csv
     title: PDF → CSV
-    description: PDF tablolarını CSV dosyasına dönüştürür.
+    description: PDF tablolarını CSV dosyalarına dönüştürür. Birden fazla tablo ZIP içinde ayrı CSV olarak iner.
     category: convert
     icon: convert
     apiPath: /api/v1/convert/pdf/csv

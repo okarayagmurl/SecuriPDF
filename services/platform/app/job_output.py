@@ -307,6 +307,11 @@ def output_file_info(data: bytes, tool_id: str, form_data: dict[str, Any] | None
     if tool_id == "verify-pdf":
         return _info("pdf-dogrulama.json", ".json", "application/json; charset=utf-8")
     if tool_id == "pdf-to-csv":
+        # Stirling tablo çıkarımını çoğu zaman birden fazla CSV içeren ZIP olarak döner.
+        if data[:2] == b"PK":
+            return _info("pdf-tablolar.zip", ".zip", "application/zip")
+        if detected:
+            return detected
         return _info("pdf-tablo.csv", ".csv", "text/csv; charset=utf-8")
     if tool_id == "pdf-to-xlsx":
         return _info("pdf-tablo.xlsx", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -342,6 +347,9 @@ def output_file_info(data: bytes, tool_id: str, form_data: dict[str, Any] | None
     if tool_id == "pdf-to-text":
         return _info("pdf-metin.txt", ".txt", "text/plain; charset=utf-8")
     if tool_id == "pdf-to-html":
+        # pdftohtml çıktısı sayfa HTML'i ve görselleri birlikte ZIP'ler (…ToHtml.zip).
+        if data[:2] == b"PK":
+            return _info("pdf-sayfa.zip", ".zip", "application/zip")
         return _info("pdf-sayfa.html", ".html", "text/html; charset=utf-8")
     if data[:1] in (b"{", b"["):
         return _info(f"{tool_id}-sonuc.json", ".json", "application/json; charset=utf-8")

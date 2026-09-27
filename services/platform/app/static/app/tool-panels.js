@@ -690,6 +690,7 @@
   function panelPdfToCsv(body, outputFormat) {
     mount(body, [
       hidden('outputFormat', outputFormat || 'csv'),
+      infoBox('<p>Tablolar CSV olarak çıkarılır. Birden fazla tablo varsa sonuç <strong>ZIP</strong> içinde ayrı CSV dosyalarıdır; tek tablo düz CSV olabilir.</p>'),
       textInput('pageNumbers', 'Sayfa aralığı', {
         default: 'all', placeholder: 'all veya 1,3,5-9',
         hint: 'Tüm sayfalar için "all" yazın veya virgülle ayırın.'
@@ -825,7 +826,7 @@
   }
 
   function panelPdfToHtml(body) {
-    panelInfoOnly(body, '<p>PDF belgesi HTML web sayfasına dönüştürülür. Metin ve temel düzen korunmaya çalışılır.</p>');
+    panelInfoOnly(body, '<p>PDF belgesi HTML sayfasına dönüştürülür. Sayfa ve görseller birlikte bir <strong>ZIP</strong> olarak iner; arşivi açıp içindeki HTML dosyasını tarayıcıda açın.</p>');
   }
 
   function panelPdfToXml(body) {

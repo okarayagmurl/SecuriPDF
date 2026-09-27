@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import zipfile
 from io import BytesIO
 
 from pypdf import PdfWriter
@@ -44,6 +45,28 @@ class JobOutputNamingTests(unittest.TestCase):
         data = _pdf()
         info = output_file_info(data, "pdf-to-word", {"outputFormat": "docx"})
         self.assertEqual(info["ext"], ".pdf")
+
+    def test_pdf_to_html_zip_keeps_zip_extension(self) -> None:
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("rapor.html", "<html><body>sayfa</body></html>")
+            zf.writestr("rapor001.png", b"\x89PNG\r\n\x1a\n")
+        info = output_file_info(buf.getvalue(), "pdf-to-html", {})
+        self.assertEqual(info["ext"], ".zip")
+        self.assertEqual(info["mime"], "application/zip")
+
+    def test_pdf_to_csv_zip_keeps_zip_extension(self) -> None:
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("page1.csv", "a,b\n1,2\n")
+            zf.writestr("page2.csv", "a,b\n3,4\n")
+        info = output_file_info(buf.getvalue(), "pdf-to-csv", {"outputFormat": "csv"})
+        self.assertEqual(info["ext"], ".zip")
+        self.assertTrue(info["default_name"].endswith(".zip"))
+
+    def test_pdf_to_csv_plain_text_stays_csv(self) -> None:
+        info = output_file_info(b"a,b\n1,2\n", "pdf-to-csv", {"outputFormat": "csv"})
+        self.assertEqual(info["ext"], ".csv")
 
     def test_office_still_pdf_rejected(self) -> None:
         self.assertEqual(output_error_code(_pdf(), "pdf-to-word"), "OFFICE_CONVERT_STILL_PDF")
