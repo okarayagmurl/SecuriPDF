@@ -115,3 +115,26 @@ class CustomerStore:
             self._save(data)
             return entry
         raise ValueError(f"Musteri bulunamadi: {customer_id}")
+
+    def rename(self, customer_id: str, name: str) -> dict[str, Any]:
+        name = name.strip()
+        if len(name) < 2:
+            raise ValueError("Musteri adi zorunlu")
+        data = self._load()
+        target: dict[str, Any] | None = None
+        for cust in data.get("customers") or []:
+            if cust.get("id") == customer_id:
+                target = cust
+                break
+        if target is None:
+            raise ValueError(f"Musteri bulunamadi: {customer_id}")
+        needle = name.lower()
+        for cust in data.get("customers") or []:
+            if cust is target:
+                continue
+            if str(cust.get("name") or "").strip().lower() == needle:
+                raise ValueError(f"Bu ad baska musteride kayitli: {name}")
+        target["name"] = name
+        target["updated_at"] = _now()
+        self._save(data)
+        return target

@@ -26,7 +26,7 @@ class LicenseApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("SecuriPDF License Manager")
-        self.geometry("720x520")
+        self.geometry("860x640")
         self.store = CustomerStore(default_store_path())
         self.req_path: Path | None = None
         self.req_data: dict | None = None
@@ -57,16 +57,32 @@ class LicenseApp(tk.Tk):
         ttk.Button(row, text="Yenile", command=self.refresh_customers).pack(side="left")
 
         cols = ("id", "name", "package", "licenses")
-        self.tree = ttk.Treeview(frm, columns=cols, show="headings", height=16)
+        self.tree = ttk.Treeview(frm, columns=cols, show="headings", height=12)
         for c, t, w in (
-            ("id", "ID", 140),
-            ("name", "Musteri", 220),
-            ("package", "Paket", 100),
-            ("licenses", "Lisans", 60),
+            ("id", "ID", 150),
+            ("name", "Musteri", 260),
+            ("package", "Paket", 110),
+            ("licenses", "Lisans", 70),
         ):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w)
-        self.tree.pack(fill="both", expand=True, padx=8, pady=8)
+        self.tree.pack(fill="both", expand=True, padx=8, pady=(8, 4))
+        self.tree.bind("<<TreeviewSelect>>", self.on_select_customer)
+
+        edit = ttk.LabelFrame(frm, text="Secili musteri")
+        edit.pack(fill="x", padx=8, pady=4)
+        name_row = ttk.Frame(edit)
+        name_row.pack(fill="x", padx=8, pady=6)
+        ttk.Label(name_row, text="Ad").pack(side="left")
+        self.ent_rename = ttk.Entry(name_row, width=36)
+        self.ent_rename.pack(side="left", padx=4)
+        ttk.Button(name_row, text="Adi guncelle", command=self.rename_customer).pack(side="left", padx=4)
+        self.lbl_cust = ttk.Label(name_row, text="Musteri secin")
+        self.lbl_cust.pack(side="left", padx=8)
+
+        self.txt_licenses = tk.Text(edit, height=6, wrap="word")
+        self.txt_licenses.pack(fill="x", padx=8, pady=(0, 8))
+        self.txt_licenses.configure(state="disabled")
 
     def _build_issue(self) -> None:
         frm = self.tab_issue
@@ -107,8 +123,59 @@ class LicenseApp(tk.Tk):
             self.tree.insert(
                 "",
                 "end",
+                iid=c["id"],
                 values=(c["id"], c["name"], c.get("default_package"), len(c.get("licenses") or [])),
             )
+
+    def _selected_customer_id(self) -> str | None:
+        sel = self.tree.selection()
+        return sel[0] if sel else None
+
+    def on_select_customer(self, _event: object = None) -> None:
+        cid = self._selected_customer_id()
+        if not cid:
+            return
+        cust = self.store.get(cid)
+        if not cust:
+            return
+        self.ent_rename.delete(0, "end")
+        self.ent_rename.insert(0, str(cust.get("name") or ""))
+        self.lbl_cust.config(text=cid)
+        lines = []
+        for lic in cust.get("licenses") or []:
+            lines.append(
+                " · ".join(
+                    [
+                        str(lic.get("package") or "—"),
+                        str(lic.get("license_key") or "—"),
+                        str(lic.get("installation_id") or "—"),
+                        "bitis " + str(lic.get("expires_at") or "—"),
+                    ]
+                )
+            )
+        if not lines:
+            lines = ["Bu musteriye henuz lisans yazilmadi."]
+        self.txt_licenses.configure(state="normal")
+        self.txt_licenses.delete("1.0", "end")
+        self.txt_licenses.insert("1.0", "\n".join(lines))
+        self.txt_licenses.configure(state="disabled")
+
+    def rename_customer(self) -> None:
+        cid = self._selected_customer_id()
+        if not cid:
+            messagebox.showerror("Hata", "Once listeden musteri secin")
+            return
+        try:
+            cust = self.store.rename(cid, self.ent_rename.get())
+        except ValueError as exc:
+            messagebox.showerror("Hata", str(exc))
+            return
+        self.refresh_customers()
+        if self.tree.exists(cid):
+            self.tree.selection_set(cid)
+            self.tree.see(cid)
+        self.on_select_customer()
+        messagebox.showinfo("OK", f"Musteri adi guncellendi: {cust['name']}")
 
     def add_customer(self) -> None:
         name = self.ent_name.get().strip()

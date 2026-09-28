@@ -4,6 +4,7 @@
 Ornekler:
   python cli.py customer-add -n "ACME A.S." --email satis@acme.com
   python cli.py customer-list
+  python cli.py customer-rename CUST-... -n "Yeni Ad"
   python cli.py issue --request musteri.req --customer-id CUST-... -e 2027-12-31 -o acme.lic
   python cli.py issue --request musteri.req --customer-name "ACME A.S." -p professional -o acme.lic
   python cli.py gui
@@ -91,6 +92,17 @@ def cmd_customer_list(args: argparse.Namespace) -> int:
         nlic = len(c.get("licenses") or [])
         ninst = len(c.get("installations") or [])
         print(f"{c['id']:16}  {c['name']:40}  pkg={c.get('default_package')}  lic={nlic}  inst={ninst}")
+    return 0
+
+
+def cmd_customer_rename(args: argparse.Namespace) -> int:
+    store = _store(args)
+    try:
+        cust = store.rename(args.id, args.name)
+    except ValueError as exc:
+        print("HATA:", exc)
+        return 1
+    print(f"Guncellendi: {cust['id']}  {cust['name']}")
     return 0
 
 
@@ -300,6 +312,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     cl = sub.add_parser("customer-list", help="Musterileri listele")
     cl.set_defaults(func=cmd_customer_list)
+
+    cr = sub.add_parser("customer-rename", help="Musteri adini guncelle")
+    cr.add_argument("id", help="CUST-...")
+    cr.add_argument("-n", "--name", required=True)
+    cr.set_defaults(func=cmd_customer_rename)
 
     cs = sub.add_parser("customer-show", help="Musteri detay")
     cs.add_argument("id", help="CUST-... veya ad")

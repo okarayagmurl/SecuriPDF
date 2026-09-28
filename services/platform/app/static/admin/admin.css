@@ -753,6 +753,14 @@ button.danger:hover {
   cursor: not-allowed;
 }
 
+.tool-check.readonly {
+  cursor: default;
+}
+
+.tool-check.readonly input {
+  cursor: default;
+}
+
 .profile-badge {
   display: inline-flex;
   align-items: center;

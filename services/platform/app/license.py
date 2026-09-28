@@ -84,6 +84,10 @@ class LicenseService:
         )
         if license_type == "commercial" and not install_id:
             valid = False
+        if valid and not tools:
+            from .user_tool_profiles import resolve_package_tool_ids
+
+            tools = resolve_package_tool_ids(self.settings, pkg)
         return {
             "product": self._config.get("product", "SecuriPDF"),
             "package": pkg,

@@ -1258,7 +1258,8 @@ def admin_activate_license_file(
 def admin_tool_catalog(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
     require_admin(user)
     catalog = _load_ui_catalog()
-    licensed = set(LicenseService(settings).enabled_tools())
+    status = LicenseService(settings).status()
+    licensed = set(status.get("enabledTools") or []) if status.get("valid") else set()
     items = []
     for item in catalog.get("tools") or []:
         tid = str(item.get("id", "")).strip()

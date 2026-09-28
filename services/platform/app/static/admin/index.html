@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecuriPDF Admin</title>
-  <link rel="stylesheet" href="/admin/static/admin.css?v=18">
+  <link rel="stylesheet" href="/admin/static/admin.css?v=19">
 </head>
 <body>
   <div id="setupBanner" class="setup-banner hidden" role="status">
@@ -340,7 +340,7 @@
 
       <section class="card full">
         <h2>Lisanslı araçlar</h2>
-        <p class="hint">Geçerli lisansın açtığı araçlar. Listeyi değiştirmek için yeni bir .lic yükleyin.</p>
+        <p class="hint">Yalnızca aktif lisanstaki araçlar listelenir. Pakette olmayan araçlar burada görünmez ve buradan eklenemez.</p>
         <div class="row-actions">
           <button type="button" id="btnRefreshLicenseCatalog" class="secondary">Yenile</button>
           <button type="button" id="btnLoadLicenseStatus" class="secondary">Durumu yenile</button>
@@ -765,6 +765,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=31"></script>
+  <script src="/admin/static/admin.js?v=32"></script>
 </body>
 </html>

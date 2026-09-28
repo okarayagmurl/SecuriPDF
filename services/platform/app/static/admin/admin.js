@@ -84,7 +84,12 @@
       byCat[cat].push(t);
     });
     container.innerHTML = '';
-    Object.keys(byCat).sort().forEach(function (cat) {
+    var cats = Object.keys(byCat);
+    if (!cats.length) {
+      container.innerHTML = '<p class="hint">Lisanslı araç yok. Önce demo başlatın veya imzalı .lic yükleyin.</p>';
+      return;
+    }
+    cats.sort().forEach(function (cat) {
       var group = document.createElement('div');
       group.className = 'tool-picker-group';
       var heading = document.createElement('h4');
@@ -92,7 +97,7 @@
       group.appendChild(heading);
       byCat[cat].forEach(function (t) {
         var label = document.createElement('label');
-        label.className = 'tool-check' + (readOnly ? ' disabled' : '');
+        label.className = 'tool-check' + (readOnly ? ' readonly' : '');
         var cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.setAttribute('data-tool-id', t.id);
@@ -208,9 +213,7 @@
       root.innerHTML = '<p class="hint">Geçerli lisans yok. Demo başlatın veya imzalı .lic yükleyin.</p>';
       return;
     }
-    root.innerHTML = rows.map(function (t) {
-      return '<div class="license-tool-line"><strong>' + (t.title || t.id) + '</strong><span>' + (t.id || '') + '</span></div>';
-    }).join('');
+    renderToolPicker(root, rows, enabled, { readOnly: true });
   }
 
   async function loadLicensePanel() {
@@ -311,11 +314,7 @@
   }
 
   function licensedToolsForPicker() {
-    var tools = (licenseCatalog.tools || []).filter(function (t) { return t.licensed; });
-    if (tools.length) return tools;
-    return (licenseCatalog.tools || []).map(function (t) {
-      return Object.assign({}, t, { licensed: true });
-    });
+    return (licenseCatalog.tools || []).filter(function (t) { return t.licensed; });
   }
 
   function openAccessProfileEditor(profileId, isNew) {
