@@ -34,7 +34,7 @@ def list_ui_tools(settings: Settings, user_id: str | None = None) -> list[dict[s
         tool_id = str(item.get("id", "")).strip()
         if not tool_id:
             continue
-        if licensed and tool_id not in licensed:
+        if tool_id not in licensed:
             continue
         tools.append(
             {

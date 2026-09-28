@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecuriPDF Admin</title>
-  <link rel="stylesheet" href="/admin/static/admin.css?v=17">
+  <link rel="stylesheet" href="/admin/static/admin.css?v=18">
 </head>
 <body>
   <div id="setupBanner" class="setup-banner hidden" role="status">
@@ -322,6 +322,7 @@
             </select>
           </label>
         </div>
+        <p class="hint">Bu seçim yalnızca Entera’ya giden taleptedir. Sunucudaki aktif lisans değişmez.</p>
         <label>Not <input id="licReqNotes" type="text" placeholder="Opsiyonel"></label>
         <div class="row-actions">
           <button type="button" id="btnCreateLicenseRequest">Talep oluştur ve indir</button>
@@ -330,8 +331,8 @@
       </section>
 
       <section class="card full">
-        <h2>Lisans paketi</h2>
-        <p class="hint">Paket değişince araç listesi ve limitler güncellenir. Kurumsal paket Stirling whitelist ile senkron kalır.</p>
+        <h2>Lisans paketleri</h2>
+        <p class="hint">Paket, Entera’nın imzaladığı lisans dosyasıyla gelir. Kartlara tıklamak lisansı değiştirmez.</p>
         <div id="packageCards" class="package-grid">
           <p class="hint package-loading">Paketler yükleniyor…</p>
         </div>
@@ -339,11 +340,10 @@
 
       <section class="card full">
         <h2>Lisanslı araçlar</h2>
-        <p class="hint">Kullanıcı arayüzünde görünen araçlar. Yalnızca lisanslı ve UI tanımlı araçlar listelenir.</p>
+        <p class="hint">Geçerli lisansın açtığı araçlar. Listeyi değiştirmek için yeni bir .lic yükleyin.</p>
         <div class="row-actions">
-          <button type="button" id="btnLicenseSelectAll" class="secondary">Tümünü seç</button>
-          <button type="button" id="btnLicenseSelectNone" class="secondary">Temizle</button>
           <button type="button" id="btnRefreshLicenseCatalog" class="secondary">Yenile</button>
+          <button type="button" id="btnLoadLicenseStatus" class="secondary">Durumu yenile</button>
         </div>
         <div id="licenseToolPicker" class="tool-picker"></div>
       </section>
@@ -392,21 +392,8 @@
           <button type="button" id="btnActivateLicenseFile">Lisansı etkinleştir</button>
         </div>
         <pre id="licenseActivateResult"></pre>
-      </section>
-      <section class="card">
-        <h2>Lisans detayları</h2>
-        <label>Lisans anahtarı <input id="licenseKey" type="text"></label>
-        <label>Bitiş (ISO) <input id="licenseExpires" type="text" placeholder="2027-12-31T23:59:59Z"></label>
-        <label>Maks. kullanıcı <input id="licenseMaxUsers" type="number"></label>
-        <label>Maks. eşzamanlı oturum <input id="licenseMaxSessions" type="number"></label>
-        <label class="inline-check"><input id="licenseApplyPackageLimits" type="checkbox" checked> Paket limitlerini uygula</label>
-        <div class="row-actions">
-          <button id="btnSaveLicense">Lisansı kaydet</button>
-          <button id="btnLoadLicenseStatus" class="secondary">Durumu yenile</button>
-        </div>
         <pre id="licenseResult"></pre>
       </section>
-
       <section class="card">
         <details class="advanced-block">
           <summary>Stirling whitelist (gelişmiş)</summary>
@@ -778,6 +765,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=30"></script>
+  <script src="/admin/static/admin.js?v=31"></script>
 </body>
 </html>

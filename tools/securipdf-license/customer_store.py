@@ -27,7 +27,11 @@ class CustomerStore:
     def _load(self) -> dict[str, Any]:
         if not self.path.is_file():
             return {"version": 1, "customers": []}
-        return json.loads(self.path.read_text(encoding="utf-8"))
+        text = self.path.read_text(encoding="utf-8-sig")
+        start = text.find("{")
+        if start < 0:
+            raise ValueError(f"Musteri dosyasi JSON degil: {self.path}")
+        return json.loads(text[start:])
 
     def _save(self, data: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

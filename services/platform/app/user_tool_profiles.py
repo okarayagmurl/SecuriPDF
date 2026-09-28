@@ -84,7 +84,10 @@ def _migrate_legacy_user_profiles(settings: Settings) -> None:
 
 
 def _licensed_tools(settings: Settings) -> set[str]:
-    return set(LicenseService(settings).enabled_tools())
+    status = LicenseService(settings).status()
+    if not status.get("valid"):
+        return set()
+    return set(status.get("enabledTools") or [])
 
 
 def _load_access_profiles(settings: Settings) -> dict[str, dict[str, Any]]:
@@ -306,7 +309,7 @@ def effective_tool_ids(settings: Settings, user_id: str | None) -> set[str]:
 
 def assert_user_tool_allowed(settings: Settings, user_id: str, tool_id: str) -> None:
     allowed = effective_tool_ids(settings, user_id)
-    if allowed and tool_id not in allowed:
+    if tool_id not in allowed:
         raise HTTPException(
             status_code=403,
             detail=f"Bu kullanici icin '{tool_id}' araci acik degil",

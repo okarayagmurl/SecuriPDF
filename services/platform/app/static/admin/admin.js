@@ -145,7 +145,7 @@
     if (!status) return;
     var pkgEl = document.getElementById('licenseSummaryPackage');
     if (!pkgEl) return;
-    pkgEl.textContent = status.packageLabel || status.package || '—';
+    pkgEl.textContent = status.valid ? (status.packageLabel || status.package || '—') : 'Lisans yok';
     var descEl = document.getElementById('licenseSummaryDesc');
     if (descEl) {
       var bits = [];
@@ -167,7 +167,10 @@
       else validEl.textContent = 'Geçersiz / lisans yok';
     }
     var typeEl = document.getElementById('licenseSummaryType');
-    if (typeEl) typeEl.textContent = status.licenseType || '—';
+    if (typeEl) {
+      var typeLabels = { commercial: 'Ticari', demo: 'Demo', none: 'Yok', legacy: 'Geçersiz' };
+      typeEl.textContent = typeLabels[status.licenseType] || status.licenseType || 'Yok';
+    }
     var meta = document.getElementById('licenseInstallMeta');
     if (meta) meta.textContent = 'Kurulum ID: ' + (status.installationId || '—');
     var demoAct = document.getElementById('licenseDemoActions');
@@ -181,43 +184,33 @@
     el.innerHTML = '';
     (packages || []).forEach(function (p) {
       var card = document.createElement('div');
-      var selected = !!(p.selected || p.id === selectedPackageId);
-      card.className = 'package-card' + (selected ? ' selected' : '');
+      var selected = !!(currentId && p.id === currentId);
+      card.className = 'package-card readonly' + (selected ? ' selected' : '');
       card.setAttribute('data-package', p.id);
       var meta = '<span>' + (p.toolCount || 0) + ' araç</span>';
       if (p.limits && p.limits.max_users) meta += '<span>' + p.limits.max_users + ' kullanıcı</span>';
       if (p.limits && p.limits.max_concurrent_sessions) meta += '<span>' + p.limits.max_concurrent_sessions + ' oturum</span>';
       card.innerHTML =
-        (selected ? '<span class="package-card-badge">Seçili</span>' : '') +
+        (selected ? '<span class="package-card-badge">Aktif</span>' : '') +
         '<h3>' + (p.label || p.id) + '</h3>' +
         '<p>' + (p.description || '') + '</p>' +
         '<div class="package-card-meta">' + meta + '</div>';
-      card.addEventListener('click', function () { applyPackage(p.id, p.label || p.id); });
       el.appendChild(card);
     });
   }
 
-  async function applyPackage(packageId, label) {
-    if (!confirm('"' + (label || packageId) + '" paketi uygulansın mı? Araç listesi ve limitler güncellenecek.')) return;
-    try {
-      var result = await api('/license/apply-package', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: packageId })
-      });
-      selectedPackageId = packageId;
-      show('licenseResult', result);
-      await loadLicensePanel();
-    } catch (e) { alert(e.message); }
-  }
-
   function renderLicenseToolPicker(tools, enabledSet) {
-    renderToolPicker(
-      document.getElementById('licenseToolPicker'),
-      tools,
-      enabledSet instanceof Set ? enabledSet : new Set(enabledSet || []),
-      { onlyLicensed: false }
-    );
+    var root = document.getElementById('licenseToolPicker');
+    if (!root) return;
+    var enabled = enabledSet instanceof Set ? enabledSet : new Set(enabledSet || []);
+    var rows = (tools || []).filter(function (t) { return enabled.has(t.id); });
+    if (!rows.length) {
+      root.innerHTML = '<p class="hint">Geçerli lisans yok. Demo başlatın veya imzalı .lic yükleyin.</p>';
+      return;
+    }
+    root.innerHTML = rows.map(function (t) {
+      return '<div class="license-tool-line"><strong>' + (t.title || t.id) + '</strong><span>' + (t.id || '') + '</span></div>';
+    }).join('');
   }
 
   async function loadLicensePanel() {
@@ -234,8 +227,8 @@
       var status = results[3];
       fillLicenseFields((settings && settings.license) || {});
       updateLicenseSummary(status || (pkgData && pkgData.current) || {});
-      renderPackageCards(pkgData.packages || [], (status && status.package) || selectedPackageId);
-      var enabled = (settings.license && settings.license.enabled_tools) || status.enabledTools || [];
+      renderPackageCards(pkgData.packages || [], (status && status.valid) ? (status.package || '') : '');
+      var enabled = status && status.valid ? (status.enabledTools || []) : [];
       renderLicenseToolPicker(licenseCatalog.tools || [], new Set(enabled));
       await loadAccessProfiles();
     } catch (e) {
@@ -1758,7 +1751,9 @@
     } catch (e) { alert(e.message); }
   });
 
-  document.getElementById('btnSaveLicense').addEventListener('click', async () => {
+  var btnSaveLicense = document.getElementById('btnSaveLicense');
+  if (btnSaveLicense) {
+  btnSaveLicense.addEventListener('click', async () => {
     const limits = {};
     const maxUsers = num('licenseMaxUsers');
     const maxSessions = num('licenseMaxSessions');
@@ -1782,6 +1777,7 @@
       await loadLicensePanel();
     } catch (e) { alert(e.message); }
   });
+  }
 
   var licenseFileInput = document.getElementById('licenseFileInput');
   if (licenseFileInput) {

@@ -72,14 +72,17 @@ class LicenseService:
         pkg_def = self._package_def()
         tools = self.enabled_tools()
         limits = self._limits()
-        license_type = str(self._config.get("license_type") or "").strip().lower()
-        if not license_type:
-            if pkg in ("", "unlicensed", "unknown", "none"):
-                license_type = "none"
-            else:
-                license_type = "legacy"
-        valid = not expired and pkg not in ("unlicensed", "unknown", "none", "") and bool(tools or pkg == "enterprise")
-        if license_type == "none":
+        license_type = str(self._config.get("license_type") or "").strip().lower() or "none"
+        # Yalnızca imzalı ticari lisans veya Admin'den başlatılan demo geçerlidir.
+        # Paket kartı, license.yml varsayılanı veya elle yazılan anahtar lisans açmaz.
+        install_id = str(self._config.get("installation_id") or "").strip()
+        valid = (
+            license_type in {"commercial", "demo"}
+            and not expired
+            and pkg not in ("unlicensed", "unknown", "none", "")
+            and bool(tools or pkg == "enterprise")
+        )
+        if license_type == "commercial" and not install_id:
             valid = False
         return {
             "product": self._config.get("product", "SecuriPDF"),

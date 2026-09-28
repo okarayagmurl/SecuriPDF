@@ -347,10 +347,14 @@
     box.classList.remove('expired', 'valid');
     if (lic.expired) box.classList.add('expired');
     else if (lic.valid !== false) box.classList.add('valid');
-    $('profileLicensePackage').textContent = lic.packageLabel || lic.package || '—';
-    var toolCount = lic.enabledToolCount != null
+    $('profileLicensePackage').textContent = lic.valid
+      ? (lic.packageLabel || lic.package || '—')
+      : 'Lisans yok';
+    var toolCount = !lic.valid
+      ? 0
+      : (lic.enabledToolCount != null
       ? lic.enabledToolCount
-      : ((lic.enabledTools || []).length);
+      : ((lic.enabledTools || []).length));
     $('profileLicenseTools').textContent = toolCount + ' araç';
     var expEl = $('profileLicenseExpiry');
     var statusEl = $('profileLicenseStatus');

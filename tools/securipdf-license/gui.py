@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -97,7 +98,12 @@ class LicenseApp(tk.Tk):
     def refresh_customers(self) -> None:
         for i in self.tree.get_children():
             self.tree.delete(i)
-        for c in self.store.list():
+        try:
+            rows = self.store.list()
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            messagebox.showerror("Musteri dosyasi", str(exc))
+            return
+        for c in rows:
             self.tree.insert(
                 "",
                 "end",

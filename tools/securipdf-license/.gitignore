@@ -3,5 +3,6 @@ keys/*.key
 data/
 dist/
 build/
+*.lic
 *.spec
 __pycache__/

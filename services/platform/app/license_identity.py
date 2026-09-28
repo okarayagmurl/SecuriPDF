@@ -49,18 +49,9 @@ def license_runtime(settings: Settings) -> dict[str, Any]:
     svc = LicenseService(settings)
     status = svc.status()
     install_id = get_or_create_installation_id(settings)
-    license_type = str(lic.get("license_type") or "none").strip().lower()
-    if not license_type or license_type == "none":
-        # Eski license.yml: package var ama tip yok
-        if lic.get("license_key") or (lic.get("package") and lic.get("package") != "unlicensed"):
-            license_type = "legacy"
+    license_type = str(lic.get("license_type") or "none").strip().lower() or "none"
     demo_started = bool(lic.get("demo_started_at"))
-    can_start_demo = license_type in ("none", "unlicensed", "") or (
-        license_type == "demo" and status.get("expired")
-    )
-    # Legacy enterprise lab: demo baslatma kapali (zaten lisansli)
-    if license_type == "legacy" and status.get("valid"):
-        can_start_demo = False
+    can_start_demo = not status.get("valid")
     return {
         **status,
         "installationId": install_id,

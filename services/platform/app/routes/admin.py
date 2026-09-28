@@ -616,12 +616,10 @@ def admin_update_license(
     settings: Settings = Depends(get_settings),
 ):
     require_admin(user)
-    payload = body.model_dump(exclude_none=True)
-    if not payload:
-        raise HTTPException(status_code=400, detail="Guncellenecek alan yok")
-    result = SettingsStore(settings).update_section("license", payload, user.user_id)
-    write_audit(settings, user.user_id, "admin.settings.license", "license", {"fields": list(payload.keys())})
-    return result
+    raise HTTPException(
+        status_code=403,
+        detail="Lisans paketi, arac listesi ve anahtar yalnizca imzali .lic veya demo ile degisir.",
+    )
 
 
 @router.put("/settings/compliance")
@@ -1182,32 +1180,10 @@ def admin_apply_license_package(
     settings: Settings = Depends(get_settings),
 ):
     require_admin(user)
-    if body.package == "demo":
-        raise HTTPException(status_code=400, detail="Demo icin /license/demo/start kullanin")
-    packages = (load_license_packages(settings).get("packages") or {})
-    if body.package not in packages:
-        raise HTTPException(status_code=400, detail=f"Bilinmeyen paket: {body.package}")
-    tool_ids = resolve_package_tool_ids(settings, body.package)
-    payload: dict = {
-        "package": body.package,
-        "enabled_tools": tool_ids,
-        "apply_package_limits": True,
-        "license_type": "legacy",
-    }
-    pkg_limits = packages[body.package].get("limits")
-    if pkg_limits:
-        payload["limits"] = pkg_limits
-    result = SettingsStore(settings).update_section("license", payload, user.user_id)
-    write_audit(
-        settings,
-        user.user_id,
-        "admin.license.apply_package",
-        body.package,
-        {"toolCount": len(tool_ids)},
+    raise HTTPException(
+        status_code=403,
+        detail="Paket secimi lisansi degistirmez. Entera'nin imzaladigi .lic dosyasini yukleyin veya demo baslatin.",
     )
-    from ..license_identity import license_runtime
-
-    return {"ok": True, "license": result.get("license"), "status": license_runtime(settings)}
 
 
 @router.post("/license/request")
