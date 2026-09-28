@@ -138,3 +138,46 @@ class CustomerStore:
         target["updated_at"] = _now()
         self._save(data)
         return target
+
+    def update(
+        self,
+        customer_id: str,
+        *,
+        name: str | None = None,
+        contact_email: str | None = None,
+        contact_name: str | None = None,
+        notes: str | None = None,
+        default_package: str | None = None,
+    ) -> dict[str, Any]:
+        if name is not None:
+            self.rename(customer_id, name)
+        data = self._load()
+        for cust in data.get("customers") or []:
+            if cust.get("id") != customer_id:
+                continue
+            if contact_email is not None:
+                cust["contact_email"] = contact_email.strip()
+            if contact_name is not None:
+                cust["contact_name"] = contact_name.strip()
+            if notes is not None:
+                cust["notes"] = notes.strip()
+            if default_package is not None and default_package.strip():
+                cust["default_package"] = default_package.strip()
+            cust["updated_at"] = _now()
+            self._save(data)
+            return cust
+        raise ValueError(f"Musteri bulunamadi: {customer_id}")
+
+    def all_licenses(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for cust in self.list():
+            for lic in cust.get("licenses") or []:
+                rows.append(
+                    {
+                        **lic,
+                        "customer_id": cust.get("id") or "",
+                        "customer_name": cust.get("name") or "",
+                    }
+                )
+        rows.sort(key=lambda item: str(item.get("issued_at") or ""), reverse=True)
+        return rows
