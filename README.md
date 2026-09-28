@@ -97,7 +97,7 @@ Bkz. [docs/BACKUP.md](docs/BACKUP.md) · Prod operasyonları: [docs/PROD-OPS.md]
 Format: `entera-pdf:<ENTERA>-stirling-<STIRLING>`
 
 ```
-entera-pdf:1.2.0-stirling-2.14.3
+entera-pdf:1.2.2-stirling-2.14.3
 ```
 
 - `ENTERA_VERSION` — Entera ürün sürümü
