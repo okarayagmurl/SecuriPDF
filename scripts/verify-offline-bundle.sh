@@ -19,7 +19,7 @@ done
 VERSION="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION" 2>/dev/null || true)"
 PREV="$(grep -E '^PREV_VERSION=' "${SCRIPT_DIR}/build-offline-bundle.sh" | head -1 | sed -n 's/.*PREV_VERSION:-//;s/}.*//p' || true)"
 # Fallback: script icindeki default
-PREV="${PREV_VERSION:-1.2.0-stirling-2.14.3}"
+PREV="${PREV_VERSION:-1.2.1-stirling-2.14.3}"
 
 echo "=== SecuriPDF offline paket dogrulama ==="
 echo "Repo: ${ROOT_DIR}"

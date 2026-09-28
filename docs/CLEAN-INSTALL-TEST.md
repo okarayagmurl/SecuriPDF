@@ -1,13 +1,13 @@
-# Temiz offline kurulum — test checklist (1.2.1)
+# Temiz offline kurulum — test checklist (1.2.2)
 
-Kod: `main` @ `1f025f2` · Sürüm: `1.2.1-stirling-2.14.3`
+Kod: `main` · Sürüm: `1.2.2-stirling-2.14.3`
 
 ## A) Build makinesi (internet VAR)
 
 ```bash
 cd ~/SecuriPDF   # veya clone
 git pull origin main
-cat VERSION   # 1.2.1-stirling-2.14.3
+cat VERSION   # 1.2.2-stirling-2.14.3
 
 # Deb'ler yoksa (ilk kez)
 sudo bash scripts/ubuntu/download-offline-debs.sh
@@ -21,9 +21,9 @@ bash scripts/build-offline-bundle.sh
 bash scripts/verify-offline-bundle.sh
 ```
 
-## B) Test sunucusu — temiz kurulum (192.168.6.175)
+## B) Yeni test sunucusu — temiz kurulum
 
-**Uyarı:** Aşağıdakiler mevcut stack’i siler (`down -v`).
+**Uyarı:** Aşağıdakiler o makinedeki mevcut stack’i siler (`down -v`). Yeni sunucuda stack yoksa 1. adımı atlayın. `192.168.6.175` üzerindeki kurulu paketin üstüne açmayın.
 
 ```bash
 # 1) Durdur + volume sil
@@ -34,8 +34,8 @@ docker rm -f securipdf-platform securipdf-oauth2-proxy securipdf-keycloak \
 
 # 2) Paketi aç
 cd ~
-tar xzf /path/to/securipdf-1.2.1-stirling-2.14.3-offline.tar.gz
-cd securipdf-1.2.1-stirling-2.14.3-offline
+tar xzf /path/to/securipdf-1.2.2-stirling-2.14.3-offline.tar.gz
+cd securipdf-1.2.2-stirling-2.14.3-offline
 
 # 3) Önkoşul + kurulum
 sudo bash scripts/ubuntu/install-prerequisites-offline.sh
@@ -62,4 +62,4 @@ Setup: depolama + admin kullanıcı → bitir → giriş.
 
 ## D) Delta upgrade smoke (opsiyonel, ikinci tur)
 
-1.2.0 full kuruluysa delta `.tar.gz` yükle / aç → `upgrade-offline-stack.sh` → IMAGE_TAG 1.2.1.
+1.2.1 full kuruluysa delta `.tar.gz` yükle / aç → `upgrade-offline-stack.sh` → IMAGE_TAG 1.2.2.

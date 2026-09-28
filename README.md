@@ -4,7 +4,7 @@ Kurumsal müşterilere sunulabilecek, **SecuriPDF** markalı, Docker tabanlı PD
 
 [Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF) Community sürümünü temel alır; upstream güncellemelerini minimum maliyetle almak için **fork değil, ince sarmalayıcı katman** mimarisi kullanır.
 
-**Mevcut sürüm:** `1.2.0-stirling-2.14.3`
+**Mevcut sürüm:** `1.2.2-stirling-2.14.3`
 
 ## Özellikler (MVP)
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.2-stirling-2.14.3 (2026-09-28)
+
+- Lisans yalnızca imzalı .lic veya 30 günlük demo ile açılır; paket kartı ve araç listesi lisansı değiştirmez
+- Admin lisans ekranı yalnızca paketteki araçları ve lisans bilgilerini gösterir
+- PDF→HTML ve PDF→CSV sonuçları zip ise .zip olarak iner
+- Araçlar sayfasına ad ve açıklamaya göre arama eklendi
+- License Manager müşteri adı günceller ve verilen lisansları tek ekranda listeler
+
 ## 1.2.0-stirling-2.14.3 (2026-09-25)
 
 - Upstream Stirling-PDF **2.14.3** (2.13.1 → 2.14.3; bug fix / güvenlik / imza iyileştirmeleri)
