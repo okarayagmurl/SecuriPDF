@@ -761,6 +761,40 @@ button.danger:hover {
   cursor: default;
 }
 
+.license-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+}
+
+.license-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.license-facts dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.license-facts dd {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-word;
+}
+
 .profile-badge {
   display: inline-flex;
   align-items: center;

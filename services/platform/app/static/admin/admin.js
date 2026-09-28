@@ -180,6 +180,35 @@
     if (meta) meta.textContent = 'Kurulum ID: ' + (status.installationId || '—');
     var demoAct = document.getElementById('licenseDemoActions');
     if (demoAct) demoAct.hidden = !status.canStartDemo;
+    fillLicenseFacts(status);
+  }
+
+  function setLicenseFact(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text || '—';
+  }
+
+  function fillLicenseFacts(status) {
+    if (!document.getElementById('licenseFacts')) return;
+    status = status || {};
+    var active = !!status.valid;
+    var typeLabels = { commercial: 'Ticari', demo: 'Demo', none: 'Yok', legacy: 'Geçersiz' };
+    var limits = status.limits || {};
+    var statusText = 'Lisans yok';
+    if (status.valid) statusText = 'Geçerli';
+    else if (status.expired) statusText = 'Süresi dolmuş';
+    setLicenseFact('licenseFactCustomer', active ? (status.customer || '—') : '—');
+    setLicenseFact('licenseFactCustomerId', active ? (status.customerId || '—') : '—');
+    setLicenseFact('licenseFactPackage', active ? (status.packageLabel || status.package || '—') : '—');
+    setLicenseFact('licenseFactType', active ? (typeLabels[status.licenseType] || status.licenseType || '—') : '—');
+    setLicenseFact('licenseFactStatus', statusText);
+    setLicenseFact('licenseFactKey', active ? (status.licenseKey || '—') : '—');
+    setLicenseFact('licenseFactInstall', status.installationId || '—');
+    setLicenseFact('licenseFactRequest', active ? (status.requestId || '—') : '—');
+    var exp = status.expiresAt || status.expires_at;
+    setLicenseFact('licenseFactExpiry', active ? (exp ? formatDate(exp) : 'Süresiz') : '—');
+    setLicenseFact('licenseFactUsers', active && limits.max_users != null ? String(limits.max_users) : '—');
+    setLicenseFact('licenseFactSessions', active && limits.max_concurrent_sessions != null ? String(limits.max_concurrent_sessions) : '—');
   }
 
   function renderPackageCards(packages, currentId) {
