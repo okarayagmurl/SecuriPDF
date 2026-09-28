@@ -51,17 +51,23 @@ deploy_stack() {
 
   bootstrap_keycloak
 
-  if [[ -x "${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh" ]]; then
-    log "Host updater agent kuruluyor..."
-    if [[ "${EUID}" -eq 0 ]]; then
-      SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
-    else
-      sudo SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
-    fi
-    log "Platform container yeniden baslatiliyor (updater token)..."
-    cd "${DOCKER_DIR}"
-    compose_cmd up -d --force-recreate securipdf-platform
+  local updater="${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
+  if [[ ! -f "${updater}" ]]; then
+    die "install-updater.sh yok. Giris kapisi kurulum bitince kapanamaz."
   fi
+  chmod +x "${updater}" "${ROOT_DIR}/scripts/securipdf-updater/updater.py" 2>/dev/null || true
+  log "Host updater agent kuruluyor..."
+  if [[ "${EUID}" -eq 0 ]]; then
+    SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${updater}"
+  else
+    sudo SECURIPDF_OFFLINE_DIR="${ROOT_DIR}" bash "${updater}"
+  fi
+  if ! systemctl is-active --quiet securipdf-updater.service; then
+    die "securipdf-updater calismiyor. journalctl -u securipdf-updater"
+  fi
+  log "Platform container yeniden baslatiliyor (updater token)..."
+  cd "${DOCKER_DIR}"
+  compose_cmd up -d --force-recreate securipdf-platform
 
   if [[ -x "${DOCKER_DIR}/verify-auth-urls.sh" ]]; then
     log "OAuth erisim URL dogrulamasi..."

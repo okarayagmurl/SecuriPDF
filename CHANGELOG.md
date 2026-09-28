@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3-stirling-2.14.3 (2026-09-28)
+
+- Kurulum, updater servisi ayakta değilse bitmez; giriş kapısı kapanmadan sihirbaz tamamlanmış sayılmaz
+- Offline Docker kurulumunda eski GnuPG/keyboxd paketleri atlanır
+
 ## 1.2.2-stirling-2.14.3 (2026-09-28)
 
 - Lisans yalnızca imzalı .lic veya 30 günlük demo ile açılır; paket kartı ve araç listesi lisansı değiştirmez

@@ -1,13 +1,13 @@
-# Temiz offline kurulum — test checklist (1.2.2)
+# Temiz offline kurulum — test checklist (1.2.3)
 
-Kod: `main` · Sürüm: `1.2.2-stirling-2.14.3`
+Kod: `main` · Sürüm: `1.2.3-stirling-2.14.3`
 
 ## A) Build makinesi (internet VAR)
 
 ```bash
 cd ~/SecuriPDF   # veya clone
 git pull origin main
-cat VERSION   # 1.2.2-stirling-2.14.3
+cat VERSION   # 1.2.3-stirling-2.14.3
 
 # Deb'ler yoksa (ilk kez)
 sudo bash scripts/ubuntu/download-offline-debs.sh

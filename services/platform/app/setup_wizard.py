@@ -395,16 +395,24 @@ def complete_setup(settings: Settings, actor: str = "setup") -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Once depolama yapilandirmasi kaydedilmeli")
     if not status["defaultUserCreated"]:
         raise HTTPException(status_code=400, detail="Once varsayilan kullanici olusturulmali")
-    mark_setup_complete(settings, actor)
-    reload_info: dict[str, Any] = {"requested": False}
-    if updater_configured():
-        try:
-            from .updater_client import _request
+    if not updater_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Giris kapisi kapatilamadi: updater yapilandirilmamis. install-updater.sh calismadan kurulumu bitirmeyin.",
+        )
+    try:
+        from .updater_client import _request
 
-            reload_info = _request("POST", "/auth-gate/reload", {"mode": "secure"})
-            reload_info["requested"] = True
-        except UpdaterError as exc:
-            reload_info = {"requested": True, "ok": False, "error": str(exc)}
-        except Exception as exc:  # noqa: BLE001
-            reload_info = {"requested": True, "ok": False, "error": str(exc)}
+        reload_info = _request("POST", "/auth-gate/reload", {"mode": "secure"})
+    except UpdaterError as exc:
+        raise HTTPException(status_code=503, detail=f"Giris kapisi kapatilamadi: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"Giris kapisi kapatilamadi: {exc}") from exc
+    if reload_info.get("ok") is False:
+        raise HTTPException(
+            status_code=503,
+            detail=str(reload_info.get("error") or "oauth2-proxy girisi kapatilamadi"),
+        )
+    mark_setup_complete(settings, actor)
+    reload_info["requested"] = True
     return {"ok": True, "status": get_setup_status(settings), "authGate": reload_info}

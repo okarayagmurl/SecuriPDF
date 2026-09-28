@@ -180,8 +180,8 @@
         var gate = res && res.authGate;
         if (gate && gate.requested && gate.ok === false) {
           $('finishStatus').textContent =
-            'Kurulum kaydedildi; auth kapısı yenilenemedi: ' + (gate.error || 'bilinmiyor') +
-            '. oauth2-proxy yeniden başlatılabilir.';
+            'Giris kapanmadi: ' + (gate.error || 'bilinmiyor') +
+            '. Kurulum tamamlanmadi; updater servisini kontrol edin.';
           $('finishStatus').className = 'status err';
         } else {
           $('finishStatus').textContent = 'Tamamlandı.';

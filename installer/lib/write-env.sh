@@ -38,7 +38,7 @@ write_env() {
   if [[ -z "${image_tag}" && -f "${ROOT_DIR}/VERSION" ]]; then
     image_tag="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION")"
   fi
-  image_tag="${image_tag:-1.2.2-stirling-2.14.3}"
+  image_tag="${image_tag:-1.2.3-stirling-2.14.3}"
   stirling_version="$(echo "${image_tag}" | sed -n 's/.*-stirling-//p')"
   stirling_version="${stirling_version:-2.14.3}"
 

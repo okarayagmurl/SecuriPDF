@@ -6,7 +6,7 @@
 entera-pdf:<ENTERA_VERSION>-stirling-<STIRLING_VERSION>
 ```
 
-Örnek: `entera-pdf:1.2.2-stirling-2.14.3`
+Örnek: `entera-pdf:1.2.3-stirling-2.14.3`
 
 ## Paket türleri
 
