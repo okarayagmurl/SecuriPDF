@@ -22,10 +22,15 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "=== SecuriPDF — Offline on gereksinimler ==="
 
-# Taban OS kutuphaneleri paketle gelebilir; kurulu sistem daha yeniyse surum dusurme apt'yi kirar.
-is_base_os_package() {
+# Taban OS ve GnuPG yiginini paketleme. Musteri makinesi daha yeni point-release
+# ise eski keyboxd/gpg deb'i apt'yi kirar (gpg Breaks: keyboxd < 2.4.7).
+# Docker bunlara ihtiyac duymaz.
+should_skip_deb() {
   case "$1" in
     libc6|libc6-dev|libc-bin|libc-dev-bin|libsystemd0|systemd|systemd-sysv|libtinfo6|libncurses6|libncursesw6|libgcc-s1|gcc-14-base|libstdc++6)
+      return 0
+      ;;
+    gnupg|gnupg-l10n|gnupg-utils|gpg|gpg-agent|gpgconf|gpgsm|gpgv|gpg-wks-client|gpg-wks-server|dirmngr|keyboxd|libassuan0|libassuan9|libgcrypt20|libksba8|libnpth0t64|pinentry-curses)
       return 0
       ;;
   esac
@@ -39,8 +44,8 @@ if [[ -d "${DEBS_DIR}" ]] && ls "${DEBS_DIR}"/*.deb &>/dev/null; then
     [[ -f "${deb}" ]] || continue
     pkg="$(dpkg-deb -f "${deb}" Package)"
     ver="$(dpkg-deb -f "${deb}" Version)"
-    if is_base_os_package "${pkg}"; then
-      echo "  atlandi (taban OS, surum dusurulmez): ${pkg} ${ver}"
+    if should_skip_deb "${pkg}"; then
+      echo "  atlandi (Docker icin gerekmez, surum dusurulmez): ${pkg} ${ver}"
       continue
     fi
     inst="$(dpkg-query -W -f '${Version}' "${pkg}" 2>/dev/null || true)"
@@ -53,7 +58,7 @@ if [[ -d "${DEBS_DIR}" ]] && ls "${DEBS_DIR}"/*.deb &>/dev/null; then
   if [[ "${#installable[@]}" -gt 0 ]]; then
     # Surum dusurme yukaridaki filtrede elenir. --no-downgrades, .deb
     # dosyalariyla apt-get'te "not understood" hatasi verir.
-    apt-get install -y "${installable[@]}"
+    apt-get install -y --no-install-recommends "${installable[@]}"
   else
     echo "Kurulacak yeni Docker .deb yok."
   fi

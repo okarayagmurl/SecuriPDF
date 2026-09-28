@@ -28,8 +28,8 @@ prune_base_debs() {
   for deb in "${dir}"/*.deb; do
     pkg="$(dpkg-deb -f "${deb}" Package 2>/dev/null || true)"
     case "${pkg}" in
-      libc6|libc6-dev|libc-bin|libc-dev-bin|libsystemd0|systemd|systemd-sysv|libtinfo6|libncurses6|libncursesw6|libgcc-s1|gcc-14-base|libstdc++6)
-        echo "  cikarildi (taban OS): ${pkg}"
+      libc6|libc6-dev|libc-bin|libc-dev-bin|libsystemd0|systemd|systemd-sysv|libtinfo6|libncurses6|libncursesw6|libgcc-s1|gcc-14-base|libstdc++6|gnupg|gnupg-l10n|gnupg-utils|gpg|gpg-agent|gpgconf|gpgsm|gpgv|gpg-wks-client|gpg-wks-server|dirmngr|keyboxd|libassuan0|libassuan9|libgcrypt20|libksba8|libnpth0t64|pinentry-curses)
+        echo "  cikarildi (taban OS / gnupg): ${pkg}"
         rm -f "${deb}"
         ;;
     esac
