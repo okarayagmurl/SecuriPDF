@@ -61,6 +61,24 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="SecuriPDF Platform", version="1.0.0", lifespan=lifespan)
 
 app.include_router(setup.router)
+
+
+@app.middleware("http")
+async def observer_write_guard(request: Request, call_next):
+    """pdf-observer admin ekranını görür; ayar değiştiren istekleri reddeder."""
+    if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.path.startswith("/api/vault/v1/admin"):
+        try:
+            user = get_current_user(request, get_settings())
+        except HTTPException:
+            return await call_next(request)
+        if user.is_observer and not user.is_admin:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Gözlem yetkisi ayar değiştiremez."},
+            )
+    return await call_next(request)
+
+
 app.include_router(vault.router, prefix="/api/vault/v1")
 app.include_router(admin.router, prefix="/api/vault/v1")
 app.include_router(orchestration.router, prefix="/api")

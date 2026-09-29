@@ -1152,3 +1152,16 @@ button.danger:hover {
 .inline-hint input {
   width: 6rem;
 }
+
+.access-urls {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.readiness-item.skip .readiness-icon { color: var(--muted); }
+
+body[data-access="observer"] button:not(.secondary):not(.tab) {
+  opacity: 0.45;
+  pointer-events: none;
+}

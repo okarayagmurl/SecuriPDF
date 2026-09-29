@@ -638,7 +638,7 @@ class KeycloakLdapApplier:
         if len(password) < 8:
             raise HTTPException(status_code=400, detail="Parola en az 8 karakter olmali")
 
-        allowed_roles = {"pdf-user", "pdf-admin"}
+        allowed_roles = {"pdf-user", "pdf-admin", "pdf-observer"}
         assign_roles = [r for r in (roles or ["pdf-user"]) if r in allowed_roles]
         if not assign_roles:
             assign_roles = ["pdf-user"]

@@ -125,12 +125,12 @@
     if (!r) return false;
     if (r.type === 'opaqueredirect') return true;
     var s = r.status;
-    return s === 0 || s === 302 || s === 301 || s === 401 || s === 403;
+    return s === 0 || s === 302 || s === 301 || s === 401;
   }
 
   function isAuthFetchError(err) {
     if (!err) return false;
-    if (err.status === 401 || err.status === 403) return true;
+    if (err.status === 401) return true;
     var msg = String((err && err.message) || err);
     return /failed to fetch|networkerror|network error|load failed|cors/i.test(msg);
   }
@@ -146,12 +146,13 @@
       }
       if (!r.ok) {
         return r.text().then(function (t) {
-          var err = new Error(formatHttpError(t, r.status));
-          err.status = r.status;
-          if (r.status === 401 || r.status === 403) {
+          var oauthHtml = r.status === 403 && /<html|oauth2\/sign_in|oauth2\/start/i.test(t || '');
+          if (r.status === 401 || oauthHtml) {
             redirectToLogin();
             return new Promise(function () {});
           }
+          var err = new Error(formatHttpError(t, r.status));
+          err.status = r.status;
           throw err;
         });
       }
@@ -205,7 +206,7 @@
       STIRLING_UNREACHABLE: 'PDF motoruna bağlanılamadı (entera-pdf çalışıyor mu?)',
       STIRLING_HTTP_400: 'PDF motoru isteği reddetti (400) — geçersiz parametre veya dosya',
       STIRLING_HTTP_401: 'PDF motoru kimlik doğrulama hatası (401)',
-      STIRLING_HTTP_403: 'PDF motorunda bu araç devre dışı (403). URL→PDF: SYSTEM_ENABLEURLTOPDF=true. PDF→CBR: entera-pdf image içinde rar binary gerekli. Ayrıca custom_settings endpoints.toRemove kontrol edin.',
+      STIRLING_HTTP_403: 'PDF motorunda bu araç kapalı (403). Yönetici araç listesini kontrol etmeli.',
       STIRLING_HTTP_404: 'PDF motoru endpoint bulunamadı (404)',
       STIRLING_HTTP_413: 'Dosya boyutu limiti aşıldı (413)',
       STIRLING_HTTP_415: 'Desteklenmeyen dosya türü (415)',
@@ -215,7 +216,7 @@
       STIRLING_HTTP_503: 'PDF motoru geçici olarak kapalı (503)',
       STIRLING_HTTP_504: 'PDF motoru zaman aşımına uğradı (504)',
       STIRLING_WEASYPRINT_MISSING: 'URL→PDF için WeasyPrint eksik veya sayfa alınamadı. Fat image + ağ erişimini kontrol edin; örnek URL: https://example.com',
-      EBOOK_CALIBRE_MISSING: 'E-kitap dönüşümü için Calibre (ebook-convert) yok — Stirling fat image kullanın',
+      EBOOK_CALIBRE_MISSING: 'E-kitap dönüşümü şu anda hazır değil. Yöneticiye bildirin.',
       URL_MISSING: 'Web adresi (URL) girilmedi',
       URL_FETCH_FAILED: 'Web sayfası indirilemedi — adres erişilebilir mi, HTML mi kontrol edin',
       STIRLING_CBR_INVALID: 'CBR dosyası geçersiz — şifreli olabilir veya görsel içermiyor',

@@ -73,7 +73,7 @@ try {
   Write-Warning "Realm event log ayari atlandi: $($_.Exception.Message)"
 }
 
-foreach ($role in @("pdf-user", "pdf-admin")) {
+foreach ($role in @("pdf-user", "pdf-admin", "pdf-observer")) {
   $roleMissing = $true
   try {
     Invoke-Kcadm @("get", "realms/$realm/roles/$role") | Out-Null

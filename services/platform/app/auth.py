@@ -20,6 +20,7 @@ class AuthUser:
     email: str | None
     groups: list[str]
     is_admin: bool
+    is_observer: bool = False
 
 
 def _parse_groups(raw: str | None) -> list[str]:
@@ -169,21 +170,25 @@ def get_current_user(request: Request, settings: Settings = Depends(get_settings
                 email="dev@local",
                 groups=[settings.user_role, settings.admin_role],
                 is_admin=True,
+                is_observer=False,
             )
         raise HTTPException(status_code=401, detail="Oturum bulunamadi")
 
     groups = _collect_groups(request, settings)
     is_admin = settings.admin_role in groups
+    is_observer = settings.observer_role in groups and not is_admin
     return AuthUser(
         user_id=user_id,
         email=_resolve_user_email(request, settings),
         groups=groups,
         is_admin=is_admin,
+        is_observer=is_observer,
     )
 
 
 def require_admin(user: AuthUser) -> None:
-    if not user.is_admin:
+    """Tam yönetici veya salt okunur gözlemci. Yazma ayrı engellenir."""
+    if not user.is_admin and not user.is_observer:
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
 
 

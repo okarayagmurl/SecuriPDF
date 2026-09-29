@@ -247,6 +247,16 @@ def get_prod_readiness(settings: Settings, db: Session) -> dict[str, Any]:
             latest_ok = False
 
     master_key = os.getenv("VAULT_MASTER_KEY", DEV_VAULT_MASTER_KEY)
+    prod_https = deployment.get("environment") == "prod" and bool(deployment.get("use_https"))
+    cookie_secure = os.getenv("OAUTH2_COOKIE_SECURE", "false").lower() == "true"
+    issuer_checked = os.getenv("OAUTH2_INSECURE_ISSUER", "true").lower() == "false"
+    tls_checked = os.getenv("OAUTH2_INSECURE_TLS", "true").lower() == "false"
+    https_hint = (
+        "Müşteri ortamı HTTPS olduğunda docker/.env içinde "
+        "OAUTH2_COOKIE_SECURE=true, OAUTH2_INSECURE_ISSUER=false, OAUTH2_INSECURE_TLS=false yazın "
+        "ve yalnızca oauth2-proxy konteynerini yenileyin. HTTP laboratuvarda bu değerleri açmayın; "
+        "güvenli çerez yazılmaz ve girişten sonra 403 görülebilir."
+    )
     checks = [
         {
             "id": "vault_master_key",
@@ -258,23 +268,26 @@ def get_prod_readiness(settings: Settings, db: Session) -> dict[str, Any]:
         {
             "id": "oauth2_cookie_secure",
             "label": "OAuth2 guvenli cerez (OAUTH2_COOKIE_SECURE=true)",
-            "ok": os.getenv("OAUTH2_COOKIE_SECURE", "false").lower() == "true",
-            "severity": "critical",
-            "hint": "apply-prod-hardening.ps1 veya .env prod sablonu",
+            "ok": cookie_secure if prod_https else True,
+            "skipped": not prod_https,
+            "severity": "critical" if prod_https else "info",
+            "hint": https_hint if not prod_https else "HTTPS prod: docker/.env OAUTH2_COOKIE_SECURE=true, sonra oauth2-proxy yenilenir.",
         },
         {
             "id": "oauth2_insecure_issuer",
             "label": "OAuth2 issuer dogrulama acik (OAUTH2_INSECURE_ISSUER=false)",
-            "ok": os.getenv("OAUTH2_INSECURE_ISSUER", "true").lower() == "false",
-            "severity": "critical",
-            "hint": "Prod ortamda issuer dogrulamasi kapatilmamali",
+            "ok": issuer_checked if prod_https else True,
+            "skipped": not prod_https,
+            "severity": "critical" if prod_https else "info",
+            "hint": https_hint if not prod_https else "HTTPS prod: OAUTH2_INSECURE_ISSUER=false. HTTP laboratuvarda false yapmayin.",
         },
         {
             "id": "oauth2_insecure_tls",
             "label": "OAuth2 TLS dogrulama acik (OAUTH2_INSECURE_TLS=false)",
-            "ok": os.getenv("OAUTH2_INSECURE_TLS", "true").lower() == "false",
-            "severity": "warning",
-            "hint": "Ic CA kullaniyorsaniz sertifikayi trust store'a ekleyin",
+            "ok": tls_checked if prod_https else True,
+            "skipped": not prod_https,
+            "severity": "warning" if prod_https else "info",
+            "hint": "Ic CA kullaniyorsaniz sertifikayi trust store'a ekleyin. HTTP laboratuvarda bu madde uygulanmaz.",
         },
         {
             "id": "ldap_bind_password",
@@ -331,8 +344,9 @@ def get_prod_readiness(settings: Settings, db: Session) -> dict[str, Any]:
         "checks": checks,
         "deployment": deployment,
         "hostBackupNote": (
-            "Tam stack yedegi (Keycloak Postgres, Stirling volume) icin sunucuda "
-            "scripts/backup.sh veya docker/backup-keycloak.ps1 calistirin."
+            "Tam yedek (Keycloak Postgres, belge deposu ve docker/.env) icin sunucuda "
+            "scripts/backup.sh veya docker/backup-keycloak.ps1 calistirin. "
+            "Nginx 403: istemci IP'si 10/8, 172.16/12 veya 192.168/16 disindaysa docker/nginx/ip-whitelist.conf guncellenir."
         ),
     }
 

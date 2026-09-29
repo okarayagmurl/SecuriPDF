@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecuriPDF Yönetici Kılavuzu</title>
+  <style>
+    :root { color-scheme: light; --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; }
+    body { margin: 0; font: 16px/1.55 "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    header, main { max-width: 48rem; margin: 0 auto; padding: 1.25rem 1.25rem 2.5rem; }
+    header { background: #fff; border-bottom: 1px solid var(--line); }
+    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.4rem; }
+    .muted { color: var(--muted); }
+    a { color: #1d4ed8; }
+    nav a { margin-right: 1rem; }
+    code { background: #e2e8f0; padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { border: 1px solid var(--line); padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="muted">SecuriPDF</p>
+    <h1>Yönetici kılavuzu</h1>
+    <p class="muted">Müşteri ortamı, adresler, yetkiler ve yedek.</p>
+    <nav>
+      <a href="/admin/">Yönetim paneli</a>
+      <a href="/app/">Uygulama</a>
+      <a href="/app/static/guides/user.html">Kullanıcı kılavuzu</a>
+    </nav>
+  </header>
+  <main>
+    <h2>Hesaplanan adresler</h2>
+    <p>Operasyon ekranındaki adresler, kayıtlı FQDN ve HTTPS kutusundan üretilir. Tarayıcının açık olduğu adresle aynı olmak zorundadır.</p>
+    <ul>
+      <li>Laboratuvar <code>http://sunucu:8080</code> ise HTTPS kutusu kapalı kalır. Açık olursa uygulama adresi <code>https://sunucu</code> olur, geri dönüş adresi uyuşmaz ve girişten sonra 403 görülebilir.</li>
+      <li>Çıkış adresi <code>/oauth2/sign_out</code> ile biter. Satır kısa görünüyorsa kutu kaydırılır; adres kesilmiş değildir.</li>
+      <li>Keycloak satırı <code>http://sunucu:8090</code> iç servistir. Müşteri bu porta bağlanmaz. Dışarıya yalnızca uygulama adresi açılır.</li>
+    </ul>
+
+    <h2>Müşteri ortamında prod kontrolü</h2>
+    <p>HTTP laboratuvarda güvenli çerez ve issuer doğrulaması kırmızı çıkmaz; madde “HTTPS prod iken” diye bekler. Müşteri sitesi gerçekten HTTPS olduğunda ortamı <strong>prod</strong> işaretleyin, HTTPS kutusunu açın, sonra <code>docker/.env</code> içinde şunları yazıp yalnızca <code>oauth2-proxy</code> konteynerini yenileyin:</p>
+    <ul>
+      <li><code>OAUTH2_COOKIE_SECURE=true</code></li>
+      <li><code>OAUTH2_INSECURE_ISSUER=false</code></li>
+      <li><code>OAUTH2_INSECURE_TLS=false</code> (iç sertifika otoritesi varsa sertifikayı güven deposuna ekleyin)</li>
+      <li><code>PUBLIC_USE_HTTPS=true</code> ve <code>PUBLIC_FQDN</code> müşterinin açtığı ad olsun</li>
+    </ul>
+    <p>Bu üç değeri HTTP üzerinde açmayın. Güvenli çerez HTTP’de yazılmaz; kullanıcı giriş yapmış gibi görünüp bir sonraki istekte 403 alır.</p>
+    <p>Nginx 403 dönerse istemci IP’si özel ağ aralığında değildir. <code>docker/nginx/ip-whitelist.conf</code> içine müşteri ağı eklenir.</p>
+
+    <h2>Yetkiler</h2>
+    <table>
+      <thead><tr><th>Rol</th><th>Ne yapar</th></tr></thead>
+      <tbody>
+        <tr><td><code>pdf-user</code></td><td>Uygulamayı kullanır. Yönetim paneli açılmaz.</td></tr>
+        <tr><td><code>pdf-admin</code></td><td>Yönetim panelinde ayar değiştirir.</td></tr>
+        <tr><td><code>pdf-observer</code></td><td>Yönetim panelini görür. Kaydet, sil ve güncelle kapalıdır. Demo hesabı için bunu verin, <code>pdf-admin</code> vermeyin.</td></tr>
+      </tbody>
+    </table>
+    <p>Mevcut kurulumda rol yoksa Keycloak içinde realm rolü olarak <code>pdf-observer</code> oluşturup demo kullanıcısına atayın. İki rol birden atanırsa hesap tam yönetici sayılır.</p>
+
+    <h2>Yedek</h2>
+    <p>Panelden alınan yedek belgeleri ve veritabanını kapsar. Keycloak ve <code>docker/.env</code> için sunucuda <code>scripts/backup.sh</code> çalıştırılır. Geri yükleme mevcut belge deposunun üzerine yazar.</p>
+  </main>
+</body>
+</html>

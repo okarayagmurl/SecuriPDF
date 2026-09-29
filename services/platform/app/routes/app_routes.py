@@ -86,7 +86,9 @@ def app_me(user: AuthUser = Depends(get_current_user), settings: Settings = Depe
         "email": user.email,
         "displayName": display,
         "groups": user.groups,
-        "isAdmin": user.is_admin,
+        "isAdmin": user.is_admin or user.is_observer,
+        "isObserver": user.is_observer,
+        "canChangeSettings": user.is_admin,
         "favoriteTools": prefs.get("favoriteTools", []),
         "locale": prefs.get("locale", "tr-TR"),
     }

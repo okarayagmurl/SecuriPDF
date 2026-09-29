@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecuriPDF Kullanıcı Kılavuzu</title>
+  <style>
+    :root { color-scheme: light; --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; }
+    body { margin: 0; font: 16px/1.55 "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    header, main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1.25rem 2.5rem; }
+    header { background: #fff; border-bottom: 1px solid var(--line); }
+    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.4rem; }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); }
+    a { color: #1d4ed8; }
+    nav a { margin-right: 1rem; }
+    code { background: #e2e8f0; padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="muted">SecuriPDF</p>
+    <h1>Kullanıcı kılavuzu</h1>
+    <p class="muted">Belge yükleme, araçlar ve oturum.</p>
+    <nav>
+      <a href="/app/">Uygulamaya dön</a>
+      <a href="/app/static/guides/admin.html">Yönetici kılavuzu</a>
+    </nav>
+  </header>
+  <main>
+    <h2>Giriş</h2>
+    <p>Adresi tarayıcıda açın. Oturum yoksa kurum giriş sayfasına yönlendirilirsiniz. Kullanıcı adı ve parolayı girdikten sonra belge listesine dönersiniz.</p>
+    <p>Girişten sonra kırmızı bir <strong>403</strong> görürseniz oturumunuz düşmüş değildir. Bu yanıt, işlemin bu hesap için kapalı olduğunu söyler (lisans, kota veya yetki). Sayfayı yenileyin. Aynı adres HTTP ve HTTPS arasında karışıyorsa yöneticinize bildirin.</p>
+
+    <h2>Belgeler</h2>
+    <ul>
+      <li><strong>Yükle</strong> yalnızca PDF kabul eder.</li>
+      <li>Klasörler sol menüdeki Belgelerim altındadır. Arşiv ayrı bir alandır.</li>
+      <li>Bir aracı kullanmak için önce belgeyi seçin ya da aracı açıp dosyayı orada verin.</li>
+    </ul>
+
+    <h2>Araçlar</h2>
+    <p>Sol menüdeki Araçlar, lisansınızda açık olan işlemleri listeler. İş bitince sonuç indirilir. Uzun işlemlerde sayfayı kapatmayın; ilerleme kartı işin durumunu gösterir.</p>
+    <p>Otomatik karartma, seçilen desenin geçtiği metni bulur ve yalnızca o kutuyu kapatır. Eşleşme listesinde görünen metin ile sayfadaki kutu aynı alanı göstermelidir.</p>
+    <p>E-kitap dönüşümü EPUB, MOBI, AZW3 veya FB2 arşivi ister. Düz bir HTML dosyasını .epub diye kaydetmek dönüşümü durdurur.</p>
+
+    <h2>Çıkış</h2>
+    <p>Sağ üstteki adınıza tıklayıp <strong>Çıkış yap</strong> deyin. Ortak bilgisayarda oturumu açık bırakmayın.</p>
+  </main>
+</body>
+</html>

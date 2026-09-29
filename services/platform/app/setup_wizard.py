@@ -361,14 +361,20 @@ def create_default_user(
         if pw.status_code not in (204, 200):
             raise HTTPException(status_code=502, detail=f"Parola ayarlanamadi: {pw.text[:200]}")
 
-        # pdf-admin role
+        # pdf-admin atanır; pdf-observer demo hesabı için hazır bulunur.
         roles = client.get(f"{base}/admin/realms/{realm}/roles", headers=headers)
         role = None
-        if roles.status_code == 200:
-            for item in roles.json():
-                if item.get("name") == "pdf-admin":
-                    role = item
-                    break
+        known = roles.json() if roles.status_code == 200 else []
+        if not any(item.get("name") == "pdf-observer" for item in known):
+            client.post(
+                f"{base}/admin/realms/{realm}/roles",
+                headers=headers,
+                json={"name": "pdf-observer", "description": "Yonetim ekranini gorur, ayar degistiremez"},
+            )
+        for item in known:
+            if item.get("name") == "pdf-admin":
+                role = item
+                break
         if role:
             client.post(
                 f"{base}/admin/realms/{realm}/users/{user_id}/role-mappings/realm",

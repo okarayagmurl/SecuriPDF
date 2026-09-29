@@ -15,6 +15,7 @@ auth:
   email_header: X-Auth-Request-Email
   groups_header: X-Auth-Request-Groups
   admin_role: pdf-admin
+  observer_role: pdf-observer
   user_role: pdf-user
 
 admin_ui:

@@ -336,7 +336,7 @@
     var pageHidden = hidden('pageNumber', '1');
     var scaleRow = sliderField('imageScalePercent', 'Görsel boyutu (%)', {
       min: 10, max: 200, step: 5, default: 100,
-      hint: 'Orijinal görsel boyutuna göre ölçek (Stirling varsayılan boyut).'
+      hint: 'Orijinal görsel boyutuna göre ölçek.'
     });
     var empty = infoBox('<p>PDF seçtikten sonra önizlemede sayfa değiştirip konumu tıklayarak belirleyin. Yalnızca seçili sayfaya eklemek için «Tüm sayfalara ekle» kapalı olmalıdır.</p>');
     var workspace = document.createElement('div');
@@ -599,7 +599,7 @@
       wrap.appendChild(color);
       wrap.appendChild(text);
       row.appendChild(wrap);
-      row.appendChild(hint('Stirling 24-bit renk değeri olarak gönderilir.'));
+      row.appendChild(hint('Renk 24-bit değer olarak gönderilir.'));
       return row;
     }
     customWrap.appendChild(colorField('backGroundColor', 'Arka plan rengi', '#000000'));
@@ -728,7 +728,7 @@
       { value: 'severe', label: 'Güçlü' }
     ], 'slight', 'Eğim');
     mount(body, [
-      infoBox('<p>Tarama efekti Stirling üzerinde işlenir. «Yüksek» kalite bazı ortamlarda motor hatası verebilir — önce Orta deneyin.</p>'),
+      infoBox('<p>Tarama efekti sunucuda işlenir. «Yüksek» kalite bazı ortamlarda hata verebilir — önce Orta deneyin.</p>'),
       label('Kalite ön ayarı'), q.wrap, q.hidden,
       label('Tarama eğimi'), rot.wrap, rot.hidden,
       checkCard('yellowish', 'Sararmış kağıt tonu', true, 'Hafif sarı kağıt efekti uygular.')
@@ -755,7 +755,7 @@
   function panelVectorToPdf(body) {
     mount(body, [
       infoBox(
-        '<p>EPS / PS / EPSF dosyası yükleyin. Stirling dönüşümü <strong>dosya uzantısına</strong> göre yapar (.eps, .ps, .epsf).</p>' +
+        '<p>EPS / PS / EPSF dosyası yükleyin. Dönüşüm <strong>dosya uzantısına</strong> göre yapılır (.eps, .ps, .epsf).</p>' +
         '<p>PCL / XPS → PDF bu sürümde GhostPDL gerektirir; desteklenmez.</p>'
       ),
       checkCard('prepress', 'Baskı ön işleme (prepress)', false, 'Ghostscript PDFSETTINGS=/prepress uygular.')
@@ -780,7 +780,7 @@
   function panelEbookToPdf(body) {
     mount(body, [
       infoBox(
-        '<p>EPUB / MOBI / AZW3 / FB2 → PDF. Stirling fat image içinde <strong>Calibre ebook-convert</strong> gerekir.</p>' +
+        '<p>EPUB / MOBI / AZW3 / FB2 dosyası gerçek bir e-kitap arşivi olmalıdır (ZIP). Düz HTML dosyası bu araca uymaz.</p>' +
         '<p>DRM korumalı AZW3 dönüştürülemez. Büyük dosyalarda «e-Kitap optimizasyonu» kapalı başlayın.</p>'
       ),
       checkCard('embedAllFonts', 'Tüm fontları göm', false, 'Calibre ebook-convert --embed-all-fonts.'),
@@ -828,16 +828,14 @@
   function panelAutoSplit(body) {
     mount(body, [
       infoBox(
-        '<p><strong>Otomatik Ayır</strong> öncelikle Stirling resmi QR ayraç sayfasını arar.</p>' +
+        '<p><strong>Otomatik Ayır</strong> QR ayraç sayfasını arar.</p>' +
         '<ol style="margin:0.5rem 0 0 1.1rem;padding:0">' +
-        '<li>Stirling ayraç PDF\'ini yazdırın (QR: github.com/Stirling-Tools/Stirling-PDF)</li>' +
+        '<li>QR ayraç sayfasını yazdırın</li>' +
         '<li>Belgeler arasına koyup tarayın veya birleştirin</li>' +
         '<li>Tek PDF yükleyin — çıktı ZIP</li></ol>' +
-        '<p style="margin-top:0.6rem"><strong>Yedek:</strong> QR yoksa platform boş (beyaz) sayfaları ayraç olarak kullanır. ' +
+        '<p style="margin-top:0.6rem"><strong>Yedek:</strong> QR yoksa boş (beyaz) sayfalar ayraç sayılır. ' +
         'İç boş sayfalar bölünür; ayraç sayfaları çıktıya dahil edilmez.</p>' +
-        '<p style="margin-top:0.4rem">Ayraç yoksa ve boş sayfa da yoksa çıktıda değişiklik olmaz — test PDF\'ine boş sayfa veya QR ekleyin.</p>' +
-        '<p style="margin-top:0.4rem">Ayraç indirme: ' +
-        '<a href="https://github.com/Stirling-Tools/Stirling-PDF/issues/2281" target="_blank" rel="noopener">Stirling divider sayfaları</a></p>'
+        '<p style="margin-top:0.4rem">Ayraç yoksa ve boş sayfa da yoksa çıktıda değişiklik olmaz.</p>'
       ),
       checkCard('duplexMode', 'Dubleks tarama modu', false,
         'Ayraç (QR veya boş sayfa) bulunduğunda hemen sonraki sayfayı da atar.')

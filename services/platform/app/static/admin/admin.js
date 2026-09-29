@@ -924,8 +924,16 @@
         'OAuth callback:      ' + (urls.oauth_callback_url || '—'),
         'OAuth issuer:        ' + (urls.oauth_issuer_url || '—'),
         'Keycloak admin:      ' + (urls.keycloak_admin_url || '—'),
-        'Cikis:               ' + (urls.sign_out_url || '—')
+        'Cikis:               ' + (urls.sign_out_url || '—'),
+        '',
+        'Tarayicida acik adres: ' + window.location.origin
       ].join('\n');
+      if (urls.app_url && window.location.protocol === 'http:' && urls.app_url.indexOf('https://') === 0) {
+        urlEl.textContent += '\n\nUyari: Hesaplanan uygulama adresi HTTPS, tarayici HTTP. HTTPS kutusunu kapatin veya gercek sertifika ile 443 acin. Aksi halde Keycloak geri donus adresi uyusmaz ve giristen sonra 403 gorulebilir.';
+      }
+      if (urls.app_url && window.location.protocol === 'https:' && urls.app_url.indexOf('http://') === 0) {
+        urlEl.textContent += '\n\nUyari: Tarayici HTTPS, hesaplanan adres HTTP. Ortam kaydinda HTTPS kutusunu isaretleyin.';
+      }
     }
   }
 
@@ -1046,9 +1054,10 @@
     list.innerHTML = '';
     (data.checks || []).forEach(function (c) {
       var li = document.createElement('li');
-      li.className = 'readiness-item ' + (c.ok ? 'ok' : 'fail') + ' sev-' + (c.severity || 'info');
+      var skipped = !!c.skipped;
+      li.className = 'readiness-item ' + (skipped ? 'skip' : (c.ok ? 'ok' : 'fail')) + ' sev-' + (c.severity || 'info');
       li.innerHTML =
-        '<span class="readiness-icon">' + (c.ok ? '✓' : '✗') + '</span>' +
+        '<span class="readiness-icon">' + (skipped ? '–' : (c.ok ? '✓' : '✗')) + '</span>' +
         '<div><strong>' + c.label + '</strong>' +
         (c.hint ? '<div class="hint">' + c.hint + '</div>' : '') + '</div>';
       list.appendChild(li);
@@ -1214,7 +1223,7 @@
 
     grid.innerHTML =
       '<div class="stat-card"><span class="stat-label">SecuriPDF</span><strong class="stat-small">' + esc(installed.version || '—') + '</strong></div>' +
-      '<div class="stat-card"><span class="stat-label">Stirling</span><strong>' + esc(installed.stirlingVersion || '—') + '</strong></div>' +
+      '<div class="stat-card"><span class="stat-label">PDF motoru</span><strong>' + esc(installed.stirlingVersion || '—') + '</strong></div>' +
       '<div class="stat-card"><span class="stat-label">UI (app.js)</span><strong>v' + esc(String(installed.platformUiVersion || '—')) + '</strong></div>' +
       '<div class="stat-card"><span class="stat-label">Ortam</span><strong>' + esc((installed.access && installed.access.environment) || '—') + '</strong></div>' +
       '<div class="stat-card"><span class="stat-label">FQDN</span><strong class="stat-small">' + esc((installed.access && installed.access.publicFqdn) || '—') + '</strong></div>' +
@@ -2009,7 +2018,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      show('systemResult', { system: data.system, note: 'Nginx/Stirling icin container restart gerekebilir' });
+      show('systemResult', { system: data.system, note: 'Nginx veya PDF motoru için konteyner yenilemesi gerekebilir' });
     } catch (e) { alert(e.message); }
   });
 
@@ -2342,6 +2351,27 @@
     } catch (e) { alert(e.message); }
   });
 
+  async function applyObserverMode() {
+    try {
+      var res = await fetch('/api/app/v1/me', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      var me = await res.json();
+      if (!me.isObserver || me.canChangeSettings) return;
+      document.body.dataset.access = 'observer';
+      var banner = document.getElementById('setupBanner');
+      if (banner) {
+        banner.classList.remove('hidden');
+        var text = banner.querySelector('.setup-banner-text');
+        if (text) {
+          text.innerHTML = '<strong>Gözlem yetkisi.</strong> <span>Ekranlar açılır; kaydetme, silme ve güncelleme kapalıdır.</span>';
+        }
+        var btn = document.getElementById('btnSetupBannerDismiss');
+        if (btn) btn.hidden = true;
+      }
+    } catch (e) { /* oturum yoksa sayfa zaten yonlenir */ }
+  }
+
+  applyObserverMode();
   loadSettings();
   loadSetupChecklist();
   loadDashboard();

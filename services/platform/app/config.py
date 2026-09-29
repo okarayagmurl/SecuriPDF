@@ -19,6 +19,7 @@ class Settings:
     email_header: str
     groups_header: str
     admin_role: str
+    observer_role: str
     user_role: str
     audit_log_path: Path
     license_config_path: Path
@@ -83,6 +84,7 @@ def get_settings() -> Settings:
         email_header=auth.get("email_header", "X-Auth-Request-Email"),
         groups_header=auth.get("groups_header", "X-Auth-Request-Groups"),
         admin_role=auth.get("admin_role", "pdf-admin"),
+        observer_role=auth.get("observer_role", "pdf-observer"),
         user_role=auth.get("user_role", "pdf-user"),
         audit_log_path=Path(audit.get("log_path", "/logs/platform-audit.log")),
         license_config_path=Path(os.getenv("LICENSE_CONFIG", "/config/license.yml")),

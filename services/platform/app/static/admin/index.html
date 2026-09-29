@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecuriPDF Admin</title>
-  <link rel="stylesheet" href="/admin/static/admin.css?v=20">
+  <link rel="stylesheet" href="/admin/static/admin.css?v=21">
 </head>
 <body>
   <div id="setupBanner" class="setup-banner hidden" role="status">
@@ -20,6 +20,7 @@
         <h1>SecuriPDF Admin</h1>
         <p class="subtitle">Genel bakış · Yapılandırma · Lisans · Kullanıcılar · Kota · Operasyon · Audit</p>
       </div>
+      <a href="/app/static/guides/admin.html" class="admin-app-link">Yönetici kılavuzu</a>
       <a href="/app/" class="admin-app-link">← Uygulamaya dön</a>
     </div>
     <nav class="admin-tabs" id="adminTabs">
@@ -409,7 +410,7 @@
       </section>
       <section class="card">
         <details class="advanced-block">
-          <summary>Stirling whitelist (gelişmiş)</summary>
+          <summary>Motor araç listesi (gelişmiş)</summary>
           <p class="hint">Sunucu tarafı endpoint listesi (<code>tools.yml</code>). Paket ve profil modeli varken nadiren gerekir.</p>
           <button id="btnLoadTools">Whitelist yükle</button>
           <label>Araç ID listesi (virgülle) <input id="toolsEnabled" type="text" placeholder="merge-pdfs,..."></label>
@@ -573,7 +574,7 @@
           <summary>Gelişmiş: MANIFEST JSON yapıştır</summary>
           <p class="hint">Paket yükleme sonrası otomatik kaydedilir. Gerekirse elle yapıştırabilirsiniz.</p>
           <label>MANIFEST (JSON)
-            <textarea id="upgradeStagingJson" rows="8" placeholder='{"version":"1.1.1-stirling-2.13.1", ...}'></textarea>
+            <textarea id="upgradeStagingJson" rows="8" placeholder='{"version":"1.2.4", ...}'></textarea>
           </label>
           <div class="row-actions">
             <button type="button" id="btnSaveStagingManifest">Staging kaydet</button>
@@ -602,7 +603,7 @@
 
       <section class="card">
         <h2>Ortam, erisim ve yedek</h2>
-        <p class="hint">Sunucu IP ve FQDN bilgileri vault volume'da saklanir. Prod gecisinde .env (OAUTH2_REDIRECT_URL, KEYCLOAK_HOSTNAME) ile eslestirin.</p>
+        <p class="hint">Uygulama adresi, tarayıcının açtığı adresle aynı olmalıdır (şema ve port dahil). Keycloak satırı iç oturum içindir (8090); müşteri bu porta girmez. Çıkış adresi /oauth2/sign_out ile biter.</p>
         <label>Ortam
           <select id="deployEnvironment">
             <option value="dev">dev</option>
@@ -666,7 +667,7 @@
 
       <section class="card full">
         <h2>Tam stack yedek (sunucu komutlari)</h2>
-        <p class="hint">Keycloak Postgres, Stirling volume ve .env icin sunucuda calistirin:</p>
+        <p class="hint">Keycloak Postgres, belge deposu ve .env için sunucuda çalıştırın:</p>
         <pre class="code-block"># Linux / Git Bash
 ./scripts/backup.sh
 
@@ -778,6 +779,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=33"></script>
+  <script src="/admin/static/admin.js?v=34"></script>
 </body>
 </html>
