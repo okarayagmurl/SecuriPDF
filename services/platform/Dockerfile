@@ -15,9 +15,25 @@ ARG STIRLING_VERSION=unknown
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
+        ca-certificates \
         p7zip-full \
         ghostscript \
     && rm -rf /var/lib/apt/lists/*
+
+# CBR/RAR5: p7zip RAR acamaz. RARLAB unrar platform imajinda olmali.
+ARG RAR_VERSION=712
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then \
+      mkdir -p /tmp/rarlab; \
+      curl -fsSL -o /tmp/rarlab/rarlinux.tar.gz "https://www.rarlab.com/rar/rarlinux-x64-${RAR_VERSION}.tar.gz"; \
+      tar -xzf /tmp/rarlab/rarlinux.tar.gz -C /tmp/rarlab; \
+      install -m 755 /tmp/rarlab/rar/unrar /usr/local/bin/unrar; \
+      install -m 755 /tmp/rarlab/rar/rar /usr/local/bin/rar; \
+      ln -sf /usr/local/bin/unrar /usr/bin/unrar; \
+      ln -sf /usr/local/bin/rar /usr/bin/rar; \
+      rm -rf /tmp/rarlab; \
+    fi
 
 COPY requirements.txt .
 # endesive pykcs11 (g++/swig) ister; platform yalnızca cms imza kullanır — HSM paketi atlanır.

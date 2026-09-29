@@ -53,6 +53,25 @@ RUN set -eux; \
     else \
       echo "WARN: rar binary skipped on arch=$arch (PDF→CBR disabled until rar is provided)"; \
     fi
+
+# OCR dil paketleri imaja gömülür; volume boşsa giriş betiği tessdata dizinine kopyalar.
+# Calibre ebook-convert Qt'yi Vulkan'sız, yazılmsız ekranda çalıştırır.
+ENV QT_QPA_PLATFORM=offscreen \
+    QT_OPENGL=software \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    QTWEBENGINE_DISABLE_SANDBOX=1 \
+    QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+RUN set -eux; \
+    mkdir -p /opt/securipdf-tessdata; \
+    curl -fsSL -o /opt/securipdf-tessdata/tur.traineddata \
+      https://github.com/tesseract-ocr/tessdata/raw/main/tur.traineddata; \
+    curl -fsSL -o /opt/securipdf-tessdata/eng.traineddata \
+      https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata; \
+    curl -fsSL -o /opt/securipdf-tessdata/osd.traineddata \
+      https://github.com/tesseract-ocr/tessdata/raw/main/osd.traineddata
+COPY docker/copy-tessdata-entrypoint.sh /opt/securipdf-tessdata/copy-and-start.sh
+RUN chmod 755 /opt/securipdf-tessdata/copy-and-start.sh
+ENTRYPOINT ["/opt/securipdf-tessdata/copy-and-start.sh"]
 # USER değiştirmeyin — upstream entrypoint volume izinlerini root olarak ayarlar
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

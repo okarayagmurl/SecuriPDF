@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.4-stirling-2.14.3 (2026-09-29)
+
+- OCR Türkçe dil paketi imaja gömülür; CBR/RAR5 platformda unrar ile açılır
+- e-Kitap dönüşümü headless Qt ile çalışır (Vulkan/QRHiGles2 hatası)
+- Görsel ekleme tıklanan noktaya, karartma işaretlenen metnin üzerine uygulanır
+- PDF temizleme, imza kaldırma, meta veri, otomatik adlandırma ve ek/görsel çıkarma platformda sonuç üretir
+
 ## 1.2.3-stirling-2.14.3 (2026-09-28)
 
 - Kurulum, updater servisi ayakta değilse bitmez; giriş kapısı kapanmadan sihirbaz tamamlanmış sayılmaz

@@ -373,38 +373,78 @@
       coordRow.appendChild(cell);
     });
 
+    var pdfDoc = null;
+    var pdfPageSize = { width: 595, height: 842 };
+    var renderToken = 0;
+    var canvas = document.createElement('canvas');
+    canvas.className = 'tp-pos-canvas';
+    canvas.style.cssText = 'display:block;width:100%;height:auto;background:#fff;';
+
     function pageSize() {
-      return SC ? SC.pageDims(null) : { width: 595, height: 842 };
+      return pdfPageSize.width ? pdfPageSize : { width: 595, height: 842 };
     }
 
     function placeMarker() {
       var ps = pageSize();
-      var previewFrame = stage.querySelector('.ui-pdf-preview-frame');
-      var refEl = previewFrame || stage;
-      var rect = refEl.getBoundingClientRect();
-      if (!rect.width) return;
-      var scale = ps.width / rect.width;
+      var canvasRect = canvas.getBoundingClientRect();
+      var layerRect = markerLayer.getBoundingClientRect();
+      if (!canvasRect.width || !layerRect.width) return;
       var x = parseInt(coordRow.querySelector('[name=x]').value, 10) || 0;
       var y = parseInt(coordRow.querySelector('[name=y]').value, 10) || 0;
       marker.hidden = false;
-      marker.style.left = Math.round(x / scale) + 'px';
-      marker.style.top = Math.round(y / scale) + 'px';
+      marker.style.left = Math.round((canvasRect.left - layerRect.left) + (x / ps.width) * canvasRect.width) + 'px';
+      marker.style.top = Math.round((canvasRect.top - layerRect.top) + (y / ps.height) * canvasRect.height) + 'px';
     }
 
     function clickCoords(ev) {
-      var iframe = stage.querySelector('.ui-pdf-preview-frame');
-      var refEl = iframe || stage.querySelector('.ui-pdf-preview-stage') || stage;
-      var rect = refEl.getBoundingClientRect();
       var ps = pageSize();
+      var rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return null;
-      var scale = ps.width / rect.width;
-      var x = Math.max(0, Math.round((ev.clientX - rect.left) * scale));
-      var y = Math.max(0, Math.round((ev.clientY - rect.top) * scale));
+      var x = Math.max(0, Math.round(((ev.clientX - rect.left) / rect.width) * ps.width));
+      var y = Math.max(0, Math.round(((ev.clientY - rect.top) / rect.height) * ps.height));
       return { x: x, y: y };
     }
 
+    function renderPdfPage(pageNum) {
+      if (!pdfDoc || !global.pdfjsLib) return;
+      var token = ++renderToken;
+      pdfDoc.getPage(pageNum).then(function (page) {
+        if (token !== renderToken) return;
+        var base = page.getViewport({ scale: 1 });
+        pdfPageSize = { width: base.width, height: base.height };
+        var maxW = stage.clientWidth || 720;
+        var viewport = page.getViewport({ scale: Math.max(0.2, maxW / base.width) });
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+      }).then(function () {
+        if (token !== renderToken) return;
+        placeMarker();
+      }).catch(function () { /* önizleme yoksa koordinat kutuları durur */ });
+    }
+
+    function loadPdfPreview() {
+      var input = form.querySelector('[name="fileInput"]');
+      var file = input && input.files && input.files[0];
+      if (!file || !global.pdfjsLib) return;
+      if (global.pdfjsLib.GlobalWorkerOptions) {
+        global.pdfjsLib.GlobalWorkerOptions.workerSrc = '/app/static/vendor/pdf.worker.min.js';
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        var task = global.pdfjsLib.getDocument({ data: new Uint8Array(reader.result) });
+        task.promise.then(function (doc) {
+          pdfDoc = doc;
+          var pageNum = parseInt(pageHidden.value, 10) || 1;
+          if (pageNum > doc.numPages) pageNum = 1;
+          pageHidden.value = String(pageNum);
+          renderPdfPage(pageNum);
+        }).catch(function () { pdfDoc = null; });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
     markerLayer.addEventListener('click', function (ev) {
-      if (ev.target.closest('.ui-pdf-preview-nav')) return;
       var pt = clickCoords(ev);
       if (!pt) return;
       coordRow.querySelector('[name=x]').value = String(pt.x);
@@ -415,21 +455,29 @@
       placeMarker();
     });
 
-    if (P) {
-      stage.style.position = 'relative';
-      var previewCleanup = P.mount(stage, form, { showNav: true, minHeight: 360, onPageChange: function (p) {
-        pageHidden.value = String(p);
-      } });
-      if (previewCleanup) cleanups.push(previewCleanup);
-      var previewWrap = stage.querySelector('.ui-pdf-preview-wrap');
-      if (previewWrap) stage.insertBefore(previewWrap, markerLayer);
+    stage.style.position = 'relative';
+    var canvasWrap = document.createElement('div');
+    canvasWrap.style.position = 'relative';
+    canvasWrap.appendChild(canvas);
+    canvasWrap.appendChild(markerLayer);
+    stage.appendChild(canvasWrap);
+    var previewCleanup = P ? P.mount(stage, form, { showNav: true, minHeight: 0, onPageChange: function (p) {
+      pageHidden.value = String(p);
+      renderPdfPage(p);
+    } }) : null;
+    if (previewCleanup) cleanups.push(previewCleanup);
+    var previewWrap = stage.querySelector('.ui-pdf-preview-wrap');
+    if (previewWrap) {
+      var frame = previewWrap.querySelector('.ui-pdf-preview-stage');
+      if (frame) frame.hidden = true;
+      stage.insertBefore(previewWrap, canvasWrap);
     }
 
     bindMetaRefresh(form, function () {
       var has = meta(form) && meta(form).fileName;
       empty.hidden = !!has;
       workspace.hidden = !has;
-      if (has) placeMarker();
+      if (has) loadPdfPreview();
     });
 
     mount(body, [empty, workspace, coordRow, scaleRow,
@@ -469,9 +517,9 @@
     [
       { name: 'removeJavaScript', label: 'JavaScript kaldır', desc: 'Belgedeki otomatik scriptleri temizler.', def: true },
       { name: 'removeEmbeddedFiles', label: 'Gömülü dosyalar', desc: 'Ek dosya eklerini kaldırır.', def: true },
-      { name: 'removeXMPMetadata', label: 'XMP meta verisi', desc: 'Gelişmiş XMP bilgisini siler.', def: false },
-      { name: 'removeMetadata', label: 'Belge bilgisi', desc: 'Başlık, yazar vb. alanları temizler.', def: false },
-      { name: 'removeLinks', label: 'Bağlantılar', desc: 'Tıklanabilir URL ve linkleri kaldırır.', def: false }
+      { name: 'removeXMPMetadata', label: 'XMP meta verisi', desc: 'Gelişmiş XMP bilgisini siler.', def: true },
+      { name: 'removeMetadata', label: 'Belge bilgisi', desc: 'Başlık, yazar vb. alanları temizler.', def: true },
+      { name: 'removeLinks', label: 'Bağlantılar', desc: 'Tıklanabilir URL ve linkleri kaldırır.', def: true }
     ].forEach(function (item) {
       list.appendChild(checkCard(item.name, item.label, item.def, item.desc));
     });
@@ -875,8 +923,8 @@
 
   function panelExtractAttachments(body) {
     panelInfoOnly(body,
-      '<p>PDF\'e gömülü dosya ekleri ZIP arşivi olarak çıkarılır.</p>' +
-      '<p>Ek yoksa işlem boş ZIP yerine hata verir. Önce «Ek Dosya Ekle» ile ek gömülü olduğundan emin olun.</p>' +
+      '<p>Dosya ekleri, ek açıklamaları ve gömülü görseller ZIP arşivi olarak çıkarılır.</p>' +
+      '<p>Hiçbiri yoksa işlem hata verir.</p>' +
       '<p><strong>Çıktı:</strong> ZIP arşivi.</p>'
     );
   }

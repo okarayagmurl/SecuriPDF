@@ -27,16 +27,19 @@ def is_rar(data: bytes) -> bool:
 
 
 def _extract_rar_with_tools(rar_path: Path, out_dir: Path) -> None:
-    """7z / unar / unrar ile aç — ilk başarılı araç kazanır."""
+    """unrar / rar önce — p7zip RAR5 açamaz ve CBR_EXTRACT_FAILED üretir."""
+    dest = str(out_dir) + "/"
     commands: list[list[str]] = []
+    if shutil.which("unrar"):
+        commands.append(["unrar", "x", "-o+", "-idq", str(rar_path), dest])
+    if shutil.which("rar"):
+        commands.append(["rar", "x", "-y", "-idq", str(rar_path), dest])
+    if shutil.which("unar"):
+        commands.append(["unar", "-f", "-o", str(out_dir), str(rar_path)])
     if shutil.which("7z"):
         commands.append(["7z", "x", "-y", f"-o{out_dir}", str(rar_path)])
     if shutil.which("7za"):
         commands.append(["7za", "x", "-y", f"-o{out_dir}", str(rar_path)])
-    if shutil.which("unar"):
-        commands.append(["unar", "-f", "-o", str(out_dir), str(rar_path)])
-    if shutil.which("unrar"):
-        commands.append(["unrar", "x", "-o+", str(rar_path), str(out_dir) + "/"])
 
     if not commands:
         raise CbrConvertError("CBR_EXTRACTOR_MISSING")

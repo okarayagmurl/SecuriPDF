@@ -164,6 +164,41 @@ def scan_pdf_redactions(
     }
 
 
+def _burn_page(doc: fitz.Document, page_index: int) -> None:
+    """Karartılmış sayfayı görsele çevirir; altındaki metin ve piksel geri alınamaz."""
+    page = doc[page_index]
+    rect = fitz.Rect(page.rect)
+    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+    fresh = doc.new_page(pno=page_index, width=rect.width, height=rect.height)
+    fresh.insert_image(fresh.rect, pixmap=pix)
+    doc.delete_page(page_index + 1)
+
+
+def _paint_redactions(
+    doc: fitz.Document,
+    by_page: dict[int, list[fitz.Rect]],
+    color: tuple[float, float, float],
+    *,
+    rasterize: bool,
+) -> None:
+    """PDF_REDACT_IMAGE_PIXELS kara kutuyu sayfanın başka yerine basabiliyor.
+
+    Metin apply_redactions ile silinir, dolgu aynı dikdörtgene çizilir.
+    """
+    indexes = sorted(by_page)
+    for page_index in indexes:
+        page = doc[page_index]
+        rects = by_page[page_index]
+        for rect in rects:
+            page.add_redact_annot(rect, fill=color)
+        page.apply_redactions(images=0)
+        for rect in rects:
+            page.draw_rect(rect, color=color, fill=color, width=0, overlay=True)
+    if rasterize:
+        for page_index in reversed(indexes):
+            _burn_page(doc, page_index)
+
+
 def apply_pdf_redactions_by_areas(
     pdf_bytes: bytes,
     areas: list[dict[str, Any]],
@@ -178,8 +213,6 @@ def apply_pdf_redactions_by_areas(
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     color = _parse_color(color_hex)
     pad = max(0.0, float(padding))
-    redact_images = fitz.PDF_REDACT_IMAGE_PIXELS if rasterize else 0
-    any_redaction = False
 
     by_page: dict[int, list[fitz.Rect]] = {}
     for item in areas:
@@ -192,23 +225,14 @@ def apply_pdf_redactions_by_areas(
             continue
         if pad:
             rect = rect + (-pad, -pad, pad, pad)
-        by_page.setdefault(page_no, []).append(rect)
+        by_page.setdefault(page_no - 1, []).append(rect)
 
     if not by_page:
         doc.close()
         raise RedactionError("Geçerli karartma alanı bulunamadı")
 
     try:
-        for page_no, rects in by_page.items():
-            page = doc[page_no - 1]
-            for rect in rects:
-                page.add_redact_annot(rect, fill=color)
-            page.apply_redactions(images=redact_images)
-            any_redaction = True
-
-        if not any_redaction:
-            raise RedactionError("Karartma uygulanamadı")
-
+        _paint_redactions(doc, by_page, color, rasterize=rasterize)
         out = BytesIO()
         doc.save(out, deflate=True, garbage=4)
         return out.getvalue()
@@ -239,29 +263,24 @@ def apply_pdf_redactions(
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     color = _parse_color(color_hex)
     pad = max(0.0, float(padding))
-    redact_images = fitz.PDF_REDACT_IMAGE_PIXELS if rasterize else 0
-    any_redaction = False
+    by_page: dict[int, list[fitz.Rect]] = {}
 
     try:
-        for page in doc:
+        for index, page in enumerate(doc):
             matches = _find_page_matches(page, rules, max_matches=500)
             if not matches:
                 continue
-            page_any = False
             for item in matches:
                 rect = fitz.Rect(item["rect"])
                 if pad:
                     rect = rect + (-pad, -pad, pad, pad)
-                page.add_redact_annot(rect, fill=color)
-                page_any = True
-            if page_any:
-                page.apply_redactions(images=redact_images)
-                any_redaction = True
+                by_page.setdefault(index, []).append(rect)
 
-        if not any_redaction:
+        if not by_page:
             raise RedactionError(
                 "Karartılacak metin bulunamadı. Taranmış belgelerde önce OCR uygulayın."
             )
+        _paint_redactions(doc, by_page, color, rasterize=rasterize)
 
         out = BytesIO()
         doc.save(out, deflate=True, garbage=4)

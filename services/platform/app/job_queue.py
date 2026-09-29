@@ -25,6 +25,10 @@ from .job_output import (
 )
 from .license import LicenseService
 from .pdf_attachments import AttachmentExtractError, extract_embedded_attachments
+from .pdf_images import ImageExtractError, extract_pdf_images
+from .pdf_metadata import MetadataError, auto_rename_pdf, update_pdf_metadata
+from .pdf_place_image import ImagePlaceError, place_image_on_pdf
+from .pdf_signatures import SignatureRemoveError, remove_cert_signatures
 from .pdf_autosplit import split_pdf_on_blank_pages
 from .pdf_cbz import CbzError, cbz_to_pdf
 from .pdf_cbr import CbrConvertError, is_rar5, rar_bytes_to_cbz
@@ -35,7 +39,6 @@ from .pdf_cert_sign import (
     wants_visible_signature,
 )
 from .pdf_eml import EmlError, eml_to_pdf
-from .pdf_page_util import extract_single_page, replace_single_page
 from .pdf_permissions import PermissionsError, change_permissions
 from .pdf_sanitize import sanitize_pdf_bytes
 from .pdf_split_chapters import SplitChaptersError, split_pdf_by_chapters
@@ -479,40 +482,6 @@ def _filename_from_disposition(header: str | None) -> str | None:
     return name or None
 
 
-def _adjust_add_image_coords(
-    stirling_form_data: dict[str, str | list[str]],
-    files: list[tuple[str, tuple[str | None, bytes, str | None]]],
-) -> None:
-    """UI x/y tiklama noktasi = gorsel merkezi; Stirling sol-ust kose bekler."""
-    import fitz
-
-    x = int(str(stirling_form_data.get("x", "0")) or 0)
-    y = int(str(stirling_form_data.get("y", "0")) or 0)
-    img_item = next((item for item in files if item[0] == "imageFile"), None)
-    pdf_item = next((item for item in files if item[0] == "fileInput"), None)
-    if not img_item:
-        return
-    try:
-        img_doc = fitz.open(stream=img_item[1][1], filetype="image")
-        iw, ih = float(img_doc[0].rect.width), float(img_doc[0].rect.height)
-        img_doc.close()
-    except Exception:
-        return
-    stirling_form_data["x"] = str(max(0, int(round(x - iw / 2.0))))
-    # PDF koordinatlari: y asagidan; onizleme yukaridan
-    if pdf_item:
-        try:
-            pdf_doc = fitz.open(stream=pdf_item[1][1], filetype="pdf")
-            page_h = float(pdf_doc[0].rect.height)
-            pdf_doc.close()
-            y_top_left = max(0, int(round(y - ih / 2.0)))
-            stirling_form_data["y"] = str(max(0, int(round(page_h - y_top_left - ih))))
-            return
-        except Exception:
-            pass
-    stirling_form_data["y"] = str(max(0, int(round(y - ih / 2.0))))
-
-
 def _process_job(settings: Settings, session_factory, db: Session, row: JobRecord) -> None:
     job_path = _job_dir(settings, row.id)
     meta_path = job_path / "meta.json"
@@ -557,24 +526,6 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         files.append((field, (orig_name, content, ctype)))
         field_ref[str(field)] = ref_id
 
-    if tool_id == "add-image":
-        scale = int(str(form_data.get("imageScalePercent", form_data.get("image_scale_percent", "100")) or 100))
-        if scale != 100 and 10 <= scale <= 200:
-            import fitz
-
-            for idx, item in enumerate(files):
-                if item[0] != "imageFile":
-                    continue
-                field, (name, img_bytes, ctype) = item
-                try:
-                    doc = fitz.open(stream=img_bytes, filetype="image")
-                    matrix = fitz.Matrix(scale / 100.0, scale / 100.0)
-                    pix = doc[0].get_pixmap(matrix=matrix)
-                    files[idx] = (field, (name, pix.tobytes("png"), "image/png"))
-                except Exception:
-                    pass
-                break
-
     row.progress = 25
     db.commit()
 
@@ -595,33 +546,7 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
     user_id = row.user_id
     db.close()
 
-    add_image_original: bytes | None = None
-    add_image_page: int | None = None
-    if tool_id == "add-image":
-        every = str(form_data.get("everyPage", form_data.get("every_page", "false"))).lower() in (
-            "true",
-            "1",
-            "on",
-        )
-        page_num = int(str(form_data.get("pageNumber", form_data.get("page_number", "1")) or 1))
-        if not every and page_num > 1:
-            add_image_original = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
-            add_image_page = page_num
-            try:
-                single_pdf = extract_single_page(add_image_original, page_num)
-            except Exception:
-                _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "INPUT_MISSING")
-                return
-            for idx, item in enumerate(files):
-                if item[0] == "fileInput":
-                    field, (name, _content, ctype) = item
-                    files[idx] = (field, (name, single_pdf, ctype))
-                    break
-
     stirling_form_data = normalize_stirling_form(tool_id, form_data)
-
-    if tool_id == "add-image":
-        _adjust_add_image_coords(stirling_form_data, files)
 
     if tool_id == "cbr-to-pdf":
         try:
@@ -745,6 +670,86 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
         except Exception as exc:
             print(f"[job-worker] sanitize failed: {type(exc).__name__}: {exc}")
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "SANITIZE_FAILED")
+            return
+    elif tool_id == "add-image":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        image_bytes = next((item[1][1] for item in files if item[0] == "imageFile"), b"")
+        try:
+            scale = float(str(form_data.get("imageScalePercent", "100") or "100").replace(",", "."))
+        except ValueError:
+            scale = 100.0
+        every = str(form_data.get("everyPage", "false")).lower() in {"true", "1", "on", "yes"}
+        try:
+            page_number = int(str(form_data.get("pageNumber", "1") or "1"))
+        except ValueError:
+            page_number = 1
+        try:
+            x = float(str(form_data.get("x", "0") or "0").replace(",", "."))
+            y = float(str(form_data.get("y", "0") or "0").replace(",", "."))
+        except ValueError:
+            x, y = 0.0, 0.0
+        try:
+            result_content = place_image_on_pdf(
+                pdf_bytes,
+                image_bytes,
+                x=x,
+                y=y,
+                page_number=page_number,
+                every_page=every,
+                scale_percent=scale,
+            )
+        except ImagePlaceError as exc:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, exc.code, form_data=form_data)
+            return
+        except Exception as exc:
+            print(f"[job-worker] add-image failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "IMAGE_PLACE_FAILED")
+            return
+    elif tool_id == "update-metadata":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        try:
+            result_content = update_pdf_metadata(pdf_bytes, form_data)
+        except MetadataError as exc:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, exc.code, form_data=form_data)
+            return
+        except Exception as exc:
+            print(f"[job-worker] metadata failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "METADATA_UPDATE_FAILED")
+            return
+    elif tool_id == "auto-rename":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        try:
+            result_content, stirling_output_name = auto_rename_pdf(pdf_bytes, form_data)
+        except MetadataError as exc:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, exc.code, form_data=form_data)
+            return
+        except Exception as exc:
+            print(f"[job-worker] auto-rename failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "RENAME_FAILED")
+            return
+    elif tool_id == "remove-cert-sign":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        try:
+            result_content = remove_cert_signatures(pdf_bytes)
+        except SignatureRemoveError as exc:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, exc.code, form_data=form_data)
+            return
+        except Exception as exc:
+            print(f"[job-worker] remove-cert failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "REMOVE_CERT_STILL_SIGNED")
+            return
+    elif tool_id == "extract-images":
+        pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
+        image_format = str(form_data.get("format") or "png")
+        try:
+            result_content = extract_pdf_images(pdf_bytes, image_format)
+            stirling_output_name = "pdf-gorseller.zip"
+        except ImageExtractError as exc:
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, exc.code, form_data=form_data)
+            return
+        except Exception as exc:
+            print(f"[job-worker] extract-images failed: {type(exc).__name__}: {exc}")
+            _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "EXTRACT_EMPTY")
             return
     elif tool_id == "edit-table-of-contents":
         pdf_bytes = next((item[1][1] for item in files if item[0] == "fileInput"), b"")
@@ -1323,22 +1328,6 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             if resp.status_code < 400:
                 result_content = resp.content
                 stirling_output_name = _filename_from_disposition(resp.headers.get("content-disposition"))
-                if add_image_original and add_image_page and result_content:
-                    try:
-                        result_content = replace_single_page(
-                            add_image_original, add_image_page, result_content
-                        )
-                    except Exception:
-                        _fail_job(
-                            session_factory,
-                            job_id,
-                            settings,
-                            user_id,
-                            tool_id,
-                            input_refs,
-                            "STIRLING_REQUEST_FAILED",
-                        )
-                        return
         except httpx.RequestError:
             _fail_job(session_factory, job_id, settings, user_id, tool_id, input_refs, "STIRLING_UNREACHABLE")
             return
@@ -1387,12 +1376,15 @@ def _process_job(settings: Settings, session_factory, db: Session, row: JobRecor
             out_path.write_bytes(encrypt_bytes(settings, result_content))
             out_info = output_file_info(result_content, tool_id, form_data)
             preferred_stem = output_basename_from_inputs(files)
-            out_name = build_output_filename(
-                preferred_stem,
-                out_info["ext"],
-                stirling_name=stirling_output_name,
-                default_name=out_info["default_name"],
-            )
+            if tool_id == "auto-rename" and stirling_output_name:
+                out_name = ensure_filename_ext(stirling_output_name, ".pdf")
+            else:
+                out_name = build_output_filename(
+                    preferred_stem,
+                    out_info["ext"],
+                    stirling_name=stirling_output_name,
+                    default_name=out_info["default_name"],
+                )
             save_label(
                 settings,
                 user_id,

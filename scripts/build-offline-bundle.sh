@@ -45,7 +45,7 @@ fi
 if [[ -n "${VERSION_FILE_TAG}" ]]; then
   IMAGE_TAG="${VERSION_FILE_TAG}"
 else
-  IMAGE_TAG="${IMAGE_TAG:-1.2.3-stirling-2.14.3}"
+  IMAGE_TAG="${IMAGE_TAG:-1.2.4-stirling-2.14.3}"
 fi
 # Stirling surumu paket etiketinden gelsin; docker/.env eski STIRLING_VERSION pin'i ezmesin
 PARSED_STIRLING="$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirling-//p')"

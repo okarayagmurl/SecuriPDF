@@ -58,9 +58,9 @@ _BOOL_FIELDS = frozenset({
 _SANITIZE_DEFAULTS: dict[str, str] = {
     "removeJavaScript": "true",
     "removeEmbeddedFiles": "true",
-    "removeXMPMetadata": "false",
-    "removeMetadata": "false",
-    "removeLinks": "false",
+    "removeXMPMetadata": "true",
+    "removeMetadata": "true",
+    "removeLinks": "true",
     "removeFonts": "false",
 }
 
