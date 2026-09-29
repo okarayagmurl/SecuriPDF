@@ -45,7 +45,7 @@ fi
 if [[ -n "${VERSION_FILE_TAG}" ]]; then
   IMAGE_TAG="${VERSION_FILE_TAG}"
 else
-  IMAGE_TAG="${IMAGE_TAG:-1.2.4-stirling-2.14.3}"
+  IMAGE_TAG="${IMAGE_TAG:-1.2.5-stirling-2.14.3}"
 fi
 # Stirling surumu paket etiketinden gelsin; docker/.env eski STIRLING_VERSION pin'i ezmesin
 PARSED_STIRLING="$(echo "${IMAGE_TAG}" | sed -n 's/.*-stirling-//p')"
@@ -58,7 +58,7 @@ STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-
 # Web/CLI yükseltme uyumu: bir önceki ana sürüm (override: PREV_VERSION=...)
 # Bos string .env'den gelirse default'a dus
 if [[ -z "${PREV_VERSION:-}" ]]; then
-  PREV_VERSION="1.2.2-stirling-2.14.3"
+  PREV_VERSION="1.2.4-stirling-2.14.3"
 fi
 if [[ "${PREV_VERSION}" == "${IMAGE_TAG}" ]]; then
   PREV_VERSION=""

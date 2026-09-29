@@ -3,66 +3,242 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SecuriPDF Yönetici Kılavuzu</title>
+  <title>SecuriPDF Yönetici Kullanım Kılavuzu</title>
   <style>
-    :root { color-scheme: light; --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; }
-    body { margin: 0; font: 16px/1.55 "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
-    header, main { max-width: 48rem; margin: 0 auto; padding: 1.25rem 1.25rem 2.5rem; }
-    header { background: #fff; border-bottom: 1px solid var(--line); }
-    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
-    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.4rem; }
-    .muted { color: var(--muted); }
+    :root { color-scheme: light; --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; --card: #fff; }
+    body { margin: 0; font: 16px/1.6 "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    header, main { max-width: 52rem; margin: 0 auto; padding: 1.25rem 1.4rem 3rem; }
+    header { background: #0f172a; color: #fff; max-width: none; padding: 1.5rem 1.4rem 1.25rem; }
+    header .inner { max-width: 52rem; margin: 0 auto; }
+    h1 { font-size: 1.7rem; margin: 0 0 0.35rem; }
+    h2 { font-size: 1.25rem; margin: 2rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.35rem; }
+    .muted { color: #cbd5e1; }
+    main .muted { color: var(--muted); }
     a { color: #1d4ed8; }
-    nav a { margin-right: 1rem; }
-    code { background: #e2e8f0; padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
-    table { width: 100%; border-collapse: collapse; background: #fff; }
-    th, td { border: 1px solid var(--line); padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+    header a { color: #bfdbfe; margin-right: 1rem; }
+    ol.steps > li { margin: 0.35rem 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); margin: 0.6rem 0 1rem; }
+    th, td { border: 1px solid var(--line); padding: 0.4rem 0.55rem; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; }
+    .toc { background: var(--card); border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.8rem 1rem 0.9rem; }
+    .toc ol { margin: 0.3rem 0 0; padding-left: 1.2rem; }
   </style>
 </head>
 <body>
   <header>
-    <p class="muted">SecuriPDF</p>
-    <h1>Yönetici kılavuzu</h1>
-    <p class="muted">Müşteri ortamı, adresler, yetkiler ve yedek.</p>
-    <nav>
-      <a href="/admin/">Yönetim paneli</a>
-      <a href="/app/">Uygulama</a>
-      <a href="/app/static/guides/user.html">Kullanıcı kılavuzu</a>
-    </nav>
+    <div class="inner">
+      <p class="muted">SecuriPDF</p>
+      <h1>Yönetici kullanım kılavuzu</h1>
+      <p class="muted">Yönetim panelindeki sekmelerin günlük kullanımı.</p>
+      <nav>
+        <a href="/admin/">Yönetim paneli</a>
+        <a href="/app/">Uygulama</a>
+        <a href="/app/static/guides/user.html">Kullanım kılavuzu</a>
+      </nav>
+    </div>
   </header>
   <main>
-    <h2>Hesaplanan adresler</h2>
-    <p>Operasyon ekranındaki adresler, kayıtlı FQDN ve HTTPS kutusundan üretilir. Tarayıcının açık olduğu adresle aynı olmak zorundadır.</p>
-    <ul>
-      <li>Laboratuvar <code>http://sunucu:8080</code> ise HTTPS kutusu kapalı kalır. Açık olursa uygulama adresi <code>https://sunucu</code> olur, geri dönüş adresi uyuşmaz ve girişten sonra 403 görülebilir.</li>
-      <li>Çıkış adresi <code>/oauth2/sign_out</code> ile biter. Satır kısa görünüyorsa kutu kaydırılır; adres kesilmiş değildir.</li>
-      <li>Keycloak satırı <code>http://sunucu:8090</code> iç servistir. Müşteri bu porta bağlanmaz. Dışarıya yalnızca uygulama adresi açılır.</li>
-    </ul>
+    <nav class="toc" aria-label="İçindekiler">
+      <strong>İçindekiler</strong>
+      <ol>
+        <li><a href="#giris">Panele giriş</a></li>
+        <li><a href="#roller">Hesap türleri</a></li>
+        <li><a href="#genel">Genel bakış</a></li>
+        <li><a href="#yapilandirma">Yapılandırma</a></li>
+        <li><a href="#lisans">Lisans ve araçlar</a></li>
+        <li><a href="#kullanicilar">Kullanıcılar</a></li>
+        <li><a href="#kota">Kota</a></li>
+        <li><a href="#operasyon">Operasyon</a></li>
+        <li><a href="#audit">Audit ve iş kuyruğu</a></li>
+      </ol>
+    </nav>
 
-    <h2>Müşteri ortamında prod kontrolü</h2>
-    <p>HTTP laboratuvarda güvenli çerez ve issuer doğrulaması kırmızı çıkmaz; madde “HTTPS prod iken” diye bekler. Müşteri sitesi gerçekten HTTPS olduğunda ortamı <strong>prod</strong> işaretleyin, HTTPS kutusunu açın, sonra <code>docker/.env</code> içinde şunları yazıp yalnızca <code>oauth2-proxy</code> konteynerini yenileyin:</p>
-    <ul>
-      <li><code>OAUTH2_COOKIE_SECURE=true</code></li>
-      <li><code>OAUTH2_INSECURE_ISSUER=false</code></li>
-      <li><code>OAUTH2_INSECURE_TLS=false</code> (iç sertifika otoritesi varsa sertifikayı güven deposuna ekleyin)</li>
-      <li><code>PUBLIC_USE_HTTPS=true</code> ve <code>PUBLIC_FQDN</code> müşterinin açtığı ad olsun</li>
-    </ul>
-    <p>Bu üç değeri HTTP üzerinde açmayın. Güvenli çerez HTTP’de yazılmaz; kullanıcı giriş yapmış gibi görünüp bir sonraki istekte 403 alır.</p>
-    <p>Nginx 403 dönerse istemci IP’si özel ağ aralığında değildir. <code>docker/nginx/ip-whitelist.conf</code> içine müşteri ağı eklenir.</p>
+    <h2 id="giris">Panele giriş</h2>
+    <ol class="steps">
+      <li>Uygulamada oturum açın.</li>
+      <li>Sol menünün altındaki <strong>Yönetim paneli</strong> bağlantısını açın. Bu bağlantı yönetici ve gözlem hesaplarında görünür.</li>
+      <li>Üstte sekmeler vardır: Genel bakış, Yapılandırma, Lisans ve Araçlar, Kullanıcılar, Kota, Operasyon, Audit.</li>
+      <li>Başlık satırındaki <strong>Uygulamaya dön</strong> sizi belge ekranına götürür. <strong>Yönetici kullanım kılavuzu</strong> bu sayfayı açar.</li>
+    </ol>
+    <p>Gözlem hesabında kayıt, silme ve güncelleme düğmeleri kapalıdır. Ekranlar gezilir, değerler okunur. Ayar değiştirmek için tam yönetici hesabı gerekir.</p>
 
-    <h2>Yetkiler</h2>
+    <h2 id="roller">Hesap türleri</h2>
     <table>
-      <thead><tr><th>Rol</th><th>Ne yapar</th></tr></thead>
+      <thead><tr><th>Yetki</th><th>Uygulamada</th><th>Yönetim panelinde</th></tr></thead>
       <tbody>
-        <tr><td><code>pdf-user</code></td><td>Uygulamayı kullanır. Yönetim paneli açılmaz.</td></tr>
-        <tr><td><code>pdf-admin</code></td><td>Yönetim panelinde ayar değiştirir.</td></tr>
-        <tr><td><code>pdf-observer</code></td><td>Yönetim panelini görür. Kaydet, sil ve güncelle kapalıdır. Demo hesabı için bunu verin, <code>pdf-admin</code> vermeyin.</td></tr>
+        <tr><td>Kullanıcı</td><td>Belgeler ve lisansındaki araçlar</td><td>Panel açılmaz</td></tr>
+        <tr><td>Yönetici</td><td>Aynı uygulama</td><td>Tüm sekmeler, kayıt ve silme açık</td></tr>
+        <tr><td>Gözlem</td><td>Aynı uygulama</td><td>Sekmeler açık, kayıt ve silme kapalı. Demo gezintisi için bunu kullanın.</td></tr>
       </tbody>
     </table>
-    <p>Mevcut kurulumda rol yoksa Keycloak içinde realm rolü olarak <code>pdf-observer</code> oluşturup demo kullanıcısına atayın. İki rol birden atanırsa hesap tam yönetici sayılır.</p>
+    <p>Gözlem ile yönetici aynı hesapta birlikte durursa hesap tam yönetici sayılır. Demo hesabında Yönetici kutusunu boş bırakın, Gözlem kutusunu işaretleyin.</p>
+    <ol class="steps">
+      <li>Kullanıcılar sekmesinde <strong>Yerel kullanıcı ekle</strong> formunu açın.</li>
+      <li>Kullanıcı adı ve parola girin. Parola en az 8 karakter olsun.</li>
+      <li>Kullanıcı kutusunu işaretli bırakın. Demo için Gözlem kutusunu işaretleyin. Yönetici kutusunu boş bırakın.</li>
+      <li><strong>Yerel kullanıcı oluştur</strong> deyin. Kişi bu ad ve parola ile giriş sayfasından girer.</li>
+    </ol>
+    <p>Kurum dizini (Active Directory) kullanan hesaplarda rol, dizin grubundan okunur. Kullanıcılar sekmesindeki <strong>AD kullanıcı sync</strong> ve <strong>AD grup sync</strong> listeyi günceller.</p>
 
-    <h2>Yedek</h2>
-    <p>Panelden alınan yedek belgeleri ve veritabanını kapsar. Keycloak ve <code>docker/.env</code> için sunucuda <code>scripts/backup.sh</code> çalıştırılır. Geri yükleme mevcut belge deposunun üzerine yazar.</p>
+    <h2 id="genel">Genel bakış</h2>
+    <p>Sekme açılınca özet kartlar, kurulum durumu, prod hazırlık özeti, süren işler ve en çok kullanılan araçlar gelir. <strong>Yenile</strong> kartları tekrar okur.</p>
+    <p>Kurulum tamamlanmamışsa üstte bir şerit görünür. Yapılandırma sekmesindeki kurulum listesinden adımları izleyip <strong>Kurulumu tamamladım</strong> dersiniz.</p>
+
+    <h2 id="yapilandirma">Yapılandırma</h2>
+    <p>Bu sekmedeki her kartın kendi kayıt düğmesi vardır. Parola alanını boş bırakırsanız kayıtlı parola durur.</p>
+
+    <h3>Kurulum tamamlama</h3>
+    <p>Liste, kurulumdan sonra yapılması beklenen maddeleri gösterir. İşlem yaptıkça maddeler tamamlanır. Liste güncel değilse <strong>Yenile</strong> deyin.</p>
+
+    <h3>Active Directory / LDAP</h3>
+    <ol class="steps">
+      <li>Sunucu, Base DN, kullanıcı ve grup DN, bind hesabı ve parola alanlarını doldurun.</li>
+      <li>Kullanıcı grubu ve yönetici grubu, dizindeki grup adlarıdır. Bu gruplardaki kişiler ilgili yetkiyi alır.</li>
+      <li><strong>LDAP kaydet</strong> değerleri saklar.</li>
+      <li><strong>Bağlantı testi</strong> sunucuya erişimi dener.</li>
+      <li><strong>Keycloak'a uygula</strong> dizin birleştirmesini oturum sistemine yazar. Kayıt tek başına girişi açmaz; uygula adımı da gerekir.</li>
+    </ol>
+
+    <h3>Belge depolama</h3>
+    <table>
+      <thead><tr><th>Seçenek</th><th>Ne zaman</th></tr></thead>
+      <tbody>
+        <tr><td>Yerel disk</td><td>Belgeler sunucunun kendi veri alanında durur. Yol genelde veri klasörüdür.</td></tr>
+        <tr><td>SMB ağ paylaşımı</td><td>Dosya sunucusu, paylaşım adı, isteğe bağlı alt klasör, etki alanı, kullanıcı ve parola. Kaydetmeden önce erişim testi yapılır.</td></tr>
+        <tr><td>S3 / MinIO</td><td>Uç nokta, bucket, bölge, ön ek, erişim anahtarı ve gizli anahtar.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Depolama kaydet</strong> seçimi yazar. <strong>Erişim testi</strong> yolun açıldığını kontrol eder.</p>
+
+    <h3>Vault varsayılanları</h3>
+    <p>Yeni kullanıcıların başlangıç kotası, tek dosya üst sınırı ve silinen kaydın ne kadar gün tutulacağı burada durur. Belge saklama süresi gün veya saat cinsindendir. Süre dolunca sabitlenmemiş belgeler arşive taşınır. Sabitlenen belgeler arşive gitmez.</p>
+    <p>Belge ve arşiv klasör adları veri alanı altında oluşturulur. Varsayılan liste “Tüm belgeler” ise kullanıcı girişte klasörsüz kök ile birlikte alt klasörleri de görür.</p>
+
+    <h3>E-posta</h3>
+    <ol class="steps">
+      <li><strong>SMTP etkin</strong> kutusunu işaretleyin.</li>
+      <li>Sunucu, port, gönderici adres ve güvenlik modunu girin. STARTTLS genelde 587, SSL genelde 465 portudur. İç ağ rölesinde güvenlik “Yok” ve kimlik doğrulama kapalı bırakılır.</li>
+      <li>Ek boyut üst sınırını megabayt olarak yazın.</li>
+      <li><strong>SMTP kaydet</strong> deyin.</li>
+      <li><strong>Bağlantı testi</strong> sunucuya ulaşır. Test alıcısı doluysa örnek posta da gider.</li>
+    </ol>
+    <p>Kullanıcılar belgelerini kendi adreslerine ancak bu ayar kayıtlıyken gönderebilir.</p>
+
+    <h3>E-posta şablonları</h3>
+    <p>Belge postası ve test postası için konu, başlık ve gövde ayrıdır. Metinde ürün adı, dosya adı, kullanıcı ve zaman yer tutucuları kullanılabilir. <strong>Şablonları kaydet</strong> yazar. <strong>Varsayılana dön</strong> fabrika metnini geri getirir.</p>
+
+    <h3>Görünüm</h3>
+    <p>Uygulama adı, menü adı, kısa açıklama, ana renk, vurgu rengi ve varsayılan dil kullanıcı ekranına yansır. Platform logosu sol menüde, müşteri logosu üst çubukta durur. PNG veya SVG yükleyin, <strong>Kaydet</strong> deyin. <strong>Login logosunu senkronize et</strong> aynı logoyu giriş sayfasına yazar.</p>
+
+    <h3>Sistem</h3>
+    <p>Tek dosya üst sınırı (megabayt), gövde boyutu ve vekil zaman aşımı buradadır. <strong>Sistem kaydet</strong> ve <strong>Uyumluluk kaydet</strong> ayrı düğmelerdir. Analitik, dış görünürlük ve anket kutuları uyumluluk kartındadır. Hata ayıklama kutusu, destek kayıtlarına teknik ayrıntı ekler; günlük kullanımda kapalı bırakın.</p>
+    <p>Sekmenin sonundaki salt okunur kutu, kurulumda yazılmış ve panelden değiştirilmeyen değerleri gösterir.</p>
+
+    <h2 id="lisans">Lisans ve araçlar</h2>
+    <h3>Ekranda ne görürsünüz</h3>
+    <p>Üst kart aktif paketi, araç sayısını, bitiş tarihini ve kurulum kimliğini gösterir. Paket kartlarına tıklamak lisansı değiştirmez. Araç listesi yalnızca pakette olanları sayar.</p>
+
+    <h3>Demo</h3>
+    <ol class="steps">
+      <li>İmzalı lisans yokken <strong>30 günlük demo başlat</strong> görünür.</li>
+      <li>Düğmeye basın. Süre dolunca ticari lisans dosyası yüklenir.</li>
+    </ol>
+
+    <h3>Lisans talebi</h3>
+    <ol class="steps">
+      <li>Şirket adı, iletişim, e-posta ve istenen paketi (Başlangıç, Profesyonel, Kurumsal) doldurun.</li>
+      <li><strong>Talep oluştur ve indir</strong> bir talep dosyası indirir.</li>
+      <li>Bu seçim sunucudaki aktif lisansı değiştirmez. Dosya, imzalı lisansın üretilmesi için gönderilir.</li>
+    </ol>
+
+    <h3>Lisans dosyasını etkinleştirme</h3>
+    <ol class="steps">
+      <li>Size verilen imzalı lisans dosyasını seçin veya içeriğini metin kutusuna yapıştırın.</li>
+      <li><strong>Lisansı etkinleştir</strong> deyin.</li>
+      <li>Kurulum kimliği dosyadaki kimlikle aynı olmalıdır. Özet kart paket, müşteri ve bitiş tarihini günceller.</li>
+    </ol>
+
+    <h3>Araç erişim profilleri</h3>
+    <p>Profil, bir gruba hangi araçların görüneceğini seçer. Profilde işaretli olmayan araç, pakete sonradan eklenmiş olsa bile o kişide görünmez.</p>
+    <ol class="steps">
+      <li><strong>Yeni profil</strong> deyin.</li>
+      <li>Kısa bir kimlik (küçük harf), görünen ad ve açıklama yazın. Örnek: muhasebe, Muhasebe.</li>
+      <li>Görünecek araçları işaretleyin. <strong>Tüm lisanslıları seç</strong> paketteki hepsini alır. <strong>Temizle</strong> işaretleri kaldırır.</li>
+      <li><strong>Profili kaydet</strong> deyin.</li>
+    </ol>
+    <p>Kayıtlı profili karttan açıp düzenler veya silersiniz.</p>
+
+    <h2 id="kullanicilar">Kullanıcılar</h2>
+    <h3>Profile atama</h3>
+    <ol class="steps">
+      <li>Kullanıcı adını, oturumdaki adla aynı yazın.</li>
+      <li>Listeden profil seçin. “Lisans paketi (tam erişim)” profil sınırını kaldırır; kişi paketteki bütün araçları görür.</li>
+      <li><strong>Atamayı kaydet</strong> deyin. Alttaki listede atanmış adlar durur.</li>
+    </ol>
+
+    <h3>Dizin hesapları</h3>
+    <ol class="steps">
+      <li>Arama kutusuna ad yazın veya <strong>Yalnızca AD</strong> ile süzün.</li>
+      <li><strong>Listeyi yenile</strong> tabloyu okur.</li>
+      <li><strong>AD kullanıcı sync</strong> kişileri alır. <strong>AD grup sync</strong> grup ve rol eşlemesini alır. Her biri onay ister.</li>
+    </ol>
+    <p>Tabloda ad, e-posta, roller, kaynak, erişim profili ve oturum durumu görünür. Durum rozetleri oturum açık, giriş yok veya giriş denemesi olarak okunur.</p>
+
+    <h2 id="kota">Kota</h2>
+    <ol class="steps">
+      <li>Liste, kullanıcıların dolu alanını ve limitini gösterir. Arama ile süzün, sayfalar arasında gezinin.</li>
+      <li>Satırdan bir kullanıcı seçin veya kota düzenle kartına kullanıcı kimliğini yazın.</li>
+      <li>Limiti bayt ya da megabayt olarak girin. <strong>Yükle</strong> mevcut değeri getirir. <strong>Kaydet</strong> yeni limiti yazar.</li>
+    </ol>
+    <p>Yeni hesaplar, Yapılandırma sekmesindeki varsayılan kota ile başlar. Buradaki kayıt yalnızca seçilen kişiyi değiştirir.</p>
+
+    <h2 id="operasyon">Operasyon</h2>
+
+    <h3>Sürüm ve güncelleme</h3>
+    <p>Kart, kurulu sürümü ve hazır bekleyen paketi gösterir. Güncelleme, size verilen kapalı ağ paketi ile yapılır.</p>
+    <ol class="steps">
+      <li><strong>Offline paket</strong> alanından .tar.gz dosyasını seçin.</li>
+      <li><strong>Paketi yükle ve hazırla</strong> deyin. Yüzde çubuğu yüklemeyi izler.</li>
+      <li><strong>Ön kontrol</strong> paketin bu kurulumla uyumunu listeler.</li>
+      <li><strong>Güncellemeyi uygula</strong> kurulumu yeni sürüme alır. İş günlüğü aynı kartta akar.</li>
+      <li>Bittiğinde tarayıcıda sayfayı sert yenileyin.</li>
+    </ol>
+
+    <h3>Sistem durumu</h3>
+    <p>Belge servisi, disk ve yedek özeti kartlardadır. <strong>Yenile</strong> sayıları tekrar okur.</p>
+
+    <h3>Hazırlık listesi</h3>
+    <p>Prod hazırlık listesi, canlıya geçmeden önce bakılan maddeleri sayar. <strong>Kontrolü yenile</strong> listeyi baştan okur. HTTPS ile yayınlanmayan laboratuvar kurulumunda çerez ve sertifika maddeleri beklemeye alınır; site gerçekten HTTPS olduğunda ve ortam prod işaretliyken yeniden değerlendirilir.</p>
+
+    <h3>Ortam ve erişim adresleri</h3>
+    <ol class="steps">
+      <li>Ortamı dev, staging veya prod seçin.</li>
+      <li>Sunucu IP ve kullanıcıların açtığı alan adını yazın. Oturum servisinin adı farklıysa onu da doldurun; boş bırakırsanız erişim adı kullanılır.</li>
+      <li>Site tarayıcıda https ile açılıyorsa <strong>HTTPS</strong> kutusunu işaretleyin. Adres http ve bir port ile açılıyorsa kutuyu boş bırakın. Hesaplanan adresler bu seçimden üretilir ve tarayıcıdaki adresle aynı olmalıdır.</li>
+      <li>Yedeklerin kaç gün saklanacağını ve isteğe bağlı notu yazın.</li>
+      <li><strong>Kaydet</strong> deyin. Alttaki kutu uygulama adresini, geri dönüş adresini, oturum servisini ve çıkış adresini gösterir. Çıkış adresi oturum kapatma yoluyla biter. Oturum servisi iç kullanım içindir; kullanıcılar uygulama adresinden girer.</li>
+    </ol>
+
+    <h3>Yedek ve geri yükleme</h3>
+    <ol class="steps">
+      <li>İsteğe bağlı bir etiket yazıp <strong>Yedek al</strong> deyin. Yedek belgeleri, imzaları ve belge veritabanını kapsar.</li>
+      <li><strong>Listeyi yenile</strong> kimlik, tarih, belge sayısı ve boyutu gösterir.</li>
+      <li>Geri yüklemede yedek kimliğini iki alana da aynı yazıp <strong>Geri yükle</strong> deyin. Bu işlem mevcut belge deposunun üzerine yazar. Ardından platform servisinin yeniden başlaması gerekir.</li>
+    </ol>
+    <p>Oturum veritabanı ve kurulum dosyası bu ekrandaki yedeğin dışındadır. Onlar sunucudaki yedek komutu ile alınır. Kartın altındaki kutu komutun yerini hatırlatır.</p>
+
+    <h3>Bakım</h3>
+    <p><strong>Soft-delete temizliği</strong>, silinmiş ve bekleme süresi dolmuş kayıtları kalıcı olarak kaldırır.</p>
+
+    <h2 id="audit">Audit ve iş kuyruğu</h2>
+    <p>Audit kaydı belge adı tutmaz. İş tipi ve belge kimliği saklanır. Bu, kişisel veri kaydını kısa tutmak içindir.</p>
+    <ol class="steps">
+      <li>Kullanıcı, aksiyon, aksiyon öneki ve tarih aralığından istediklerinizi doldurun.</li>
+      <li><strong>Yükle</strong> tabloyu getirir. Sayfalar arasında gezinin.</li>
+      <li><strong>CSV indir</strong> aynı filtreyle dosya alır.</li>
+    </ol>
+    <p>Alttaki iş kuyruğu tüm kullanıcıların işlemlerini gösterir. Kullanıcı, durum, araç adı veya kayıt numarası ile süzün. Tabloda dosya adı yoktur. Kayıt numarası, kullanıcının İşlerim ekranındaki numara ile aynıdır.</p>
   </main>
 </body>
 </html>

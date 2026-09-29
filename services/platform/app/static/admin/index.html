@@ -20,7 +20,7 @@
         <h1>SecuriPDF Admin</h1>
         <p class="subtitle">Genel bakış · Yapılandırma · Lisans · Kullanıcılar · Kota · Operasyon · Audit</p>
       </div>
-      <a href="/app/static/guides/admin.html" class="admin-app-link">Yönetici kılavuzu</a>
+      <a href="/app/static/guides/admin.html" class="admin-app-link">Yönetici kullanım kılavuzu</a>
       <a href="/app/" class="admin-app-link">← Uygulamaya dön</a>
     </div>
     <nav class="admin-tabs" id="adminTabs">
@@ -484,8 +484,9 @@
           <label>Soyad <input id="localUserLastName" type="text"></label>
         </div>
         <div class="row-actions">
-          <label class="inline-check"><input id="localRoleUser" type="checkbox" checked> pdf-user</label>
-          <label class="inline-check"><input id="localRoleAdmin" type="checkbox"> pdf-admin</label>
+          <label class="inline-check"><input id="localRoleUser" type="checkbox" checked> Kullanıcı</label>
+          <label class="inline-check"><input id="localRoleAdmin" type="checkbox"> Yönetici</label>
+          <label class="inline-check"><input id="localRoleObserver" type="checkbox"> Gözlem</label>
           <button id="btnCreateLocalUser">Yerel kullanici olustur</button>
         </div>
       </section>
@@ -779,6 +780,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=34"></script>
+  <script src="/admin/static/admin.js?v=35"></script>
 </body>
 </html>

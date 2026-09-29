@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.5-stirling-2.14.3 (2026-09-30)
+
+- Kullanıcı ve yönetici kullanım kılavuzları uygulama içinden açılır
+- Gözlem hesabı yönetim ekranını gezer; yerel kullanıcı formundan seçilir
+- HTTP laboratuvarında prod kontrol listesi HTTPS maddelerini bekletir
+
 ## 1.2.4-stirling-2.14.3 (2026-09-29)
 
 - OCR Türkçe dil paketi imaja gömülür; CBR/RAR5 platformda unrar ile açılır

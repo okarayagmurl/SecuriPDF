@@ -2302,6 +2302,7 @@
     const roles = [];
     if (document.getElementById('localRoleUser').checked) roles.push('pdf-user');
     if (document.getElementById('localRoleAdmin').checked) roles.push('pdf-admin');
+    if (document.getElementById('localRoleObserver').checked) roles.push('pdf-observer');
     if (!roles.length) {
       alert('En az bir rol secin');
       return;

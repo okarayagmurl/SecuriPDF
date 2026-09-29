@@ -3,50 +3,262 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SecuriPDF Kullanıcı Kılavuzu</title>
+  <title>SecuriPDF Kullanım Kılavuzu</title>
   <style>
-    :root { color-scheme: light; --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; }
-    body { margin: 0; font: 16px/1.55 "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
-    header, main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1.25rem 2.5rem; }
-    header { background: #fff; border-bottom: 1px solid var(--line); }
-    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
-    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.4rem; }
-    p, li { color: var(--ink); }
-    .muted { color: var(--muted); }
+    :root { color-scheme: light; --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; --card: #fff; }
+    body { margin: 0; font: 16px/1.6 "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    header, main { max-width: 52rem; margin: 0 auto; padding: 1.25rem 1.4rem 3rem; }
+    header { background: #0f172a; color: #fff; max-width: none; padding: 1.5rem 1.4rem 1.25rem; }
+    header .inner { max-width: 52rem; margin: 0 auto; }
+    h1 { font-size: 1.7rem; margin: 0 0 0.35rem; }
+    h2 { font-size: 1.25rem; margin: 2rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.35rem; }
+    .muted { color: #cbd5e1; }
+    main .muted, .note { color: var(--muted); }
     a { color: #1d4ed8; }
-    nav a { margin-right: 1rem; }
-    code { background: #e2e8f0; padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+    header a { color: #bfdbfe; margin-right: 1rem; }
+    ol.steps > li { margin: 0.35rem 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); margin: 0.6rem 0 1rem; }
+    th, td { border: 1px solid var(--line); padding: 0.4rem 0.55rem; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; }
+    .toc { background: var(--card); border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.8rem 1rem 0.9rem; }
+    .toc ol { margin: 0.3rem 0 0; padding-left: 1.2rem; }
   </style>
 </head>
 <body>
   <header>
-    <p class="muted">SecuriPDF</p>
-    <h1>Kullanıcı kılavuzu</h1>
-    <p class="muted">Belge yükleme, araçlar ve oturum.</p>
-    <nav>
-      <a href="/app/">Uygulamaya dön</a>
-      <a href="/app/static/guides/admin.html">Yönetici kılavuzu</a>
-    </nav>
+    <div class="inner">
+      <p class="muted">SecuriPDF</p>
+      <h1>Kullanım kılavuzu</h1>
+      <p class="muted">Belgeler, araçlar, işler ve profil.</p>
+      <nav>
+        <a href="/app/">Uygulamaya dön</a>
+        <a href="/app/static/guides/admin.html">Yönetici kullanım kılavuzu</a>
+      </nav>
+    </div>
   </header>
   <main>
-    <h2>Giriş</h2>
-    <p>Adresi tarayıcıda açın. Oturum yoksa kurum giriş sayfasına yönlendirilirsiniz. Kullanıcı adı ve parolayı girdikten sonra belge listesine dönersiniz.</p>
-    <p>Girişten sonra kırmızı bir <strong>403</strong> görürseniz oturumunuz düşmüş değildir. Bu yanıt, işlemin bu hesap için kapalı olduğunu söyler (lisans, kota veya yetki). Sayfayı yenileyin. Aynı adres HTTP ve HTTPS arasında karışıyorsa yöneticinize bildirin.</p>
+    <nav class="toc" aria-label="İçindekiler">
+      <strong>İçindekiler</strong>
+      <ol>
+        <li><a href="#giris">Oturum açma</a></li>
+        <li><a href="#ekran">Ekran düzeni</a></li>
+        <li><a href="#belgeler">Belgeler</a></li>
+        <li><a href="#arsiv">Arşiv</a></li>
+        <li><a href="#arac">Araç kullanma</a></li>
+        <li><a href="#katalog">Araç kataloğu</a></li>
+        <li><a href="#favori">Favoriler</a></li>
+        <li><a href="#isler">İşlerim</a></li>
+        <li><a href="#profil">Profil</a></li>
+        <li><a href="#cikis">Çıkış</a></li>
+      </ol>
+    </nav>
 
-    <h2>Belgeler</h2>
-    <ul>
-      <li><strong>Yükle</strong> yalnızca PDF kabul eder.</li>
-      <li>Klasörler sol menüdeki Belgelerim altındadır. Arşiv ayrı bir alandır.</li>
-      <li>Bir aracı kullanmak için önce belgeyi seçin ya da aracı açıp dosyayı orada verin.</li>
-    </ul>
+    <h2 id="giris">Oturum açma</h2>
+    <ol class="steps">
+      <li>Yöneticinizin verdiği adresi tarayıcıda açın.</li>
+      <li>Oturum yoksa kurum giriş sayfası açılır. Kullanıcı adı ve parolayı girin.</li>
+      <li>Giriş tamamlanınca belge listesine dönersiniz. Sağ üstte adınız görünür.</li>
+    </ol>
+    <p>Ortak bilgisayarda işiniz bitince sağ üst menüden çıkış yapın.</p>
 
-    <h2>Araçlar</h2>
-    <p>Sol menüdeki Araçlar, lisansınızda açık olan işlemleri listeler. İş bitince sonuç indirilir. Uzun işlemlerde sayfayı kapatmayın; ilerleme kartı işin durumunu gösterir.</p>
-    <p>Otomatik karartma, seçilen desenin geçtiği metni bulur ve yalnızca o kutuyu kapatır. Eşleşme listesinde görünen metin ile sayfadaki kutu aynı alanı göstermelidir.</p>
-    <p>E-kitap dönüşümü EPUB, MOBI, AZW3 veya FB2 arşivi ister. Düz bir HTML dosyasını .epub diye kaydetmek dönüşümü durdurur.</p>
+    <h2 id="ekran">Ekran düzeni</h2>
+    <p>Sol menü uygulamanın bölümleridir. Üst çubukta kurum adı ve hesap menüsü durur.</p>
+    <table>
+      <thead><tr><th>Menü</th><th>Ne işe yarar</th></tr></thead>
+      <tbody>
+        <tr><td>Belgeler</td><td>PDF yükler, klasörler ve belge üzerinde indirme, e-posta, sabitleme, arşivleme yaparsınız.</td></tr>
+        <tr><td>Arşiv</td><td>Saklama süresi dolmuş veya elle arşivlenmiş belgeler. Buradan geri alınabilir.</td></tr>
+        <tr><td>Araçlar</td><td>Lisansınızda ve profilinizde açık PDF işlemleri.</td></tr>
+        <tr><td>Favoriler</td><td>Yıldızladığınız araçların kısa listesi.</td></tr>
+        <tr><td>İşlerim</td><td>Kuyruğa alınan işlemler, durumları ve indirilecek sonuçlar.</td></tr>
+        <tr><td>Profil</td><td>Görünen ad, dil, kota ve lisans özeti.</td></tr>
+        <tr><td>Yönetim paneli</td><td>Yalnızca yönetici ve gözlem hesaplarında görünür.</td></tr>
+      </tbody>
+    </table>
+    <p>Hesap menüsü (sağ üst) profil, bu kılavuz ve çıkış bağlantılarını içerir.</p>
 
-    <h2>Çıkış</h2>
-    <p>Sağ üstteki adınıza tıklayıp <strong>Çıkış yap</strong> deyin. Ortak bilgisayarda oturumu açık bırakmayın.</p>
+    <h2 id="belgeler">Belgeler</h2>
+    <h3>Yükleme</h3>
+    <ol class="steps">
+      <li>Belgeler ekranında <strong>Yükle</strong> düğmesine basın.</li>
+      <li>PDF dosyasını seçin. Belge listesi yalnızca PDF kabul eder.</li>
+      <li>Dosya, seçili klasöre yazılır. Klasör seçili değilse kök listeye düşer.</li>
+    </ol>
+    <p>Üstteki kota çubuğu depolama hakkınızın ne kadarının dolu olduğunu gösterir.</p>
+
+    <h3>Klasörler</h3>
+    <ol class="steps">
+      <li><strong>Yeni klasör</strong> ile ad verin.</li>
+      <li>Sol ağaçtan klasöre tıklayın. <strong>Tümü</strong> bütün belgeleri listeler.</li>
+      <li>Arama kutusuna belge adı veya kimlik yazarak süzün.</li>
+    </ol>
+
+    <h3>Belge işlemleri</h3>
+    <p>Satırdaki simgeler tek belge içindir. Birden fazla satır işaretlenirse üstte toplu çubuk açılır.</p>
+    <table>
+      <thead><tr><th>İşlem</th><th>Sonuç</th></tr></thead>
+      <tbody>
+        <tr><td>İndir</td><td>Belgenin güncel kopyasını bilgisayarınıza alır.</td></tr>
+        <tr><td>E-posta</td><td>Belgeyi, profilinizdeki adresinize gönderir. Kurum postası yönetici tarafından açılmış olmalıdır.</td></tr>
+        <tr><td>Sabitle</td><td>Belge, saklama süresi dolunca arşive taşınmaz. Sabitlemeyi kaldırırsanız süre yeniden işler.</td></tr>
+        <tr><td>Arşivle</td><td>Belgeyi Arşiv alanına taşır. Belgeler listesinden çıkar.</td></tr>
+        <tr><td>Sil</td><td>Belgeyi listeden kaldırır. Silinen kayıt, yöneticinin belirlediği süre sonunda kalıcı temizlenir.</td></tr>
+        <tr><td>Geçmiş</td><td>Yükleme, e-posta ve arşiv gibi işlemlerin zaman çizelgesini açar.</td></tr>
+      </tbody>
+    </table>
+    <p>Satırda “Arşive kalan” süresi, belgenin otomatik arşive gideceği zamandır. Sabitlenmiş belgede bu süre durur.</p>
+
+    <h2 id="arsiv">Arşiv</h2>
+    <ol class="steps">
+      <li>Sol menüden <strong>Arşiv</strong>i açın.</li>
+      <li>Belgeyi seçip <strong>Geri al</strong> deyin. Belge yeniden Belgeler listesine döner.</li>
+      <li>Arşivdeki belgeyi de indirebilir veya silebilirsiniz.</li>
+    </ol>
+
+    <h2 id="arac">Araç kullanma</h2>
+    <p>Listede gördüğünüz araçlar lisans paketinize ve size atanan profile göredir. Profil atanmamış hesap, paketteki araçların tümünü görür.</p>
+    <ol class="steps">
+      <li><strong>Araçlar</strong> menüsünü açın. İsterseniz üstteki arama ile ada veya açıklamaya göre süzün.</li>
+      <li>Araca tıklayın. Form sayfanın üstünde açılır.</li>
+      <li>İstenen dosyayı seçin. Birleştirme birden fazla PDF ister. Karşılaştırma iki PDF ister.</li>
+      <li>Formdaki seçenekleri doldurun: sayfa aralığı, parola, filigran metni, karartma deseni gibi.</li>
+      <li>İşlemi başlatın. İlerleme çubuğu kuyruktaki durumu gösterir. Sayfayı kapatırsanız iş <strong>İşlerim</strong> altında sürer.</li>
+      <li>Sonuç hazır olunca indirin. Karşılaştırma ve bilgi araçları sonucu ekranda rapor olarak da açar.</li>
+      <li>Yıldız simgesi aracı Favoriler listenize ekler.</li>
+    </ol>
+    <h3>Otomatik karartma</h3>
+    <ol class="steps">
+      <li>PDF’i seçin ve önizlemeyi açın.</li>
+      <li>TCKN, telefon, e-posta gibi desenlerden uygulamak istediklerinizi işaretleyin. İsterseniz kendi ifadenizi de ekleyin.</li>
+      <li>Eşleşme listesindeki metin, sayfada kapanacak kutudur. Listeyi kontrol edip işlemi uygulayın.</li>
+      <li>Çıktıda yalnızca eşleşen metin kapanır. Sayfanın geri kalanı durur.</li>
+    </ol>
+    <h3>Görsel ekleme</h3>
+    <p>Sayfa önizlemesinde görselin geleceği noktaya tıklayın. Görsel, tıkladığınız noktanın ortasına yerleşir. Büyük bir görsel sayfanın geniş bir bölümünü kaplar; boyut alanından küçültebilirsiniz.</p>
+    <h3>İmza</h3>
+    <p><strong>Sertifika ile İmzala</strong> PKCS#12 (.p12 veya .pfx) ya da PEM sertifikası ve parola ister. <strong>İmza Doğrula</strong> belgedeki imzanın sonucunu raporlar. <strong>Sertifika İmzasını Kaldır</strong> belgede sayısal imza varsa onu çıkarır.</p>
+
+    <h2 id="katalog">Araç kataloğu</h2>
+    <p>Aşağıdaki adlar ekrandaki katalogla aynıdır. Paketinizde olmayan satır sizde görünmez.</p>
+
+    <h3>Sık kullanılanlar</h3>
+    <table>
+      <thead><tr><th>Araç</th><th>Ne yapar</th></tr></thead>
+      <tbody>
+        <tr><td>PDF Birleştir</td><td>Birden fazla PDF’i tek belgede birleştirir.</td></tr>
+        <tr><td>PDF Böl</td><td>Sayfa numarası, bölüm, boyut veya baskı parçasına göre ayırır.</td></tr>
+        <tr><td>Karşılaştır</td><td>İki PDF’in metin farkını yan yana raporlar.</td></tr>
+        <tr><td>Sıkıştır</td><td>Dosya boyutunu küçültür.</td></tr>
+        <tr><td>OCR / Tarama</td><td>Taranmış sayfadaki metni seçilebilir ve aranabilir yapar.</td></tr>
+        <tr><td>Otomatik Ayır</td><td>QR ayraç sayfalarına göre belgeyi parçalara böler.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Dönüştürme</h3>
+    <table>
+      <thead><tr><th>Araç</th><th>Ne yapar</th></tr></thead>
+      <tbody>
+        <tr><td>PDF → Word</td><td>DOCX veya ODT üretir.</td></tr>
+        <tr><td>Word / Office → PDF</td><td>Word, Excel, PowerPoint ve benzeri ofis dosyasını PDF yapar.</td></tr>
+        <tr><td>Dönüştür</td><td>PDF, ofis, görsel, e-posta ve e-kitap arasında biçim seçtirir.</td></tr>
+        <tr><td>PDF → Görsel</td><td>Sayfaları PNG veya JPEG olarak verir.</td></tr>
+        <tr><td>Görsel → PDF</td><td>JPG ve PNG dosyalarını PDF yapar.</td></tr>
+        <tr><td>PDF → Sunum</td><td>PowerPoint veya ODP üretir.</td></tr>
+        <tr><td>PDF → Metin</td><td>Düz metin veya RTF çıkarır.</td></tr>
+        <tr><td>PDF → HTML</td><td>Sayfa ve görselleri içeren bir ZIP indirir.</td></tr>
+        <tr><td>PDF → PDF/A</td><td>Arşivlemeye uygun PDF/A üretir.</td></tr>
+        <tr><td>HTML → PDF</td><td>HTML dosyasını veya HTML ile stil paketini PDF yapar.</td></tr>
+        <tr><td>Markdown → PDF</td><td>.md dosyasını PDF yapar.</td></tr>
+        <tr><td>PDF → XML / CSV / Excel / Markdown</td><td>Yapıyı, tabloları veya metni ilgili biçimde dışa aktarır. Birden fazla tablo CSV’de ZIP içinde ayrı dosya olur.</td></tr>
+        <tr><td>E-posta → PDF</td><td>EML dosyasını PDF yapar.</td></tr>
+        <tr><td>PDF → EPUB</td><td>EPUB veya AZW3 e-kitap üretir.</td></tr>
+        <tr><td>e-Kitap → PDF</td><td>EPUB, MOBI, AZW3 veya FB2 dosyasını PDF yapar.</td></tr>
+        <tr><td>PDF → CBZ / CBR ve tersi</td><td>Çizgi roman arşivi ile PDF arasında dönüştürür.</td></tr>
+        <tr><td>URL → PDF</td><td>Verdiğiniz web adresinin sayfasını PDF yapar.</td></tr>
+        <tr><td>Vektör → PDF ve PDF → Vektör</td><td>EPS, PS ve benzeri vektör dosyaları ile PDF arasında dönüştürür.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Güvenlik</h3>
+    <table>
+      <thead><tr><th>Araç</th><th>Ne yapar</th></tr></thead>
+      <tbody>
+        <tr><td>Filigran</td><td>Metin veya görsel filigran basar.</td></tr>
+        <tr><td>Damga</td><td>Sayfaya metin veya görsel damga koyar.</td></tr>
+        <tr><td>Parola Ekle</td><td>Açma parolası ve yazdırma, kopyalama gibi izinler tanımlar.</td></tr>
+        <tr><td>Parola Kaldır</td><td>Bildiğiniz parola ile korumayı kaldırır.</td></tr>
+        <tr><td>İzinleri Değiştir</td><td>Yazdırma, kopyalama ve düzenleme izinlerini günceller.</td></tr>
+        <tr><td>Otomatik Karartma</td><td>Seçilen desenlerin geçtiği metni kapatır.</td></tr>
+        <tr><td>PDF Temizle</td><td>Betik, gömülü dosya, meta veri ve bağlantıları kaldırır.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Sayfalar</h3>
+    <table>
+      <thead><tr><th>Araç</th><th>Ne yapar</th></tr></thead>
+      <tbody>
+        <tr><td>Döndür</td><td>Sayfaları 90 derece adımlarla döndürür.</td></tr>
+        <tr><td>Sayfa Sil</td><td>Yazdığınız sayfaları çıkarır, kalanı tek PDF’de tutar.</td></tr>
+        <tr><td>Sayfa Çıkar</td><td>Yalnızca seçtiğiniz sayfalardan yeni bir PDF üretir.</td></tr>
+        <tr><td>Sayfaları Yeniden Sırala</td><td>Sırayı elle veya hazır düzenle değiştirir.</td></tr>
+        <tr><td>Sayfa Ölçekle</td><td>Sayfayı A4, Letter gibi bir boyuta veya ölçeğe getirir.</td></tr>
+        <tr><td>Sayfa Numarası Ekle</td><td>Konum, başlangıç numarası ve yazı boyutu seçtirir.</td></tr>
+        <tr><td>Kırp</td><td>Kenar boşluğu veya görsel seçimle sayfayı kırpar.</td></tr>
+        <tr><td>Çoklu Sayfa Düzeni</td><td>Bir sayfaya 2 veya 4 sayfa yerleştirir.</td></tr>
+        <tr><td>PDF Katmanlama</td><td>Bir PDF’i diğerinin üstüne veya altına koyar.</td></tr>
+        <tr><td>Tek Uzun Sayfa</td><td>Tüm sayfaları dikeyde tek sayfada birleştirir.</td></tr>
+        <tr><td>Kitapçık Baskısı</td><td>Broşür baskı düzenine getirir.</td></tr>
+        <tr><td>Görsel Ekle</td><td>Tıkladığınız noktaya görsel koyar.</td></tr>
+        <tr><td>İçindekiler Düzenle</td><td>Yer imlerini günceller.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Çıkarma, temizleme ve diğer</h3>
+    <table>
+      <thead><tr><th>Araç</th><th>Ne yapar</th></tr></thead>
+      <tbody>
+        <tr><td>Görselleri Çıkar / Ekleri Çıkar</td><td>Gömülü görsel veya ekleri ZIP olarak indirir.</td></tr>
+        <tr><td>Tarama Görseli Çıkar</td><td>Sayfadaki taranmış görsel bölgelerini ayırır.</td></tr>
+        <tr><td>Boş Sayfaları Kaldır</td><td>İçi boş sayfaları siler.</td></tr>
+        <tr><td>Görselleri Kaldır</td><td>Gömülü görselleri belgeden çıkarır.</td></tr>
+        <tr><td>Düzleştir</td><td>Form alanlarını sabit sayfa içeriğine çevirir.</td></tr>
+        <tr><td>Onar</td><td>Açılmayan PDF’i toparlamayı dener.</td></tr>
+        <tr><td>Meta Veri Düzenle</td><td>Başlık, yazar ve konu alanlarını değiştirir veya siler.</td></tr>
+        <tr><td>Otomatik Yeniden Adlandır</td><td>Başlık alanına göre dosya adı önerir.</td></tr>
+        <tr><td>Tarayıcı Efekti</td><td>Hafif eğim ve solukluk ile taranmış görünüm verir.</td></tr>
+        <tr><td>Renk Değiştir</td><td>Renkleri ters çevirir veya yüksek kontrast uygular.</td></tr>
+        <tr><td>Form Kilidini Aç</td><td>Form alanlarının düzenleme kısıtını kaldırır.</td></tr>
+        <tr><td>Ek Dosya Ekle</td><td>PDF’in içine dosya gömer.</td></tr>
+        <tr><td>PDF Bilgisi</td><td>Sayfa sayısı, meta veri ve güvenlik özetini gösterir.</td></tr>
+        <tr><td>PDF Doğrula</td><td>Bütünlük ve güvenlik durumunu raporlar.</td></tr>
+        <tr><td>Sertifika ile İmzala / İmza Doğrula / Sertifika İmzasını Kaldır</td><td>Sayısal imza basar, sonucu okur veya imzayı belgeden çıkarır.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="favori">Favoriler</h2>
+    <p>Araç kartındaki yıldız, aracı bu listeye alır. Favoriler, kataloğun kısa yoludur; aynı form açılır. Yıldızı kaldırırsanız listeden düşer, araç katalogda durur.</p>
+
+    <h2 id="isler">İşlerim</h2>
+    <ol class="steps">
+      <li>Sol menüden <strong>İşlerim</strong>i açın.</li>
+      <li>Üstte süren işin ilerleme çubuğu görünür.</li>
+      <li>Tabloda araç adı, durum, kayıt numarası ve saat vardır.</li>
+      <li>Tamamlanan satırdaki <strong>İndir</strong> sonucu bilgisayarınıza alır.</li>
+      <li><strong>Yalnızca hatalı</strong> kutusu listeyi başarısız işlere indirir. <strong>Yenile</strong> tabloyu günceller.</li>
+    </ol>
+    <p>Kayıt numarası, destek talebinde işi tarif etmek içindir. Belge adı bu tabloda yazılmaz.</p>
+
+    <h2 id="profil">Profil</h2>
+    <ol class="steps">
+      <li>Hesap menüsünden <strong>Profil ayarları</strong>nı açın.</li>
+      <li>Görünen adı değiştirin. E-posta ve kullanıcı kimliği kurum dizininden gelir; burada değiştirilmez.</li>
+      <li>Dili Türkçe veya English seçip <strong>Kaydet</strong> deyin.</li>
+    </ol>
+    <p>Aynı ekranda kota, lisans paketi, paketteki araç sayısı, geçerlilik tarihi ve son işlerinizin özeti durur.</p>
+
+    <h2 id="cikis">Çıkış</h2>
+    <p>Sağ üstte adınıza tıklayın, <strong>Çıkış yap</strong> deyin. Oturum kapanır ve giriş sayfasına dönersiniz.</p>
   </main>
 </body>
 </html>
