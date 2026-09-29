@@ -174,6 +174,33 @@ def _burn_page(doc: fitz.Document, page_index: int) -> None:
     doc.delete_page(page_index + 1)
 
 
+def _outside_word_count(page: fitz.Page, rects: list[fitz.Rect]) -> int:
+    count = 0
+    for item in page.get_text("words") or []:
+        box = fitz.Rect(item[0], item[1], item[2], item[3])
+        if any(box.intersects(rect) for rect in rects):
+            continue
+        count += 1
+    return count
+
+
+def _redaction_keeps_other_text(page: fitz.Page, rects: list[fitz.Rect]) -> bool:
+    """apply_redactions bazı PDF'lerde kutunun altındaki satırları da siler."""
+    before = _outside_word_count(page, rects)
+    if before == 0:
+        return True
+    probe = fitz.open()
+    try:
+        probe.insert_pdf(page.parent, from_page=page.number, to_page=page.number)
+        copy = probe[0]
+        for rect in rects:
+            copy.add_redact_annot(rect, fill=(0, 0, 0))
+        copy.apply_redactions(images=0)
+        return _outside_word_count(copy, rects) >= before
+    finally:
+        probe.close()
+
+
 def _paint_redactions(
     doc: fitz.Document,
     by_page: dict[int, list[fitz.Rect]],
@@ -181,12 +208,23 @@ def _paint_redactions(
     *,
     rasterize: bool,
 ) -> None:
-    """PDF_REDACT_IMAGE_PIXELS kara kutuyu sayfanın başka yerine basabiliyor.
+    """Kara kutu yalnızca eşleşen dikdörtgene basılır.
 
-    Metin apply_redactions ile silinir, dolgu aynı dikdörtgene çizilir.
+    apply_redactions, metin tek akıştaysa kutudan sonraki satırları da silebiliyor.
+    Bu durumda sayfa görsele çevrilir; diğer satırlar piksel olarak kalır.
     """
     indexes = sorted(by_page)
+    structural: list[int] = []
     for page_index in indexes:
+        page = doc[page_index]
+        rects = by_page[page_index]
+        if rasterize or not _redaction_keeps_other_text(page, rects):
+            for rect in rects:
+                page.draw_rect(rect, color=color, fill=color, width=0, overlay=True)
+        else:
+            structural.append(page_index)
+
+    for page_index in structural:
         page = doc[page_index]
         rects = by_page[page_index]
         for rect in rects:
@@ -194,9 +232,10 @@ def _paint_redactions(
         page.apply_redactions(images=0)
         for rect in rects:
             page.draw_rect(rect, color=color, fill=color, width=0, overlay=True)
-    if rasterize:
-        for page_index in reversed(indexes):
-            _burn_page(doc, page_index)
+
+    burn = [index for index in indexes if index not in structural]
+    for page_index in reversed(burn):
+        _burn_page(doc, page_index)
 
 
 def apply_pdf_redactions_by_areas(

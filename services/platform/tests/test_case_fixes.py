@@ -32,6 +32,7 @@ def _sample_pdf() -> bytes:
     bg.set_rect(bg.irect, (255, 255, 255))
     page.insert_image(page.rect, pixmap=bg)
     page.insert_text((72, 120), "TEL NO: 5335747342", fontsize=16)
+    page.insert_text((72, 400), "BEKLEYEN SATIR", fontsize=16)
     page.insert_link({"kind": fitz.LINK_URI, "from": fitz.Rect(72, 140, 200, 160), "uri": "https://example.com"})
     doc.set_metadata({"title": "Kurumsal Rapor", "author": "Eski Yazar"})
     doc.embfile_add("not.txt", b"gizli-ek", filename="not.txt", ufilename="not.txt", desc="ek")
@@ -63,8 +64,10 @@ class RedactionPlacementTests(unittest.TestCase):
         doc.close()
         self.assertNotIn("5335747342", text)
         phone = _pixel(out, 150, 112)
+        other = _pixel(out, 80, 392)
         bottom = _pixel(out, 297, 800)
         self.assertLess(phone[0], 40)
+        self.assertLess(other[0], 80)
         self.assertGreater(bottom[0], 200)
 
 
