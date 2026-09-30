@@ -525,6 +525,82 @@ def _set_env_file_value(env_path: Path, key: str, value: str) -> None:
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def apply_tls(body: dict[str, Any]) -> dict[str, Any]:
+    """Platformdaki sertifikayı nginx (443) ve Keycloak (8443) için açar."""
+    host = str(body.get("host") or "").strip()
+    kc_host = str(body.get("kcHost") or host).strip()
+    app_url = str(body.get("appUrl") or "").strip().rstrip("/")
+    kc_public = str(body.get("kcPublic") or "").strip().rstrip("/")
+    issuer = str(body.get("issuerUrl") or "").strip()
+    redirect = str(body.get("redirectUrl") or "").strip()
+    sign_out = str(body.get("signOutUrl") or "").strip()
+    if not host or not app_url.startswith("https://") or not kc_public.startswith("https://"):
+        raise RuntimeError("HTTPS adresleri eksik")
+    env_path = _find_existing_env()
+    if not env_path:
+        raise RuntimeError("docker/.env bulunamadi")
+    docker_dir = env_path.parent
+    if not (docker_dir / "docker-compose.tls.yml").is_file():
+        raise RuntimeError("docker-compose.tls.yml yok. Once guncel paketi yukleyin.")
+    tls_dir = docker_dir / "tls"
+    tls_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("securipdf.crt", "securipdf.key"):
+        code, out = _run(
+            ["docker", "cp", f"securipdf-platform:/vault-data/tls/{name}", str(tls_dir / name)]
+        )
+        if code != 0:
+            return {"ok": False, "error": (out or f"docker cp {name}").strip()[:500]}
+        os.chmod(tls_dir / name, 0o644)
+    _set_env_file_value(env_path, "PUBLIC_USE_HTTPS", "true")
+    _set_env_file_value(env_path, "PUBLIC_FQDN", host)
+    _set_env_file_value(env_path, "KEYCLOAK_PUBLIC_FQDN", kc_host)
+    _set_env_file_value(env_path, "KEYCLOAK_HTTPS_PORT", "8443")
+    _set_env_file_value(env_path, "OAUTH2_COOKIE_SECURE", "true")
+    _set_env_file_value(env_path, "OAUTH2_INSECURE_ISSUER", "false")
+    _set_env_file_value(env_path, "OAUTH2_ISSUER_URL", issuer)
+    _set_env_file_value(
+        env_path,
+        "OAUTH2_LOGIN_URL",
+        kc_public + "/realms/securipdf/protocol/openid-connect/auth?ui_locales=tr",
+    )
+    _set_env_file_value(env_path, "OAUTH2_REDIRECT_URL", redirect)
+    _set_env_file_value(env_path, "OAUTH2_SIGN_OUT_REDIRECT_URL", sign_out)
+    _set_env_file_value(
+        env_path,
+        "OAUTH2_BACKEND_LOGOUT_URL",
+        "http://keycloak:8080/realms/securipdf/protocol/openid-connect/logout"
+        "?id_token_hint={id_token}&client_id=securipdf&post_logout_redirect_uri=" + app_url + "/",
+    )
+    compose = [
+        "docker",
+        "compose",
+        "-f",
+        "docker-compose.yml",
+        "-f",
+        "docker-compose.auth.yml",
+    ]
+    if (docker_dir / "docker-compose.offline.yml").is_file():
+        compose.extend(["-f", "docker-compose.offline.yml"])
+    compose.extend(
+        [
+            "-f",
+            "docker-compose.tls.yml",
+            "up",
+            "-d",
+            "--no-build",
+            "--force-recreate",
+            "--no-deps",
+            "nginx",
+            "keycloak",
+            "oauth2-proxy",
+        ]
+    )
+    code, out = _run(compose, cwd=docker_dir)
+    if code != 0:
+        return {"ok": False, "error": (out or "compose").strip()[:800], "env": str(env_path)}
+    return {"ok": True, "appUrl": app_url, "kcPublic": kc_public, "env": str(env_path)}
+
+
 def auth_gate_reload(mode: str | None = None) -> dict[str, Any]:
     """oauth2-proxy SKIP_AUTH_REGEX guncelle ve container'i recreate et."""
     mode_norm = (mode or "secure").strip().lower()
@@ -717,6 +793,16 @@ class UpdaterHandler(BaseHTTPRequestHandler):
                     _json_response(self, 409, {"ok": False, "error": str(exc)})
                     return
                 _json_response(self, 202, {"ok": True, "job": job})
+                return
+            if path == "/tls/apply":
+                body = _read_json_body(self) or {}
+                try:
+                    result = apply_tls(body)
+                except RuntimeError as exc:
+                    _json_response(self, 500, {"ok": False, "error": str(exc)})
+                    return
+                code = 200 if result.get("ok") else 500
+                _json_response(self, code, result)
                 return
             if path == "/auth-gate/reload":
                 body = _read_json_body(self) or {}

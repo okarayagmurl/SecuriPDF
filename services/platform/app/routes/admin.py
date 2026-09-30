@@ -4,10 +4,12 @@ import csv
 import io
 import json
 import socket
+import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -63,6 +65,8 @@ from ..updater_client import (
 from ..version_info import get_installed_version, get_upgrade_available, save_staging_manifest
 from ..mail import test_smtp_connection
 from ..settings_store import SettingsStore
+from ..tls_certs import create_csr, csr_file, install_certificate, mark_applied, status as tls_status
+from ..updater_client import UpdaterError, updater_apply_tls, updater_configured
 from ..user_directory import resolve_user_labels
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -215,6 +219,20 @@ class DeploymentSettingsUpdate(BaseModel):
     public_fqdn: str | None = None
     keycloak_fqdn: str | None = None
     use_https: bool | None = None
+
+
+class TlsCsrRequest(BaseModel):
+    common_name: str = ""
+    dns_names: list[str] = Field(default_factory=list)
+    ip_addresses: list[str] = Field(default_factory=list)
+    organization: str = ""
+
+
+class TlsCertificateRequest(BaseModel):
+    certificate_pem: str | None = None
+    certificate_der_b64: str | None = None
+    chain_pem: str | None = None
+    chain_der_b64: str | None = None
 
 
 class SmtpSettingsUpdate(BaseModel):
@@ -700,6 +718,143 @@ def admin_update_deployment(
     result = SettingsStore(settings).update_section("deployment", payload, user.user_id)
     write_audit(settings, user.user_id, "admin.settings.deployment", "deployment", payload)
     return result
+
+
+def _split_names(raw: str) -> list[str]:
+    return [part.strip() for part in raw.replace(";", ",").split(",") if part.strip()]
+
+
+def _https_targets(settings: Settings) -> dict[str, str]:
+    store = SettingsStore(settings)
+    dep = dict(store.merged_deployment())
+    dep["use_https"] = True
+    dep["keycloak_https_port"] = int(dep.get("keycloak_https_port") or 8443)
+    urls = SettingsStore.deployment_access_urls(dep)
+    host = (dep.get("public_fqdn") or dep.get("server_ip") or "").strip()
+    if host in ("", "localhost", "127.0.0.1"):
+        raise HTTPException(status_code=400, detail="Once erisim FQDN veya sunucu IP kaydedin")
+    return {
+        "host": host,
+        "kc_host": (dep.get("keycloak_fqdn") or host).strip(),
+        "app_url": urls["app_url"],
+        "kc_public": urls["keycloak_admin_url"],
+        "redirect_url": urls["oauth_callback_url"],
+        "issuer_url": urls["oauth_issuer_url"],
+        "sign_out_url": urls["sign_out_url"],
+    }
+
+
+@router.get("/tls")
+def admin_tls_status(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    dep = SettingsStore(settings).merged_deployment()
+    info = tls_status()
+    info["suggested"] = {
+        "commonName": dep.get("public_fqdn") or dep.get("server_ip") or "",
+        "dnsNames": [item for item in [dep.get("public_fqdn"), dep.get("keycloak_fqdn")] if item],
+        "ipAddresses": [dep.get("server_ip")] if dep.get("server_ip") else [],
+    }
+    host = str(info["suggested"]["commonName"] or "")
+    info["preview"] = {}
+    if host and host not in ("localhost", "127.0.0.1"):
+        info["preview"] = _https_targets(settings)
+    return info
+
+
+@router.post("/tls/csr")
+def admin_tls_csr(
+    body: TlsCsrRequest,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    dep = SettingsStore(settings).merged_deployment()
+    common = body.common_name.strip() or str(dep.get("public_fqdn") or dep.get("server_ip") or "")
+    dns = body.dns_names or [item for item in [dep.get("public_fqdn"), dep.get("keycloak_fqdn")] if item]
+    ips = body.ip_addresses or ([str(dep.get("server_ip"))] if dep.get("server_ip") else [])
+    info = create_csr(common, dns, ips, body.organization)
+    write_audit(settings, user.user_id, "admin.tls.csr", "tls", {"commonName": info.get("commonName")})
+    return info
+
+
+@router.get("/tls/csr")
+def admin_tls_csr_download(user: AuthUser = Depends(get_current_user)):
+    require_admin(user)
+    return FileResponse(path=csr_file(), filename="securipdf.csr", media_type="application/pkcs10")
+
+
+@router.post("/tls/certificate")
+def admin_tls_certificate(
+    body: TlsCertificateRequest,
+    user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    require_admin(user)
+    info = install_certificate(
+        body.certificate_pem,
+        body.certificate_der_b64,
+        body.chain_pem,
+        body.chain_der_b64,
+    )
+    mark_applied(False)
+    info = tls_status()
+    write_audit(
+        settings,
+        user.user_id,
+        "admin.tls.certificate",
+        "tls",
+        {"subject": info.get("certificateSubject"), "notAfter": info.get("notAfter")},
+    )
+    return info
+
+
+@router.post("/tls/apply")
+def admin_tls_apply(user: AuthUser = Depends(get_current_user), settings: Settings = Depends(get_settings)):
+    require_admin(user)
+    info = tls_status()
+    if not info.get("hasCertificate"):
+        raise HTTPException(status_code=400, detail="Once CA'dan gelen sertifikayi kaydedin")
+    if not updater_configured():
+        raise HTTPException(status_code=503, detail="Host updater kapali. Sertifika kayitli; HTTPS dinleyicisi acilamadi.")
+    targets = _https_targets(settings)
+    try:
+        applied = updater_apply_tls(
+            {
+                "host": targets["host"],
+                "kcHost": targets["kc_host"],
+                "appUrl": targets["app_url"],
+                "kcPublic": targets["kc_public"],
+                "issuerUrl": targets["issuer_url"],
+                "redirectUrl": targets["redirect_url"],
+                "signOutUrl": targets["sign_out_url"],
+            }
+        )
+    except UpdaterError as exc:
+        raise HTTPException(status_code=exc.status or 502, detail=str(exc)) from exc
+    if not applied.get("ok", True):
+        raise HTTPException(status_code=502, detail=applied.get("error") or "HTTPS etkinlestirilemedi")
+    client_sync: dict[str, Any] = {"ok": False}
+    last_error = "Keycloak henuz hazir degil"
+    for _ in range(24):
+        try:
+            client_sync = KeycloakLdapApplier().sync_browser_urls(
+                targets["redirect_url"],
+                targets["app_url"],
+                targets["app_url"] + "/",
+            )
+            break
+        except HTTPException as exc:
+            last_error = str(exc.detail)
+            time.sleep(5)
+    else:
+        raise HTTPException(
+            status_code=502,
+            detail=f"HTTPS acildi ama oturum adresi yazilamadi: {last_error}. Etkinlestir'i tekrar deneyin.",
+        )
+    SettingsStore(settings).update_section("deployment", {"use_https": True}, user.user_id)
+    mark_applied(True)
+    write_audit(settings, user.user_id, "admin.tls.apply", "tls", targets)
+    return {"ok": True, "targets": targets, "updater": applied, "client": client_sync, "tls": tls_status()}
 
 
 @router.put("/settings/smtp")

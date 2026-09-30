@@ -211,6 +211,15 @@
     <h3>Hazırlık listesi</h3>
     <p>Prod hazırlık listesi, canlıya geçmeden önce bakılan maddeleri sayar. <strong>Kontrolü yenile</strong> listeyi baştan okur. HTTPS ile yayınlanmayan laboratuvar kurulumunda çerez ve sertifika maddeleri beklemeye alınır; site gerçekten HTTPS olduğunda ve ortam prod işaretliyken yeniden değerlendirilir.</p>
 
+    <h3>TLS sertifikası</h3>
+    <p>Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Özel anahtar sunucuda üretilir ve indirilmez.</p>
+    <ol class="steps">
+      <li>Ortak adı, DNS adlarını ve gerekiyorsa IP adresini yazın. Uygulama adı ile Keycloak adı farklıysa ikisini de DNS listesine ekleyin.</li>
+      <li><strong>CA talep dosyasını indir</strong> ile <code>securipdf.csr</code> dosyasını alın. Bu dosyayı kurum sertifika otoritesine verin.</li>
+      <li>Gelen sertifikayı, varsa ara sertifikayı da seçip <strong>Sertifikayı kaydet</strong> deyin. Dosya, talep ettiğiniz anahtarla eşleşmelidir.</li>
+      <li><strong>HTTPS olarak etkinleştir</strong> deyin. Uygulama adresi <code>https://alanadınız</code> (443), Keycloak adresi <code>https://alanadınız:8443</code> olur. Kullanıcılar bu adreslerden girer.</li>
+    </ol>
+
     <h3>Ortam ve erişim adresleri</h3>
     <ol class="steps">
       <li>Ortamı dev, staging veya prod seçin.</li>

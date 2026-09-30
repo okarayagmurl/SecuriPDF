@@ -79,6 +79,10 @@ def updater_preflight() -> dict[str, Any]:
     return _request("POST", "/preflight")
 
 
+def updater_apply_tls(body: dict[str, Any]) -> dict[str, Any]:
+    return _request("POST", "/tls/apply", body, timeout=240)
+
+
 def updater_apply() -> dict[str, Any]:
     payload = _request("POST", "/apply")
     return payload.get("job") or payload

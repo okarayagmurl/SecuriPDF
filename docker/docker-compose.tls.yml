@@ -1,0 +1,26 @@
+# SecuriPDF — TLS kenarı
+# Uygulama: nginx 443. Keycloak: 8443. Aynı sertifika (docker/tls).
+# oauth2-proxy dış porta kapanır; tarayıcı yalnızca HTTPS adresini kullanır.
+
+services:
+  nginx:
+    ports:
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./tls:/etc/nginx/ssl:ro
+      - ./nginx/ssl-server.conf.template:/etc/nginx/templates/ssl-server.conf.template:ro
+
+  keycloak:
+    ports:
+      - "${KEYCLOAK_HTTPS_PORT:-8443}:8443"
+    environment:
+      KC_HOSTNAME: https://${KEYCLOAK_PUBLIC_FQDN:-localhost}:${KEYCLOAK_HTTPS_PORT:-8443}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/https/securipdf.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/https/securipdf.key
+    volumes:
+      - ./tls:/opt/keycloak/conf/https:ro
+
+  oauth2-proxy:
+    ports: !reset null

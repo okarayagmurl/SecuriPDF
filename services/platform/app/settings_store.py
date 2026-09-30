@@ -214,6 +214,7 @@ class SettingsStore:
             "http_port": int(os.getenv("HTTP_PORT", "8080")),
             "https_port": int(os.getenv("HTTPS_PORT", "443")),
             "keycloak_http_port": int(os.getenv("KEYCLOAK_HTTP_PORT", "8090")),
+            "keycloak_https_port": int(os.getenv("KEYCLOAK_HTTPS_PORT", "8443")),
             "break_glass_password_changed": False,
             "ad_login_verified": False,
             "setup_wizard_completed": False,
@@ -236,7 +237,7 @@ class SettingsStore:
         http_port = int(dep.get("http_port") or 8080)
         https_port = int(dep.get("https_port") or 443)
         kc_fqdn = (dep.get("keycloak_fqdn") or fqdn).strip()
-        kc_port = int(dep.get("keycloak_http_port") or 8090)
+        kc_port = int(dep.get("keycloak_https_port") or 8443) if use_https else int(dep.get("keycloak_http_port") or 8090)
         realm = os.getenv("KEYCLOAK_REALM", "securipdf")
 
         def base_url(host: str, port: int, https: bool) -> str:
@@ -251,10 +252,7 @@ class SettingsStore:
         app_port = https_port if use_https else http_port
         app_url = base_url(fqdn, app_port, use_https)
         ip_url = base_url(server_ip, app_port, use_https) if server_ip else ""
-        if kc_port in (80, 443):
-            kc_url = f"http://{kc_fqdn}"
-        else:
-            kc_url = f"http://{kc_fqdn}:{kc_port}"
+        kc_url = base_url(kc_fqdn, kc_port, use_https)
         issuer = f"{kc_url}/realms/{realm}"
         return {
             "app_url": app_url,

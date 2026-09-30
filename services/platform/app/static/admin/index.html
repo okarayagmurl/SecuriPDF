@@ -625,6 +625,30 @@
       </section>
 
       <section class="card full">
+        <h2>TLS sertifikası</h2>
+        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verin. Özel anahtar sunucuda kalır, indirilmez. Etkinleştirince uygulama <strong>https://alanadınız</strong> (443), Keycloak <strong>https://alanadınız:8443</strong> olur.</p>
+        <div id="tlsStatusLine" class="readiness-summary"></div>
+        <div class="form-grid">
+          <label>Ortak ad <input id="tlsCommonName" type="text" placeholder="pdf.sirket.local" autocomplete="off"></label>
+          <label>Kurum <input id="tlsOrganization" type="text" placeholder="Sirket A.S." autocomplete="organization"></label>
+          <label>DNS adları <input id="tlsDns" type="text" placeholder="pdf.sirket.local, giris.sirket.local" autocomplete="off"></label>
+          <label>IP adresleri <input id="tlsIps" type="text" placeholder="192.168.6.176" autocomplete="off"></label>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="btnTlsCsr">CA talep dosyasını indir</button>
+        </div>
+        <div class="form-grid">
+          <label>Sertifika (PEM veya CER) <input id="tlsCertFile" type="file" accept=".pem,.crt,.cer,.txt"></label>
+          <label>Ara sertifika (isteğe bağlı) <input id="tlsChainFile" type="file" accept=".pem,.crt,.cer,.txt"></label>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="btnTlsInstall">Sertifikayı kaydet</button>
+          <button type="button" id="btnTlsApply">HTTPS olarak etkinleştir</button>
+        </div>
+        <pre id="tlsResult"></pre>
+      </section>
+
+      <section class="card full">
         <h2>Vault yedekleme</h2>
         <p class="hint">Belgeler (.enc), imzalar, sertifikalar ve metadata.db — Admin UI uzerinden.</p>
         <div class="row-actions">
@@ -780,6 +804,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=35"></script>
+  <script src="/admin/static/admin.js?v=36"></script>
 </body>
 </html>

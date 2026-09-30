@@ -1279,11 +1279,137 @@
     }
   }
 
+  function tlsNames(value) {
+    return String(value || '').split(/[,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function renderTlsStatus(info) {
+    var el = document.getElementById('tlsStatusLine');
+    if (!el || !info) return;
+    var text = 'Talep dosyası yok';
+    var cls = 'ready-fail';
+    if (info.hasCertificate) {
+      text = 'Sertifika kayıtlı';
+      if (info.notAfter) text += ' — bitiş ' + formatDate(info.notAfter);
+      if (info.applied) text += ' — HTTPS etkin';
+      cls = 'ready-ok';
+    } else if (info.hasCsr) {
+      text = 'Talep dosyası hazır. CA yanıtını yükleyin.';
+      cls = '';
+    }
+    el.className = 'readiness-summary ' + cls;
+    el.textContent = text;
+    var suggested = info.suggested || {};
+    if (!val('tlsCommonName') && (info.commonName || suggested.commonName)) {
+      document.getElementById('tlsCommonName').value = info.commonName || suggested.commonName || '';
+    }
+    if (!val('tlsDns') && (info.dnsNames || suggested.dnsNames)) {
+      var dns = (info.dnsNames && info.dnsNames.length) ? info.dnsNames : (suggested.dnsNames || []);
+      document.getElementById('tlsDns').value = dns.join(', ');
+    }
+    if (!val('tlsIps') && (info.ipAddresses || suggested.ipAddresses)) {
+      var ips = (info.ipAddresses && info.ipAddresses.length) ? info.ipAddresses : (suggested.ipAddresses || []);
+      document.getElementById('tlsIps').value = ips.join(', ');
+    }
+    if (!val('tlsOrganization') && info.organization) {
+      document.getElementById('tlsOrganization').value = info.organization;
+    }
+    if (info.preview && info.preview.app_url) {
+      el.textContent += '  |  Uygulama ' + info.preview.app_url + '  ·  Keycloak ' + (info.preview.kc_public || '');
+    }
+  }
+
+  async function loadTlsStatus() {
+    try {
+      renderTlsStatus(await api('/tls'));
+    } catch (e) {
+      var el = document.getElementById('tlsStatusLine');
+      if (el) el.textContent = e.message;
+    }
+  }
+
+  function readCertFile(input) {
+    return new Promise(function (resolve) {
+      var file = input && input.files && input.files[0];
+      if (!file) { resolve({}); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        var bytes = new Uint8Array(reader.result);
+        var text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+        if (text.indexOf('BEGIN CERTIFICATE') >= 0) resolve({ pem: text });
+        else {
+          var bin = '';
+          for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          resolve({ der: btoa(bin) });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  document.getElementById('btnTlsCsr').addEventListener('click', async function () {
+    try {
+      await api('/tls/csr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          common_name: val('tlsCommonName'),
+          organization: val('tlsOrganization'),
+          dns_names: tlsNames(val('tlsDns')),
+          ip_addresses: tlsNames(val('tlsIps'))
+        })
+      });
+      var res = await fetch(API + '/tls/csr', { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('Talep dosyası indirilemedi');
+      var blob = await res.blob();
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'securipdf.csr';
+      link.click();
+      URL.revokeObjectURL(link.href);
+      show('tlsResult', { ok: true, file: 'securipdf.csr' });
+      await loadTlsStatus();
+    } catch (e) { alert(e.message); }
+  });
+
+  document.getElementById('btnTlsInstall').addEventListener('click', async function () {
+    try {
+      var cert = await readCertFile(document.getElementById('tlsCertFile'));
+      var chain = await readCertFile(document.getElementById('tlsChainFile'));
+      if (!cert.pem && !cert.der) {
+        alert('Sertifika dosyası seçin');
+        return;
+      }
+      var body = {};
+      if (cert.pem) body.certificate_pem = cert.pem;
+      if (cert.der) body.certificate_der_b64 = cert.der;
+      if (chain.pem) body.chain_pem = chain.pem;
+      if (chain.der) body.chain_der_b64 = chain.der;
+      show('tlsResult', await api('/tls/certificate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }));
+      await loadTlsStatus();
+    } catch (e) { alert(e.message); }
+  });
+
+  document.getElementById('btnTlsApply').addEventListener('click', async function () {
+    if (!confirm('Uygulama 443, Keycloak 8443 üzerinden HTTPS açılacak. Nginx, Keycloak ve oturum vekili yenilenir. Devam?')) return;
+    try {
+      show('tlsResult', { ok: true, message: 'Etkinleştiriliyor…' });
+      show('tlsResult', await api('/tls/apply', { method: 'POST' }));
+      await loadTlsStatus();
+      await loadSettings();
+    } catch (e) { alert(e.message); }
+  });
+
   function loadOpsPanel() {
     loadVersionUpgrade();
     loadHealth();
     loadReadiness();
     loadBackups();
+    loadTlsStatus();
   }
 
   document.getElementById('btnRefreshHealth').addEventListener('click', loadHealth);

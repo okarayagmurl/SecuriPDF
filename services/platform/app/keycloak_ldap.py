@@ -708,3 +708,36 @@ class KeycloakLdapApplier:
                 "source": "Keycloak",
                 "message": "Yerel kullanici olusturuldu",
             }
+
+    def sync_browser_urls(self, redirect_uri: str, web_origin: str, post_logout: str) -> dict[str, Any]:
+        """OAuth istemcisinin tarayici adreslerini HTTPS uygulama adresine yazar."""
+        with httpx.Client(timeout=20.0) as client:
+            token = self._token(client)
+            listed = client.get(
+                f"{self.base_url}/admin/realms/{self.realm}/clients",
+                params={"clientId": "securipdf"},
+                headers=self._headers(token),
+            )
+            if listed.status_code != 200 or not listed.json():
+                raise HTTPException(status_code=502, detail="Keycloak istemcisi bulunamadi")
+            client_uuid = listed.json()[0]["id"]
+            current = client.get(
+                f"{self.base_url}/admin/realms/{self.realm}/clients/{client_uuid}",
+                headers=self._headers(token),
+            )
+            if current.status_code != 200:
+                raise HTTPException(status_code=502, detail="Keycloak istemcisi okunamadi")
+            body = current.json()
+            body["redirectUris"] = [redirect_uri]
+            body["webOrigins"] = [web_origin]
+            attrs = dict(body.get("attributes") or {})
+            attrs["post.logout.redirect.uris"] = post_logout
+            body["attributes"] = attrs
+            saved = client.put(
+                f"{self.base_url}/admin/realms/{self.realm}/clients/{client_uuid}",
+                json=body,
+                headers=self._headers(token, json_body=True),
+            )
+            if saved.status_code not in (200, 204):
+                raise HTTPException(status_code=502, detail=f"Keycloak istemcisi guncellenemedi: {saved.text[:200]}")
+        return {"ok": True, "redirectUri": redirect_uri, "webOrigin": web_origin}
