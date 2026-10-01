@@ -736,7 +736,8 @@ def _https_targets(settings: Settings) -> dict[str, str]:
     store = SettingsStore(settings)
     dep = dict(store.merged_deployment())
     dep["use_https"] = True
-    dep["keycloak_https_port"] = int(dep.get("keycloak_https_port") or 8444)
+    dep["keycloak_https_port"] = int(dep.get("keycloak_https_port") or 8443)
+    dep["https_port"] = int(dep.get("https_port") or 8444)
     host = preferred_https_host(str(dep.get("public_fqdn") or ""), str(dep.get("server_ip") or ""))
     if host in ("", "localhost", "127.0.0.1"):
         raise HTTPException(status_code=400, detail="Once erisim FQDN veya sunucu IP kaydedin")
@@ -752,6 +753,8 @@ def _https_targets(settings: Settings) -> dict[str, str]:
         "redirect_url": urls["oauth_callback_url"],
         "issuer_url": urls["oauth_issuer_url"],
         "sign_out_url": urls["sign_out_url"],
+        "https_port": str(dep["https_port"]),
+        "keycloak_https_port": str(dep["keycloak_https_port"]),
     }
 
 
@@ -865,7 +868,13 @@ def admin_tls_apply(user: AuthUser = Depends(get_current_user), settings: Settin
         )
     SettingsStore(settings).update_section(
         "deployment",
-        {"use_https": True, "public_fqdn": targets["host"], "keycloak_fqdn": targets["kc_host"]},
+        {
+            "use_https": True,
+            "public_fqdn": targets["host"],
+            "keycloak_fqdn": targets["kc_host"],
+            "https_port": int(targets["https_port"]),
+            "keycloak_https_port": int(targets["keycloak_https_port"]),
+        },
         user.user_id,
     )
     mark_applied(True)

@@ -99,13 +99,13 @@ class TlsCertTests(unittest.TestCase):
                 "server_ip": "10.1.1.5",
                 "keycloak_fqdn": "pdf.example.com",
                 "use_https": True,
-                "https_port": 443,
-                "keycloak_https_port": 8444,
+                "https_port": 8444,
+                "keycloak_https_port": 8443,
             }
         )
-        self.assertEqual(urls["app_url"], "https://pdf.example.com")
-        self.assertEqual(urls["keycloak_admin_url"], "https://pdf.example.com:8444")
-        self.assertTrue(urls["oauth_issuer_url"].startswith("https://pdf.example.com:8444/realms/"))
+        self.assertEqual(urls["app_url"], "https://pdf.example.com:8444")
+        self.assertEqual(urls["keycloak_admin_url"], "https://pdf.example.com:8443")
+        self.assertTrue(urls["oauth_issuer_url"].startswith("https://pdf.example.com:8443/realms/"))
 
 
 if __name__ == "__main__":

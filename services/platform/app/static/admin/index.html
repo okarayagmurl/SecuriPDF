@@ -626,7 +626,7 @@
 
       <section class="card full">
         <h2>TLS sertifikası</h2>
-        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verebilirsiniz; dönen sertifika sunucudaki anahtarla eşleşir. Elinizde hazır sertifika ve anahtar varsa üçünü birlikte yükleyin. Etkinleştirince uygulama <strong>https://alanadınız</strong> (443), Keycloak <strong>https://alanadınız:8444</strong> olur. 8443 de açık kalır.</p>
+        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verebilirsiniz; dönen sertifika sunucudaki anahtarla eşleşir. Elinizde hazır sertifika ve anahtar varsa üçünü birlikte yükleyin. Etkinleştirince uygulama <strong>https://alanadınız:8444</strong>, Keycloak <strong>https://alanadınız:8443</strong> olur. 443 de açık kalır.</p>
         <div id="tlsStatusLine" class="readiness-summary"></div>
         <div class="form-grid">
           <label>Ortak ad <input id="tlsCommonName" type="text" placeholder="pdf.sirket.local" autocomplete="off"></label>
@@ -805,6 +805,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=38"></script>
+  <script src="/admin/static/admin.js?v=39"></script>
 </body>
 </html>

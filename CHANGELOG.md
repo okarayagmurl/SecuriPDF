@@ -2,7 +2,7 @@
 
 ## 1.2.6-stirling-2.14.3 (2026-10-01)
 
-- Yönetim panelinden CA talep dosyası indirilir; dönen sertifika uygulama (443) ve Keycloak (8444, 8443 de açık) için etkinleştirilir
+- Yönetim panelinden CA talep dosyası indirilir; dönen sertifika uygulama (8444, 443 de açık) ve Keycloak (8443) için etkinleştirilir
 - Özel anahtar sunucuda kalır
 
 ## 1.2.5-stirling-2.14.3 (2026-09-30)
