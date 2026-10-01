@@ -526,7 +526,7 @@ def _set_env_file_value(env_path: Path, key: str, value: str) -> None:
 
 
 def apply_tls(body: dict[str, Any]) -> dict[str, Any]:
-    """Platformdaki sertifikayı nginx (443) ve Keycloak (8443) için açar."""
+    """Platformdaki sertifikayı nginx (443) ve Keycloak (8444, 8443 de açık) için açar."""
     host = str(body.get("host") or "").strip()
     kc_host = str(body.get("kcHost") or host).strip()
     app_url = str(body.get("appUrl") or "").strip().rstrip("/")
@@ -554,7 +554,7 @@ def apply_tls(body: dict[str, Any]) -> dict[str, Any]:
     _set_env_file_value(env_path, "PUBLIC_USE_HTTPS", "true")
     _set_env_file_value(env_path, "PUBLIC_FQDN", host)
     _set_env_file_value(env_path, "KEYCLOAK_PUBLIC_FQDN", kc_host)
-    _set_env_file_value(env_path, "KEYCLOAK_HTTPS_PORT", "8443")
+    _set_env_file_value(env_path, "KEYCLOAK_HTTPS_PORT", "8444")
     _set_env_file_value(env_path, "OAUTH2_COOKIE_SECURE", "true")
     _set_env_file_value(env_path, "OAUTH2_INSECURE_ISSUER", "false")
     _set_env_file_value(env_path, "OAUTH2_ISSUER_URL", issuer)

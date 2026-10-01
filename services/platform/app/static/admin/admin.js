@@ -1413,7 +1413,7 @@
   });
 
   document.getElementById('btnTlsApply').addEventListener('click', async function () {
-    if (!confirm('Uygulama 443, Keycloak 8443 üzerinden HTTPS açılacak. Nginx, Keycloak ve oturum vekili yenilenir. Devam?')) return;
+    if (!confirm('Uygulama 443, Keycloak 8444 üzerinden HTTPS açılacak. 8443 de dinlenmeye devam eder. Nginx, Keycloak ve oturum vekili yenilenir. Devam?')) return;
     try {
       show('tlsResult', { ok: true, message: 'Etkinleştiriliyor…' });
       show('tlsResult', await api('/tls/apply', { method: 'POST' }));

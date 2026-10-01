@@ -736,7 +736,7 @@ def _https_targets(settings: Settings) -> dict[str, str]:
     store = SettingsStore(settings)
     dep = dict(store.merged_deployment())
     dep["use_https"] = True
-    dep["keycloak_https_port"] = int(dep.get("keycloak_https_port") or 8443)
+    dep["keycloak_https_port"] = int(dep.get("keycloak_https_port") or 8444)
     host = preferred_https_host(str(dep.get("public_fqdn") or ""), str(dep.get("server_ip") or ""))
     if host in ("", "localhost", "127.0.0.1"):
         raise HTTPException(status_code=400, detail="Once erisim FQDN veya sunucu IP kaydedin")
