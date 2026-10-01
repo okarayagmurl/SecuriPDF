@@ -2,7 +2,13 @@
   const API = '/api/vault/v1/admin';
 
   async function api(path, options) {
+    options = options || {};
+    options.credentials = 'include';
+    options.redirect = 'manual';
     const res = await fetch(API + path, options);
+    if (!res || res.type === 'opaqueredirect' || res.status === 0 || res.status === 301 || res.status === 302) {
+      throw new Error('Oturum kapandı. Sayfayı yenileyip tekrar giriş yapın, sonra sertifikayı yeniden kaydedin.');
+    }
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); } catch { data = text; }
@@ -1328,6 +1334,16 @@
     }
   }
 
+  function readTextFile(input) {
+    return new Promise(function (resolve) {
+      var file = input && input.files && input.files[0];
+      if (!file) { resolve(''); return; }
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result || '')); };
+      reader.readAsText(file);
+    });
+  }
+
   function readCertFile(input) {
     return new Promise(function (resolve) {
       var file = input && input.files && input.files[0];
@@ -1376,6 +1392,7 @@
     try {
       var cert = await readCertFile(document.getElementById('tlsCertFile'));
       var chain = await readCertFile(document.getElementById('tlsChainFile'));
+      var keyPem = await readTextFile(document.getElementById('tlsKeyFile'));
       if (!cert.pem && !cert.der) {
         alert('Sertifika dosyası seçin');
         return;
@@ -1385,6 +1402,7 @@
       if (cert.der) body.certificate_der_b64 = cert.der;
       if (chain.pem) body.chain_pem = chain.pem;
       if (chain.der) body.chain_der_b64 = chain.der;
+      if (keyPem && keyPem.indexOf('PRIVATE KEY') >= 0) body.private_key_pem = keyPem;
       show('tlsResult', await api('/tls/certificate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -233,6 +233,7 @@ class TlsCertificateRequest(BaseModel):
     certificate_der_b64: str | None = None
     chain_pem: str | None = None
     chain_der_b64: str | None = None
+    private_key_pem: str | None = None
 
 
 class SmtpSettingsUpdate(BaseModel):
@@ -795,6 +796,7 @@ def admin_tls_certificate(
         body.certificate_der_b64,
         body.chain_pem,
         body.chain_der_b64,
+        body.private_key_pem,
     )
     mark_applied(False)
     info = tls_status()

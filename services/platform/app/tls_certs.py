@@ -177,11 +177,24 @@ def _certs_from_payload(pem: str | None, der_b64: str | None) -> list[x509.Certi
     return found
 
 
+def _private_key_from_pem(pem: str):
+    text = (pem or "").strip()
+    if "PRIVATE KEY" not in text:
+        raise HTTPException(status_code=400, detail="Ozel anahtar PEM formatinda degil")
+    try:
+        return serialization.load_pem_private_key(text.encode("utf-8"), password=None)
+    except TypeError as exc:
+        raise HTTPException(status_code=400, detail="Anahtar sifreli. Sifresiz PEM yukleyin.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Ozel anahtar okunamadi") from exc
+
+
 def install_certificate(
     certificate_pem: str | None = None,
     certificate_der_b64: str | None = None,
     chain_pem: str | None = None,
     chain_der_b64: str | None = None,
+    private_key_pem: str | None = None,
 ) -> dict[str, Any]:
     leaf_list = _certs_from_payload(certificate_pem, certificate_der_b64)
     if not leaf_list:
@@ -189,12 +202,21 @@ def install_certificate(
     extra = _certs_from_payload(chain_pem, chain_der_b64)
     leaf = leaf_list[0]
     chain = leaf_list[1:] + extra
-    private_key = _load_key()
+    supplied = (private_key_pem or "").strip()
+    private_key = _private_key_from_pem(supplied) if supplied else _load_key()
     if private_key.public_key().public_numbers() != leaf.public_key().public_numbers():
-        raise HTTPException(
-            status_code=400,
-            detail="Sertifika bu sunucudaki talep anahtari ile eslesmiyor. CA'ya gonderdiginiz dosyanin yanitini yukleyin.",
-        )
+        if supplied:
+            detail = "Sertifika ile secilen ozel anahtar eslesmiyor."
+        else:
+            detail = (
+                "Sertifika sunucudaki talep anahtari ile eslesmiyor. "
+                "Hazir anahtariniz varsa Ozel anahtar alanina da ekleyin."
+            )
+        raise HTTPException(status_code=400, detail=detail)
+    if supplied:
+        key_path = _key_path()
+        key_path.write_text(supplied if supplied.endswith("\n") else supplied + "\n", encoding="utf-8")
+        os.chmod(key_path, 0o644)
     blob = b"".join(item.public_bytes(serialization.Encoding.PEM) for item in [leaf, *chain])
     _crt_path().write_bytes(blob)
     meta = _read_meta()

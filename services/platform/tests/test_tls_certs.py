@@ -50,6 +50,32 @@ class TlsCertTests(unittest.TestCase):
         self.assertIn("pdf.example.com", installed["certificateSubject"])
         self.assertGreater(status()["daysRemaining"], 20)
 
+    def test_install_with_supplied_key(self) -> None:
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "securipdf.int.entera.net")])
+        now = datetime.now(timezone.utc)
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(2)
+            .not_valid_before(now - timedelta(minutes=1))
+            .not_valid_after(now + timedelta(days=10))
+            .sign(key, hashes.SHA256())
+        )
+        key_pem = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        ).decode("ascii")
+        installed = install_certificate(
+            cert.public_bytes(serialization.Encoding.PEM).decode("ascii"),
+            private_key_pem=key_pem,
+        )
+        self.assertTrue(installed["hasCertificate"])
+        self.assertTrue(installed["hasKey"])
+
     def test_https_urls_cover_app_and_keycloak(self) -> None:
         urls = SettingsStore.deployment_access_urls(
             {

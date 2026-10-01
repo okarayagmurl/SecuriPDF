@@ -626,7 +626,7 @@
 
       <section class="card full">
         <h2>TLS sertifikası</h2>
-        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verin. Özel anahtar sunucuda kalır, indirilmez. Etkinleştirince uygulama <strong>https://alanadınız</strong> (443), Keycloak <strong>https://alanadınız:8443</strong> olur.</p>
+        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verebilirsiniz; dönen sertifika sunucudaki anahtarla eşleşir. Elinizde hazır sertifika ve anahtar varsa üçünü birlikte yükleyin. Etkinleştirince uygulama <strong>https://alanadınız</strong> (443), Keycloak <strong>https://alanadınız:8443</strong> olur.</p>
         <div id="tlsStatusLine" class="readiness-summary"></div>
         <div class="form-grid">
           <label>Ortak ad <input id="tlsCommonName" type="text" placeholder="pdf.sirket.local" autocomplete="off"></label>
@@ -640,6 +640,7 @@
         <div class="form-grid">
           <label>Sertifika (PEM veya CER) <input id="tlsCertFile" type="file" accept=".pem,.crt,.cer,.txt"></label>
           <label>Ara sertifika (isteğe bağlı) <input id="tlsChainFile" type="file" accept=".pem,.crt,.cer,.txt"></label>
+          <label>Özel anahtar (hazır sertifika ise) <input id="tlsKeyFile" type="file" accept=".pem,.key,.txt"></label>
         </div>
         <div class="row-actions">
           <button type="button" id="btnTlsInstall">Sertifikayı kaydet</button>
@@ -804,6 +805,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=36"></script>
+  <script src="/admin/static/admin.js?v=37"></script>
 </body>
 </html>
