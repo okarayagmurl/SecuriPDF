@@ -65,7 +65,14 @@ from ..updater_client import (
 from ..version_info import get_installed_version, get_upgrade_available, save_staging_manifest
 from ..mail import test_smtp_connection
 from ..settings_store import SettingsStore
-from ..tls_certs import create_csr, csr_file, install_certificate, mark_applied, status as tls_status
+from ..tls_certs import (
+    create_csr,
+    csr_file,
+    install_certificate,
+    mark_applied,
+    preferred_https_host,
+    status as tls_status,
+)
 from ..updater_client import UpdaterError, updater_apply_tls, updater_configured
 from ..user_directory import resolve_user_labels
 
@@ -730,13 +737,16 @@ def _https_targets(settings: Settings) -> dict[str, str]:
     dep = dict(store.merged_deployment())
     dep["use_https"] = True
     dep["keycloak_https_port"] = int(dep.get("keycloak_https_port") or 8443)
-    urls = SettingsStore.deployment_access_urls(dep)
-    host = (dep.get("public_fqdn") or dep.get("server_ip") or "").strip()
+    host = preferred_https_host(str(dep.get("public_fqdn") or ""), str(dep.get("server_ip") or ""))
     if host in ("", "localhost", "127.0.0.1"):
         raise HTTPException(status_code=400, detail="Once erisim FQDN veya sunucu IP kaydedin")
+    dep["public_fqdn"] = host
+    kc_host = preferred_https_host(str(dep.get("keycloak_fqdn") or ""), str(dep.get("server_ip") or "")) or host
+    dep["keycloak_fqdn"] = kc_host
+    urls = SettingsStore.deployment_access_urls(dep)
     return {
         "host": host,
-        "kc_host": (dep.get("keycloak_fqdn") or host).strip(),
+        "kc_host": kc_host,
         "app_url": urls["app_url"],
         "kc_public": urls["keycloak_admin_url"],
         "redirect_url": urls["oauth_callback_url"],
@@ -853,7 +863,11 @@ def admin_tls_apply(user: AuthUser = Depends(get_current_user), settings: Settin
             status_code=502,
             detail=f"HTTPS acildi ama oturum adresi yazilamadi: {last_error}. Etkinlestir'i tekrar deneyin.",
         )
-    SettingsStore(settings).update_section("deployment", {"use_https": True}, user.user_id)
+    SettingsStore(settings).update_section(
+        "deployment",
+        {"use_https": True, "public_fqdn": targets["host"], "keycloak_fqdn": targets["kc_host"]},
+        user.user_id,
+    )
     mark_applied(True)
     write_audit(settings, user.user_id, "admin.tls.apply", "tls", targets)
     return {"ok": True, "targets": targets, "updater": applied, "client": client_sync, "tls": tls_status()}

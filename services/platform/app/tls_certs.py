@@ -242,6 +242,54 @@ def mark_applied(applied: bool) -> None:
     _write_meta(meta)
 
 
+def _is_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address((value or "").strip())
+        return True
+    except ValueError:
+        return False
+
+
+def certificate_dns_names() -> list[str]:
+    """Kurulu yaprağın DNS adları. IP SAN ve ara sertifikalar dahil edilmez."""
+    path = _crt_path()
+    if not path.is_file():
+        return []
+    try:
+        certs = x509.load_pem_x509_certificates(path.read_bytes())
+    except ValueError:
+        return []
+    if not certs:
+        return []
+    leaf = certs[0]
+    names: list[str] = []
+    try:
+        san = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        for item in san.get_values_for_type(x509.DNSName):
+            if item and not _is_ip(item) and item not in names:
+                names.append(item)
+    except x509.ExtensionNotFound:
+        pass
+    if not names:
+        attrs = leaf.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+        if attrs:
+            cn = str(attrs[0].value)
+            if cn and not _is_ip(cn):
+                names.append(cn)
+    return names
+
+
+def preferred_https_host(configured: str, server_ip: str = "") -> str:
+    """Kayıtlı adres IP ise sertifikadaki alan adını kullan."""
+    host = (configured or "").strip()
+    names = certificate_dns_names()
+    if names and (not host or host in ("localhost", "127.0.0.1") or _is_ip(host)):
+        return names[0]
+    if host in ("", "localhost", "127.0.0.1"):
+        return (server_ip or "").strip()
+    return host
+
+
 def status() -> dict[str, Any]:
     meta = _read_meta()
     not_after = meta.get("notAfter")

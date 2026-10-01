@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
 from app.settings_store import SettingsStore
-from app.tls_certs import create_csr, install_certificate, status
+from app.tls_certs import certificate_dns_names, create_csr, install_certificate, preferred_https_host, status
 
 
 class TlsCertTests(unittest.TestCase):
@@ -75,6 +75,22 @@ class TlsCertTests(unittest.TestCase):
         )
         self.assertTrue(installed["hasCertificate"])
         self.assertTrue(installed["hasKey"])
+        san = x509.SubjectAlternativeName([x509.DNSName("securipdf.int.entera.net")])
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(3)
+            .not_valid_before(now - timedelta(minutes=1))
+            .not_valid_after(now + timedelta(days=10))
+            .add_extension(san, critical=False)
+            .sign(key, hashes.SHA256())
+        )
+        install_certificate(cert.public_bytes(serialization.Encoding.PEM).decode("ascii"), private_key_pem=key_pem)
+        self.assertEqual(certificate_dns_names(), ["securipdf.int.entera.net"])
+        self.assertEqual(preferred_https_host("192.168.6.176", "192.168.6.176"), "securipdf.int.entera.net")
+        self.assertEqual(preferred_https_host("pdf.example.com", "192.168.6.176"), "pdf.example.com")
 
     def test_https_urls_cover_app_and_keycloak(self) -> None:
         urls = SettingsStore.deployment_access_urls(
