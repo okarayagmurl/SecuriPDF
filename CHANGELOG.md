@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.7-stirling-2.14.3 (2026-10-02)
+
+- Hazır sertifika ve özel anahtar birlikte yüklenir; kayıtlı adres IP ise sertifikanın alan adı kullanılır
+- Girişteki büyük oturum çerezi Nginx’te 502 üretmez
+- Uygulama varsayılan HTTPS kapısı 8444’tür; Keycloak 8443’te kalır, 443 de dinlenir
+
 ## 1.2.6-stirling-2.14.3 (2026-10-01)
 
 - Yönetim panelinden CA talep dosyası indirilir; dönen sertifika uygulama (8444, 443 de açık) ve Keycloak (8443) için etkinleştirilir
