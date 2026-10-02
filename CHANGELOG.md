@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.8-stirling-2.14.3 (2026-10-02)
+
+- Erişim portu yönetim ekranından yazılır; HTTPS etkinleştirilince bu kapı dinlenir, 443 açık kalır
+- HTTPS kurulu sunucuda paket güncellemesi uygulama ve Keycloak adreslerini olduğu gibi bırakır
+
 ## 1.2.7-stirling-2.14.3 (2026-10-02)
 
 - Hazır sertifika ve özel anahtar birlikte yüklenir; kayıtlı adres IP ise sertifikanın alan adı kullanılır
