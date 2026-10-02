@@ -919,6 +919,7 @@
     document.getElementById('deployNotes').value = dep.notes || '';
     document.getElementById('deployServerIp').value = dep.server_ip || '';
     document.getElementById('deployPublicFqdn').value = dep.public_fqdn || '';
+    document.getElementById('deployHttpsPort').value = dep.https_port || '';
     document.getElementById('deployKeycloakFqdn').value = dep.keycloak_fqdn || '';
     document.getElementById('deployUseHttps').checked = !!dep.use_https;
     var urls = dep.access_urls || {};
@@ -1413,7 +1414,8 @@
   });
 
   document.getElementById('btnTlsApply').addEventListener('click', async function () {
-    if (!confirm('Uygulama 8444, Keycloak 8443 üzerinden HTTPS açılacak. 443 de dinlenmeye devam eder. Nginx, Keycloak ve oturum vekili yenilenir. Devam?')) return;
+    var accessPort = val('deployHttpsPort') || '8444';
+    if (!confirm('Uygulama ' + accessPort + ', Keycloak 8443 üzerinden HTTPS açılacak. 443 de dinlenmeye devam eder. Nginx, Keycloak ve oturum vekili yenilenir. Devam?')) return;
     try {
       show('tlsResult', { ok: true, message: 'Etkinleştiriliyor…' });
       show('tlsResult', await api('/tls/apply', { method: 'POST' }));
@@ -1583,6 +1585,7 @@
           notes: val('deployNotes') || undefined,
           server_ip: val('deployServerIp') || undefined,
           public_fqdn: val('deployPublicFqdn') || undefined,
+          https_port: parseInt(val('deployHttpsPort'), 10) || undefined,
           keycloak_fqdn: val('deployKeycloakFqdn') || undefined,
           use_https: document.getElementById('deployUseHttps').checked
         })

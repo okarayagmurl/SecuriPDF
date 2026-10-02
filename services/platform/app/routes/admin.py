@@ -226,6 +226,7 @@ class DeploymentSettingsUpdate(BaseModel):
     public_fqdn: str | None = None
     keycloak_fqdn: str | None = None
     use_https: bool | None = None
+    https_port: int | None = None
 
 
 class TlsCsrRequest(BaseModel):
@@ -723,6 +724,8 @@ def admin_update_deployment(
         raise HTTPException(status_code=400, detail="Guncellenecek alan yok")
     if payload.get("environment") and payload["environment"] not in ("dev", "staging", "prod"):
         raise HTTPException(status_code=400, detail="environment: dev, staging veya prod olmali")
+    if payload.get("https_port") is not None and not 1 <= int(payload["https_port"]) <= 65535:
+        raise HTTPException(status_code=400, detail="Erisim portu 1-65535 olmali")
     result = SettingsStore(settings).update_section("deployment", payload, user.user_id)
     write_audit(settings, user.user_id, "admin.settings.deployment", "deployment", payload)
     return result
@@ -842,6 +845,7 @@ def admin_tls_apply(user: AuthUser = Depends(get_current_user), settings: Settin
                 "issuerUrl": targets["issuer_url"],
                 "redirectUrl": targets["redirect_url"],
                 "signOutUrl": targets["sign_out_url"],
+                "httpsPort": int(targets["https_port"]),
             }
         )
     except UpdaterError as exc:

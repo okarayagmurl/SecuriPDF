@@ -604,7 +604,7 @@
 
       <section class="card">
         <h2>Ortam, erisim ve yedek</h2>
-        <p class="hint">Uygulama adresi, tarayıcının açtığı adresle aynı olmalıdır (şema ve port dahil). Keycloak satırı iç oturum içindir (8090); müşteri bu porta girmez. Çıkış adresi /oauth2/sign_out ile biter.</p>
+        <p class="hint">Uygulama adresi, tarayıcının açtığı adresle aynı olmalıdır (şema ve erişim portu dahil). Erişim portu sabittir değildir; kaydettiğiniz kapı hesaplanan adreste kullanılır. HTTPS etkinleştirilince bu kapı dinlenir, 443 de açık kalır. Keycloak 8443’tedir.</p>
         <label>Ortam
           <select id="deployEnvironment">
             <option value="dev">dev</option>
@@ -614,6 +614,7 @@
         </label>
         <label>Sunucu IP <input id="deployServerIp" type="text" placeholder="192.168.6.248"></label>
         <label>Erisim FQDN <input id="deployPublicFqdn" type="text" placeholder="pdf.sirket.local"></label>
+        <label>Erişim portu <input id="deployHttpsPort" type="number" min="1" max="65535" placeholder="8444"></label>
         <label>Keycloak FQDN (bos = erisim FQDN) <input id="deployKeycloakFqdn" type="text" placeholder="pdf.sirket.local"></label>
         <label class="inline-check"><input id="deployUseHttps" type="checkbox"> HTTPS (prod)</label>
         <label>Yedek saklama suresi (gun) <input id="deployRetention" type="number" min="1" max="365"></label>
@@ -626,7 +627,7 @@
 
       <section class="card full">
         <h2>TLS sertifikası</h2>
-        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verebilirsiniz; dönen sertifika sunucudaki anahtarla eşleşir. Elinizde hazır sertifika ve anahtar varsa üçünü birlikte yükleyin. Etkinleştirince uygulama <strong>https://alanadınız:8444</strong>, Keycloak <strong>https://alanadınız:8443</strong> olur. 443 de açık kalır.</p>
+        <p class="hint">Uygulama adresi ve Keycloak aynı sertifikayı kullanır. Talep dosyasını kurum sertifika otoritesine verebilirsiniz; dönen sertifika sunucudaki anahtarla eşleşir. Elinizde hazır sertifika ve anahtar varsa üçünü birlikte yükleyin. Etkinleştirince uygulama, Ortam bölümünde kaydettiğiniz erişim portunu kullanır. Keycloak 8443’te kalır; 443 de açık kalır.</p>
         <div id="tlsStatusLine" class="readiness-summary"></div>
         <div class="form-grid">
           <label>Ortak ad <input id="tlsCommonName" type="text" placeholder="pdf.sirket.local" autocomplete="off"></label>
@@ -805,6 +806,6 @@ cd docker
 
   </main>
 
-  <script src="/admin/static/admin.js?v=39"></script>
+  <script src="/admin/static/admin.js?v=40"></script>
 </body>
 </html>

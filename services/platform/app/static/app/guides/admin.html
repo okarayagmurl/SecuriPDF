@@ -217,13 +217,14 @@
       <li>Ortak adı, DNS adlarını ve gerekiyorsa IP adresini yazın. Uygulama adı ile Keycloak adı farklıysa ikisini de DNS listesine ekleyin.</li>
       <li><strong>CA talep dosyasını indir</strong> ile <code>securipdf.csr</code> dosyasını alın. Bu dosyayı kurum sertifika otoritesine verin.</li>
       <li>Gelen sertifikayı, varsa ara sertifikayı da seçip <strong>Sertifikayı kaydet</strong> deyin. Dosya, talep ettiğiniz anahtarla eşleşmelidir. Sertifika ve anahtar önceden sizdeyse sertifika, ara zincir ve özel anahtar alanlarını birlikte doldurun.</li>
-      <li><strong>HTTPS olarak etkinleştir</strong> deyin. Uygulama adresi <code>https://alanadınız:8444</code>, Keycloak adresi <code>https://alanadınız:8443</code> olur. 443 de açık kalır. Kullanıcılar uygulama adresinden girer.</li>
+      <li>Ortam bölümünde erişim portunu yazıp kaydedin. Bu kapı sabit değildir.</li>
+      <li><strong>HTTPS olarak etkinleştir</strong> deyin. Uygulama adresi kaydettiğiniz kapıyı kullanır. Keycloak <code>https://alanadınız:8443</code> olur. 443 de açık kalır. Kullanıcılar uygulama adresinden girer.</li>
     </ol>
 
     <h3>Ortam ve erişim adresleri</h3>
     <ol class="steps">
       <li>Ortamı dev, staging veya prod seçin.</li>
-      <li>Sunucu IP ve kullanıcıların açtığı alan adını yazın. Oturum servisinin adı farklıysa onu da doldurun; boş bırakırsanız erişim adı kullanılır.</li>
+      <li>Sunucu IP, kullanıcıların açtığı alan adı ve erişim portunu yazın. Oturum servisinin adı farklıysa onu da doldurun; boş bırakırsanız erişim adı kullanılır.</li>
       <li>Site tarayıcıda https ile açılıyorsa <strong>HTTPS</strong> kutusunu işaretleyin. Adres http ve bir port ile açılıyorsa kutuyu boş bırakın. Hesaplanan adresler bu seçimden üretilir ve tarayıcıdaki adresle aynı olmalıdır.</li>
       <li>Yedeklerin kaç gün saklanacağını ve isteğe bağlı notu yazın.</li>
       <li><strong>Kaydet</strong> deyin. Alttaki kutu uygulama adresini, geri dönüş adresini, oturum servisini ve çıkış adresini gösterir. Çıkış adresi oturum kapatma yoluyla biter. Oturum servisi iç kullanım içindir; kullanıcılar uygulama adresinden girer.</li>

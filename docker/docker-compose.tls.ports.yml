@@ -1,0 +1,6 @@
+# Erişim kapısı apply sırasında yeniden yazılır. 443 ayrıca dinlenir.
+services:
+  nginx:
+    ports: !reset
+      - "${HTTPS_PORT:-8444}:443"
+      - "443:443"

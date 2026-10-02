@@ -525,8 +525,31 @@ def _set_env_file_value(env_path: Path, key: str, value: str) -> None:
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _access_port(raw: Any) -> int:
+    if raw is None or str(raw).strip() == "":
+        return 8444
+    try:
+        port = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Erisim portu sayi olmali") from exc
+    if not 1 <= port <= 65535:
+        raise RuntimeError("Erisim portu 1-65535 olmali")
+    return port
+
+
+def _write_access_ports(docker_dir: Path, https_port: int) -> None:
+    """443 her zaman dinlenir. Erişim kapısı farklıysa o da açılır."""
+    published: list[str] = []
+    for item in (f"{https_port}:443", "443:443"):
+        if item not in published:
+            published.append(item)
+    lines = ["services:", "  nginx:", "    ports: !reset"]
+    lines.extend(f'      - "{item}"' for item in published)
+    (docker_dir / "docker-compose.tls.ports.yml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def apply_tls(body: dict[str, Any]) -> dict[str, Any]:
-    """Platformdaki sertifikayı uygulama (8444) ve Keycloak (8443) için açar."""
+    """Platformdaki sertifikayı seçilen erişim kapısı ve Keycloak (8443) için açar."""
     host = str(body.get("host") or "").strip()
     kc_host = str(body.get("kcHost") or host).strip()
     app_url = str(body.get("appUrl") or "").strip().rstrip("/")
@@ -554,7 +577,9 @@ def apply_tls(body: dict[str, Any]) -> dict[str, Any]:
     _set_env_file_value(env_path, "PUBLIC_USE_HTTPS", "true")
     _set_env_file_value(env_path, "PUBLIC_FQDN", host)
     _set_env_file_value(env_path, "KEYCLOAK_PUBLIC_FQDN", kc_host)
-    _set_env_file_value(env_path, "HTTPS_PORT", "8444")
+    https_port = _access_port(body.get("httpsPort"))
+    _set_env_file_value(env_path, "HTTPS_PORT", str(https_port))
+    _write_access_ports(docker_dir, https_port)
     _set_env_file_value(env_path, "KEYCLOAK_HTTPS_PORT", "8443")
     _set_env_file_value(env_path, "OAUTH2_COOKIE_SECURE", "true")
     _set_env_file_value(env_path, "OAUTH2_INSECURE_ISSUER", "false")
@@ -586,6 +611,8 @@ def apply_tls(body: dict[str, Any]) -> dict[str, Any]:
         [
             "-f",
             "docker-compose.tls.yml",
+            "-f",
+            "docker-compose.tls.ports.yml",
             "up",
             "-d",
             "--no-build",

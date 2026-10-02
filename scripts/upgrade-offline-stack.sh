@@ -120,6 +120,7 @@ if [[ -n "${NEW_TAG}" ]]; then
     [[ -f docker-compose.offline.yml ]] && COMPOSE+=(-f docker-compose.offline.yml)
     if [[ "${HTTPS_MODE}" -eq 1 && -f docker-compose.tls.yml ]]; then
       COMPOSE+=(-f docker-compose.tls.yml)
+      [[ -f docker-compose.tls.ports.yml ]] && COMPOSE+=(-f docker-compose.tls.ports.yml)
     fi
     "${COMPOSE[@]}" up -d --no-build --force-recreate entera-pdf securipdf-platform
   )

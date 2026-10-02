@@ -1,12 +1,11 @@
 # SecuriPDF — TLS kenarı
-# Uygulama varsayılan dış kapı 8444; 443 de dinlenir. Keycloak 8443. Aynı sertifika (docker/tls).
+# Uygulama kapısı HTTPS_PORT (varsayılan 8444). 443 de dinlenir. Keycloak 8443.
 # oauth2-proxy dış porta kapanır; tarayıcı yalnızca HTTPS adresini kullanır.
 
 services:
   nginx:
     ports:
-      - "443:443"
-      - "8444:443"
+      - "${HTTPS_PORT:-8444}:443"
     environment:
       HTTPS_PORT: ${HTTPS_PORT:-8444}
     volumes:
