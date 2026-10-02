@@ -63,7 +63,16 @@ else
   FAIL=1
 fi
 
-if curl -sfI --max-time 5 "http://127.0.0.1:${HTTP_PORT}/" 2>/dev/null | grep -qi '^location:.*openid-connect/auth'; then
+if [[ "${PUBLIC_USE_HTTPS:-false}" == "true" ]]; then
+  APP_PORT="${HTTPS_PORT:-8444}"
+  CHECK_URL="https://127.0.0.1:${APP_PORT}/"
+  if curl -skfI --max-time 8 "${CHECK_URL}" 2>/dev/null | grep -qi '^location:.*openid-connect/auth'; then
+    echo "[verify-auth-urls] OK: oturumsuz istek Keycloak login'e yonleniyor"
+  else
+    echo "[verify-auth-urls] HATA: ${APP_PORT} oturumsuz istek login'e yonlenmiyor" >&2
+    FAIL=1
+  fi
+elif curl -sfI --max-time 5 "http://127.0.0.1:${HTTP_PORT}/" 2>/dev/null | grep -qi '^location:.*openid-connect/auth'; then
   echo "[verify-auth-urls] OK: oturumsuz istek Keycloak login'e yonleniyor"
 else
   echo "[verify-auth-urls] HATA: ${HTTP_PORT} oturumsuz istek login'e yonlenmiyor" >&2

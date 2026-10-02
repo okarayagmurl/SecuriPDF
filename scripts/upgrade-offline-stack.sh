@@ -98,17 +98,29 @@ if [[ -n "${NEW_TAG}" ]]; then
   load_dotenv "${ENV_FILE}"
 fi
 
+HTTPS_MODE=0
+if [[ "${PUBLIC_USE_HTTPS:-false}" == "true" ]]; then
+  HTTPS_MODE=1
+fi
+
 echo ""
 echo "[2/4] Erisim URL + auth stack senkronu (${HOST})..."
-bash "${DOCKER_DIR}/fix-access-url.sh" "${HOST}"
+if [[ "${HTTPS_MODE}" -eq 1 ]]; then
+  echo "  HTTPS acik — uygulama ${HTTPS_PORT:-8444}, Keycloak ${KEYCLOAK_HTTPS_PORT:-8443} korunuyor"
+else
+  bash "${DOCKER_DIR}/fix-access-url.sh" "${HOST}"
+fi
 
-# Yeni image tag ile servisleri yenile (fix-access-url zaten up yapar; tag degistiyse zorla recreate)
+# Yeni image tag ile servisleri yenile (HTTP kurulumda fix-access-url zaten up yapar)
 if [[ -n "${NEW_TAG}" ]]; then
   echo "[+] Container'lar yeni tag ile yenileniyor (${NEW_TAG})..."
   (
     cd "${DOCKER_DIR}"
     COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.auth.yml)
     [[ -f docker-compose.offline.yml ]] && COMPOSE+=(-f docker-compose.offline.yml)
+    if [[ "${HTTPS_MODE}" -eq 1 && -f docker-compose.tls.yml ]]; then
+      COMPOSE+=(-f docker-compose.tls.yml)
+    fi
     "${COMPOSE[@]}" up -d --no-build --force-recreate entera-pdf securipdf-platform
   )
 fi
@@ -142,7 +154,12 @@ fi
 HTTP_PORT="${HTTP_PORT:-8080}"
 echo ""
 echo "=== Guncelleme tamam ==="
-echo "  Uygulama: http://${HOST}:${HTTP_PORT}"
+if [[ "${HTTPS_MODE}" -eq 1 ]]; then
+  echo "  Uygulama: https://${HOST}:${HTTPS_PORT:-8444}"
+  echo "  Keycloak: https://${HOST}:${KEYCLOAK_HTTPS_PORT:-8443}"
+else
+  echo "  Uygulama: http://${HOST}:${HTTP_PORT}"
+fi
 echo "  Tarayici: Ctrl+Shift+R ile onbellegi temizleyip cikis testi yapin"
 
 UPDATER_INSTALL="${ROOT_DIR}/scripts/securipdf-updater/install-updater.sh"
