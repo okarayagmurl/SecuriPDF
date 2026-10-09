@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "SecuriPDF kabuğunun kurulum sayfası",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-get-shell-config",
+    "allow-set-server-url"
+  ]
+}

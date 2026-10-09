@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Windows uygulaması kurum sunucusunu yerel pencerede açar
+- Sunucunun izin verdiği basit araçlar Windows uygulamasında bilgisayarda çalışır; lisans, yetki ve denetim kaydı sunucuda kalır
+
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 
 - Erişim portu yönetim ekranından yazılır; HTTPS etkinleştirilince bu kapı dinlenir, 443 açık kalır

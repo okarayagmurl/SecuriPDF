@@ -6297,7 +6297,66 @@
         fd.set('rightToLeft', splitBool('rightToLeft'));
       }
     }
-    fetch(JOBS_API, {
+    var submitToolId = state.currentTool.id;
+    var desktop = window.SecuriDesktop;
+    (desktop ? desktop.canRun(submitToolId) : Promise.resolve(false)).then(function (useLocal) {
+      return useLocal
+        ? runToolLocally(desktop, submitToolId, fd, form, doSave, doDownload)
+        : runToolOnServer(fd, form, doSave, doDownload);
+    }).then(function (results) {
+      var messages = ['Tamamlandı'];
+      results.forEach(function (result) {
+        if (result && result.blob) {
+          var url = URL.createObjectURL(result.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = result.name;
+          a.click();
+          URL.revokeObjectURL(url);
+          messages.push('dosya indirildi');
+        } else if (result && result.documentId) {
+          messages.push('belgelere eklendi');
+          if (result.documentGuid) {
+            messages.push('belge no: ' + result.documentGuid);
+          }
+        }
+      });
+      setToolStatus(messages.join(' — ') + '.', true);
+      loadJobs();
+      if (doSave) loadDocuments();
+    }).catch(function (err) {
+      var msg = formatFetchError(err);
+      if (err && err.reportId) msg += ' — Kayıt No: ' + err.reportId;
+      setToolStatus('Hata: ' + msg.slice(0, 400), false);
+      loadJobs();
+    }).finally(function () {
+      btn.disabled = false;
+    });
+  }
+
+  function runToolLocally(desktop, toolId, fd, form, doSave, doDownload) {
+    setToolStatus('Bu bilgisayarda işleniyor…', true);
+    setProgressBar('toolProgressBar', 40);
+    return desktop.run(toolId, fd).then(function (blob) {
+      setProgressBar('toolProgressBar', 100);
+      var name = fixResultFilename(toolId, downloadFallbackFilename(toolId), form);
+      var tasks = [];
+      if (doSave) {
+        setToolStatus('Tamamlandı — belgelere kaydediliyor…', true);
+        var up = new FormData();
+        up.append('file', new File([blob], name));
+        up.append('scope', 'documents');
+        tasks.push(fetchJson(VAULT + '/documents', { method: 'POST', body: up }).then(function (doc) {
+          return { documentId: doc.id, documentGuid: doc.documentGuid };
+        }));
+      }
+      if (doDownload) tasks.push({ blob: blob, name: name });
+      return Promise.all(tasks);
+    });
+  }
+
+  function runToolOnServer(fd, form, doSave, doDownload) {
+    return fetch(JOBS_API, {
       method: 'POST',
       body: fd,
       credentials: 'same-origin'
@@ -6345,34 +6404,6 @@
         );
       }
       return Promise.all(tasks);
-    }).then(function (results) {
-      var messages = ['Tamamlandı'];
-      results.forEach(function (result) {
-        if (result && result.blob) {
-          var url = URL.createObjectURL(result.blob);
-          var a = document.createElement('a');
-          a.href = url;
-          a.download = result.name;
-          a.click();
-          URL.revokeObjectURL(url);
-          messages.push('dosya indirildi');
-        } else if (result && result.documentId) {
-          messages.push('belgelere eklendi');
-          if (result.documentGuid) {
-            messages.push('belge no: ' + result.documentGuid);
-          }
-        }
-      });
-      setToolStatus(messages.join(' — ') + '.', true);
-      loadJobs();
-      if (doSave) loadDocuments();
-    }).catch(function (err) {
-      var msg = formatFetchError(err);
-      if (err && err.reportId) msg += ' — Kayıt No: ' + err.reportId;
-      setToolStatus('Hata: ' + msg.slice(0, 400), false);
-      loadJobs();
-    }).finally(function () {
-      btn.disabled = false;
     });
   }
 

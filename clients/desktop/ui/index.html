@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>SecuriPDF</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0f172a;
+      color: #0f172a;
+      font: 16px/1.5 "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(440px, calc(100% - 32px));
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { margin: 0 0 16px; color: #334155; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+    button {
+      margin-top: 16px;
+      border: 0;
+      border-radius: 8px;
+      background: #1d4ed8;
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .error { color: #b91c1c; min-height: 1.5em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SecuriPDF</h1>
+    <p id="lead">Uygulama, kurum sunucusundaki SecuriPDF arayüzünü açar. PDF işlemi bu bilgisayarda çalışmaz.</p>
+    <form id="form">
+      <label for="server">Sunucu adresi</label>
+      <input id="server" name="server" type="url" placeholder="https://pdf.sirket.local:8444" required autocomplete="off">
+      <p class="error" id="error"></p>
+      <button id="save" type="submit">Kaydet ve aç</button>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById("form");
+    const server = document.getElementById("server");
+    const error = document.getElementById("error");
+    const lead = document.getElementById("lead");
+    const save = document.getElementById("save");
+
+    function invoke(command, args) {
+      if (!window.__TAURI__ || !window.__TAURI__.core) {
+        return Promise.reject(new Error("Bu sayfa SecuriPDF uygulamasının içinde açılır."));
+      }
+      return window.__TAURI__.core.invoke(command, args);
+    }
+
+    invoke("get_shell_config").then((config) => {
+      if (config.serverUrl) server.value = config.serverUrl;
+      if (config.locked) {
+        lead.textContent = "Sunucu adresi yönetici tarafından kilitli.";
+        server.disabled = true;
+        save.disabled = true;
+      }
+    }).catch((err) => {
+      error.textContent = err && err.message ? err.message : String(err);
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      error.textContent = "";
+      save.disabled = true;
+      invoke("set_server_url", { url: server.value, allowedHosts: [] })
+        .catch((err) => {
+          error.textContent = typeof err === "string" ? err : (err.message || String(err));
+          save.disabled = false;
+        });
+    });
+  </script>
+</body>
+</html>
