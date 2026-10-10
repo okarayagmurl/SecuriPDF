@@ -25,6 +25,7 @@
 - Windows uygulamasında kırpma önizlemede sürüklenerek seçilir; damga ve sayfa numarası konumu 3×3 ızgaradan, saydamlık ve açı kaydırıcıdan ayarlanır
 - Windows uygulamasının filigran aracına QR kod eklendi; kod belgede tekrarlanır, internet gerekmez
 - Windows uygulamasında karartma kutuları kelime kenarında boşluk bırakmayacak şekilde birleştirilir; görüntüleyicide vurgu rengi ve metin seçimi açılır
+- Windows kurucusunun kaldırma kancası Gezgin menüsünün tüm uzantılarını siler; Tauri 2'nin dört NSIS kancası tanımlıdır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

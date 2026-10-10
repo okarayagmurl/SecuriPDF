@@ -151,4 +151,15 @@ mod tests {
             assert!(plan(ext, "x.exe").len() > 3, "{ext} has no menu entries");
         }
     }
+
+    #[test]
+    fn uninstaller_clears_every_menu_extension() {
+        let hooks = include_str!("../windows/hooks.nsh");
+        for ext in extensions() {
+            assert!(hooks.contains(&format!("SECURIPDF_DELETE_MENU \"{ext}\"")), "hooks.nsh missing {ext}");
+        }
+        for name in ["NSIS_HOOK_PREINSTALL", "NSIS_HOOK_POSTINSTALL", "NSIS_HOOK_PREUNINSTALL", "NSIS_HOOK_POSTUNINSTALL"] {
+            assert!(hooks.contains(&format!("!macro {name}")), "hooks.nsh missing {name}");
+        }
+    }
 }

@@ -58,7 +58,7 @@ cargo tauri build
 - Stirling-PDF 2.14.3 server JAR (açılmış hali `app\`)
 - Temurin 25 JRE (`jre\`)
 - UB Mannheim Tesseract 5.4 (`tesseract\`, yalnızca `tesseract.exe` ve yüklediği DLL'ler)
-- `tessdata_best` 4.1.0 Türkçe ve İngilizce dil verisi (`tessdata\`); `configs\pdf` dosyasına `user_defined_dpi 500` eklenir, yoksa taranmış belgelerde OCR sonrası sayfalar 7 kat büyük çıkar
+- `tessdata_best` 4.1.0 Türkçe, İngilizce, Arapça, Almanca, Fransızca, İspanyolca ve İtalyanca dil verisi (`tessdata\`); `configs\pdf` dosyasına `user_defined_dpi 500` eklenir, yoksa taranmış belgelerde OCR sonrası sayfalar 7 kat büyük çıkar
 
 Betik ardından motoru bir kez açıp kapatarak AOT önbelleğini (`engine.aot`) eğitir. JVM seçenekleri (`jvm.args`) ve motor ayarları (`engine.env`) da buraya yazılır; uygulama motoru bu dosyalarla başlatır. Önbellek yalnızca aynı seçeneklerle kullanılabildiği için bu iki dosya elle değiştirilmemeli, betik yeniden çalıştırılmalıdır.
 
