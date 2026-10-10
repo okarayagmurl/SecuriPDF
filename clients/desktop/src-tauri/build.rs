@@ -5,6 +5,8 @@ fn main() {
             "run_local_tool",
             "local_engine_get",
             "save_output",
+            "choose_output_folder",
+            "save_into_folder",
             "take_opened_files",
             "read_opened_file",
             "html_to_pdf",

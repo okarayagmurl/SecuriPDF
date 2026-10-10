@@ -29,6 +29,10 @@ struct OpenedFiles {
     readable: HashSet<PathBuf>,
 }
 
+/// The folder the user picked for batch results; the page can only write there.
+#[derive(Default)]
+struct OutputFolder(Mutex<Option<PathBuf>>);
+
 #[derive(Serialize)]
 struct OpenedFile {
     path: String,
@@ -53,7 +57,8 @@ pub fn run() {
     let is_cli = cli.is_some();
     let mut builder = tauri::Builder::default()
         .manage(Engine::new())
-        .manage(Opened::default());
+        .manage(Opened::default())
+        .manage(OutputFolder::default());
     builder = match cli {
         Some(cli) => builder.manage(cli),
         None => builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -108,6 +113,8 @@ pub fn run() {
             run_local_tool,
             local_engine_get,
             save_output,
+            choose_output_folder,
+            save_into_folder,
             take_opened_files,
             read_opened_file,
             print::html_to_pdf,
@@ -314,6 +321,48 @@ async fn save_output(app: AppHandle, request: Request<'_>) -> Result<Option<Stri
     let path = chosen.into_path().map_err(|err| err.to_string())?;
     std::fs::write(&path, body).map_err(|err| format!("Dosya yazılamadı: {err}"))?;
     Ok(Some(path.display().to_string()))
+}
+
+/// Returns the chosen folder, or `None` when the user cancels the dialog.
+#[tauri::command]
+async fn choose_output_folder(
+    app: AppHandle,
+    folder: tauri::State<'_, OutputFolder>,
+) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog().file();
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
+    let chosen = tauri::async_runtime::spawn_blocking(move || dialog.blocking_pick_folder())
+        .await
+        .map_err(|err| err.to_string())?;
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|err| err.to_string())?;
+    let shown = path.display().to_string();
+    *folder.0.lock().map_err(|_| "Klasör seçilemedi.")? = Some(path);
+    Ok(Some(shown))
+}
+
+/// Writes one file into the chosen folder without replacing an existing one.
+#[tauri::command]
+fn save_into_folder(request: Request<'_>, folder: tauri::State<'_, OutputFolder>) -> Result<String, String> {
+    let InvokeBody::Raw(body) = request.body() else {
+        return Err("Kaydedilecek veri yok.".into());
+    };
+    let name = header(&request, HEADER_FILE_NAME)
+        .map(|raw| safe_file_name(&percent_decode(&raw)))
+        .unwrap_or_else(|| "sonuc".into());
+    let dir = folder
+        .0
+        .lock()
+        .ok()
+        .and_then(|chosen| chosen.clone())
+        .ok_or("Önce bir klasör seçin.")?;
+    let path = cli::unused_path(&dir.join(name));
+    std::fs::write(&path, body).map_err(|err| format!("Dosya yazılamadı: {err}"))?;
+    Ok(path.display().to_string())
 }
 
 #[tauri::command]

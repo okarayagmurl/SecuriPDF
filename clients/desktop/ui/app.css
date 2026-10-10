@@ -177,6 +177,8 @@ input[type="color"] { padding: 2px; width: 56px; height: 34px; }
 .field textarea { resize: vertical; box-sizing: border-box; }
 .field.check label { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 .field .hint { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.batch-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; cursor: pointer; }
+.batch-toggle[hidden] { display: none; }
 .field .refresh { margin-top: 6px; padding: 4px 10px; font-size: 12px; }
 
 button.primary, button.secondary {

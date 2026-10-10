@@ -11,6 +11,7 @@
     result: null,
     engine: "starting",
     busy: false,
+    batch: false,
     preview: { tab: "source", file: null, handle: null, token: 0 },
   };
 
@@ -244,16 +245,28 @@
     return /\.pdf|application\/pdf/.test(spec.accept || "");
   }
 
+  // Tools that take one file can run on many, one after another.
+  function canBatch(tool) {
+    return !tool.files[0].multiple && tool.batch !== false;
+  }
+
+  function isMultiple(spec) {
+    return Boolean(spec.multiple || (state.batch && spec === state.tool.files[0]));
+  }
+
   function selectTool(id, carry) {
     const tool = tools.find((item) => item.id === id);
     if (!tool) return;
     const previous = carry || (state.tool ? state.files[state.tool.files[0].name] || [] : []);
     state.tool = tool;
+    state.batch = state.batch && canBatch(tool);
+    $("batchToggle").hidden = !canBatch(tool);
+    $("batch").checked = state.batch;
     state.files = {};
     tool.files.forEach((spec) => { state.files[spec.name] = []; });
     const primary = tool.files[0];
     const carried = previous.filter((file) => matchesAccept(file, primary.accept));
-    state.files[primary.name] = primary.multiple ? carried : carried.slice(0, 1);
+    state.files[primary.name] = isMultiple(primary) ? carried : carried.slice(0, 1);
     clearResult();
     $("tool").hidden = false;
     $("toolTitle").textContent = tool.title;
@@ -285,7 +298,7 @@
       ? "Bazı dosyalar bu araç için uygun değil ve eklenmedi."
       : "";
     if (!accepted.length) return;
-    state.files[spec.name] = spec.multiple ? state.files[spec.name].concat(accepted) : [accepted[0]];
+    state.files[spec.name] = isMultiple(spec) ? state.files[spec.name].concat(accepted) : [accepted[0]];
     clearResult();
     renderFiles();
   }
@@ -300,10 +313,11 @@
     const files = allFiles();
     if (!files.includes(state.preview.file)) state.preview.file = files[0] || null;
     state.tool.files.forEach((spec) => {
+      const multiple = isMultiple(spec);
       const picker = el("input", {
         type: "file",
         accept: spec.accept,
-        multiple: !!spec.multiple,
+        multiple,
         hidden: true,
         onchange: (event) => { addFiles(spec, event.target.files); event.target.value = ""; },
       });
@@ -313,16 +327,16 @@
           ? el("span", { class: "name", text: file.name })
           : el("span", { class: "name link", text: file.name, title: "Önizle", onclick: () => previewFile(file) }),
         el("span", { class: "size", text: formatSize(file.size) }),
-        spec.multiple && index > 0 ? el("button", { type: "button", title: "Yukarı taşı", text: "↑", onclick: () => moveFile(spec, index, -1) }) : null,
-        spec.multiple && index < list.length - 1 ? el("button", { type: "button", title: "Aşağı taşı", text: "↓", onclick: () => moveFile(spec, index, 1) }) : null,
+        multiple && index > 0 ? el("button", { type: "button", title: "Yukarı taşı", text: "↑", onclick: () => moveFile(spec, index, -1) }) : null,
+        multiple && index < list.length - 1 ? el("button", { type: "button", title: "Aşağı taşı", text: "↓", onclick: () => moveFile(spec, index, 1) }) : null,
         el("button", { type: "button", title: "Kaldır", text: "✕", onclick: () => removeFile(spec, index) }),
       ]));
       const drop = el("div", { class: "drop", "data-files": spec.name, hidden: !isVisible(spec, readValues()) }, [
         el("div", { class: "drop-head" }, [
-          el("strong", { text: spec.label }),
-          el("button", { type: "button", class: "secondary", text: spec.multiple ? "Dosya ekle" : "Dosya seç", onclick: () => picker.click() }),
+          el("strong", { text: spec.label + (multiple && !spec.multiple ? " (her biri ayrı işlenir)" : "") }),
+          el("button", { type: "button", class: "secondary", text: multiple ? "Dosya ekle" : "Dosya seç", onclick: () => picker.click() }),
         ]),
-        el("p", { class: "drop-hint", text: spec.multiple ? "Dosyaları buraya sürükleyebilirsiniz." : "Dosyayı buraya sürükleyebilirsiniz." }),
+        el("p", { class: "drop-hint", text: multiple ? "Dosyaları buraya sürükleyebilirsiniz." : "Dosyayı buraya sürükleyebilirsiniz." }),
         el("ul", { class: "files" }, items),
         picker,
       ]);
@@ -494,7 +508,7 @@
   async function refreshPreview(force) {
     const preview = state.preview;
     const source = preview.tab === "result" && state.result
-      ? { data: state.result.bytes, name: state.result.name }
+      ? state.result.preview || { data: state.result.bytes, name: state.result.name }
       : preview.file ? { data: preview.file, name: preview.file.name } : null;
     const pick = preview.tab === "source" ? activePicker() : null;
     const key = source ? source.data : null;
@@ -592,11 +606,11 @@
     return state.tool.validate ? state.tool.validate(values) : null;
   }
 
-  function buildForm(values) {
+  function buildForm(values, files = state.files) {
     const form = new FormData();
     state.tool.files.forEach((spec) => {
       if (!isVisible(spec, values)) return;
-      state.files[spec.name].forEach((file) => form.append(spec.name, file, file.name));
+      files[spec.name].forEach((file) => form.append(spec.name, file, file.name));
     });
     state.tool.fields.forEach((field) => {
       if (field.local || !isVisible(field, values)) return;
@@ -608,7 +622,7 @@
       if (field.type === "checkbox") value = value ? "true" : "false";
       else if (field.type === "number") value = value.replace(",", ".");
       if (value === "" && field.type !== "checkbox") return;
-      const times = field.perFile ? state.files[field.perFile].length : 1;
+      const times = field.perFile ? files[field.perFile].length : 1;
       for (let i = 0; i < times; i++) form.append(field.name, value);
     });
     const constants = typeof state.tool.constants === "function"
@@ -629,8 +643,8 @@
     return "bin";
   }
 
-  function outputName(bytes) {
-    const first = state.files[state.tool.files[0].name][0];
+  function outputName(bytes, files = state.files) {
+    const first = files[state.tool.files[0].name][0];
     const base = first.name.replace(/\.[^.]+$/, "") || "belge";
     const suffix = state.tool.suffix ? "_" + state.tool.suffix : "";
     return `${base}${suffix}.${state.tool.outputExt || outputExtension(bytes)}`;
@@ -641,6 +655,8 @@
   function clearResult() {
     state.result = null;
     $("result").hidden = true;
+    $("save").textContent = "Kaydet…";
+    $("saveFolder").hidden = true;
     $("tabResult").disabled = true;
     state.preview.tab = "source";
     $("tabSource").setAttribute("aria-selected", "true");
@@ -678,21 +694,54 @@
     return new Uint8Array(output);
   }
 
-  async function execute(tool, values) {
+  async function execute(tool, values, files = state.files) {
     let note = "";
     const bytes = tool.run
       ? await tool.run({
-        files: state.files,
+        files,
         values,
         engine: callEngine,
         engineGet,
-        form: () => buildForm(values),
+        form: () => buildForm(values, files),
         htmlToPdf,
         office,
         note: (text) => { note = text; },
       })
-      : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values));
+      : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));
     return { bytes, note };
+  }
+
+  /** Runs the tool once per file; results and a report are kept for a ZIP or a folder. */
+  async function executeBatch(tool, values, onProgress) {
+    const primary = tool.files[0].name;
+    const inputs = state.files[primary];
+    const outputs = [];
+    const rows = [];
+    const taken = new Set();
+    for (let i = 0; i < inputs.length; i++) {
+      onProgress(i + 1, inputs.length);
+      const input = inputs[i];
+      const files = { ...state.files, [primary]: [input] };
+      const started = Date.now();
+      try {
+        const { bytes, note } = await execute(tool, values, files);
+        let name = outputName(bytes, files);
+        for (let n = 2; taken.has(name.toLowerCase()); n++) name = outputName(bytes, files).replace(/(\.[^.]+)?$/, ` (${n})$1`);
+        taken.add(name.toLowerCase());
+        outputs.push({ name, data: bytes });
+        rows.push([input.name, "Başarılı", name, String(bytes.length), ((Date.now() - started) / 1000).toFixed(1), note]);
+      } catch (err) {
+        rows.push([input.name, "Hata", "", "", ((Date.now() - started) / 1000).toFixed(1), errorText(err)]);
+      }
+    }
+    // Excel runs cells that start with =, +, - or @ as formulas.
+    const cell = (raw) => {
+      const value = /^[=+\-@]/.test(raw) ? "'" + raw : raw;
+      return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+    };
+    const report = "\uFEFF" + [["Dosya", "Durum", "Çıktı", "Boyut (bayt)", "Süre (sn)", "Not"], ...rows]
+      .map((row) => row.map(cell).join(";")).join("\r\n") + "\r\n";
+    return { outputs, report: new TextEncoder().encode(report), failed: rows.filter((row) => row[1] === "Hata").length };
   }
 
   async function runTool(event) {
@@ -712,12 +761,17 @@
     updateRunButton();
     const started = Date.now();
     try {
+      if (state.batch && state.files[tool.files[0].name].length > 1) {
+        await runBatch(tool, values, started);
+        return;
+      }
       const { bytes, note } = await execute(tool, values);
       if (state.tool !== tool) return;
       state.result = { bytes, name: outputName(bytes) };
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
       $("resultText").textContent = `Hazır: ${state.result.name} (${formatSize(bytes.length)}, ${seconds} sn)${note ? ". " + note : ""}`;
       $("continue").hidden = outputExtension(bytes) !== "pdf";
+      $("saveFolder").hidden = true;
       $("result").hidden = false;
       $("tabResult").disabled = false;
       setTab("result");
@@ -726,6 +780,52 @@
     } finally {
       state.busy = false;
       updateRunButton();
+    }
+  }
+
+  const REPORT_NAME = "islem-raporu.csv";
+
+  async function runBatch(tool, values, started) {
+    const { outputs, report, failed } = await executeBatch(tool, values, (n, total) => {
+      $("run").textContent = `İşleniyor… ${n}/${total}`;
+    });
+    if (state.tool !== tool) return;
+    const total = outputs.length + failed;
+    const zip = window.SecuriFormats.zipStore(outputs.concat([{ name: REPORT_NAME, data: report }]));
+    const preview = outputs.find((output) => outputExtension(output.data) === "pdf");
+    state.result = {
+      bytes: zip,
+      name: `toplu_${tool.suffix || tool.id}.zip`,
+      outputs,
+      report,
+      preview: preview && { data: preview.data, name: preview.name },
+    };
+    const seconds = ((Date.now() - started) / 1000).toFixed(1);
+    $("resultText").textContent = `${total} dosyadan ${outputs.length} tanesi hazır${failed ? `, ${failed} tanesinde hata var (ayrıntı ${REPORT_NAME} içinde)` : ""} (${seconds} sn).`;
+    $("continue").hidden = true;
+    $("saveFolder").hidden = !outputs.length;
+    $("save").textContent = "ZIP olarak kaydet…";
+    $("result").hidden = false;
+    $("tabResult").disabled = !preview;
+    if (preview) setTab("result");
+  }
+
+  async function saveToFolder() {
+    if (!state.result || !state.result.outputs) return;
+    const button = $("saveFolder");
+    button.disabled = true;
+    try {
+      const folder = await core.invoke("choose_output_folder");
+      if (!folder) return;
+      const files = state.result.outputs.concat([{ name: REPORT_NAME, data: state.result.report }]);
+      for (const file of files) {
+        await core.invoke("save_into_folder", file.data, { headers: { "x-securipdf-file-name": encodeURIComponent(file.name) } });
+      }
+      $("resultText").textContent = `${state.result.outputs.length} dosya ve işlem raporu kaydedildi: ${folder}`;
+    } catch (err) {
+      $("formError").textContent = errorText(err);
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -784,6 +884,14 @@
   $("splashSkip").addEventListener("click", hideSplash);
   $("save").addEventListener("click", saveResult);
   $("continue").addEventListener("click", continueWithResult);
+  $("saveFolder").addEventListener("click", saveToFolder);
+  $("batch").addEventListener("change", (event) => {
+    state.batch = event.target.checked;
+    const primary = state.tool.files[0].name;
+    if (!state.batch) state.files[primary] = state.files[primary].slice(0, 1);
+    clearResult();
+    renderFiles();
+  });
   $("tabSource").addEventListener("click", () => setTab("source"));
   $("tabResult").addEventListener("click", () => { if (state.result) setTab("result"); });
   $("search").addEventListener("input", (event) => renderToolList(event.target.value));

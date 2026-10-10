@@ -298,7 +298,7 @@ fn output_path(out: Option<&Path>, first_input: Option<&Path>, name: &str) -> Pa
 }
 
 /// Without `--out` the result goes next to the input and must not replace anything.
-fn unused_path(path: &Path) -> PathBuf {
+pub(crate) fn unused_path(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
     }

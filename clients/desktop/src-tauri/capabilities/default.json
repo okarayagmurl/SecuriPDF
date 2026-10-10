@@ -8,6 +8,8 @@
     "allow-run-local-tool",
     "allow-local-engine-get",
     "allow-save-output",
+    "allow-choose-output-folder",
+    "allow-save-into-folder",
     "allow-take-opened-files",
     "allow-read-opened-file",
     "allow-html-to-pdf",

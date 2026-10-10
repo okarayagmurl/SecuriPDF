@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-into-folder"
+description = "Enables the save_into_folder command without any pre-configured scope."
+commands.allow = ["save_into_folder"]
+
+[[permission]]
+identifier = "deny-save-into-folder"
+description = "Denies the save_into_folder command without any pre-configured scope."
+commands.deny = ["save_into_folder"]

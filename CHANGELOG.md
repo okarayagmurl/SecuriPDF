@@ -15,6 +15,7 @@
 - Windows uygulaması metinleri, düzenli ifadeleri ve kişisel verileri (TC kimlik no, IBAN, e-posta, telefon, kart numarası) kalıcı olarak karartır
 - Windows uygulamasında taranmış belgelerin OCR sonrası sayfa boyutu 7 kat büyüyordu; düzeltildi (`fetch-engine.ps1` yeniden çalıştırılmalı)
 - Windows uygulaması PDF'i Windows sertifika deposundaki sertifikayla (e-imza kartları dahil), PKCS#11 token, PFX/P12 veya PEM ile imzalar; zaman damgası ekler, imzaları doğrulayıp rapor üretir ve imzaları kaldırır
+- Windows uygulaması bir aracı birden çok dosyaya uygular; sonuçları ZIP olarak veya bir klasöre kaydeder ve CSV işlem raporu üretir
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

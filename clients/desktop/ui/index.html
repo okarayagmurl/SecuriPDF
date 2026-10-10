@@ -36,6 +36,7 @@
         <h1 id="toolTitle"></h1>
         <p class="lead" id="toolDescription"></p>
         <form id="toolForm" novalidate>
+          <label class="batch-toggle" id="batchToggle" hidden><input type="checkbox" id="batch"> Birden çok dosyaya uygula (toplu işlem)</label>
           <div id="fileInputs"></div>
           <div id="fields" class="fields"></div>
           <p class="error" id="formError" role="alert"></p>
@@ -45,6 +46,7 @@
           <p id="resultText"></p>
           <div class="result-actions">
             <button id="save" type="button" class="primary">Kaydet…</button>
+            <button id="saveFolder" type="button" class="secondary" hidden>Klasöre kaydet…</button>
             <button id="continue" type="button" class="secondary">Sonuçla devam et</button>
           </div>
         </div>

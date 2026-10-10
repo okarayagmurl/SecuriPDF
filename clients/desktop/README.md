@@ -21,6 +21,8 @@ Karartmada eşleşmeler PDF.js'in metin konumlarından bulunur (`textBoxes`, `ui
 
 Seçilen belge ve sonuç sağ tarafta önizlenir (PDF.js). Sayfa silme, çıkarma ve bölmede sayfalar küçük resimlere tıklanarak seçilir; çift tıklama sayfayı tam ekranda açar. Tam ekran görüntüleyicide (PDF.js görüntüleyici bileşeni) metin arama (Ctrl+F), sayfaya gitme, genişliğe/sayfaya sığdırma, yakınlaştırma ve döndürme vardır; vurgulama, serbest çizim ve metin notu eklenip "Kaydet" ile işaretlemeler PDF'e yazılarak `_isaretli.pdf` olarak kaydedilir. Sonuç kaydetmeden önce görülür ve "Sonuçla devam et" ile başka bir araca aktarılabilir. Uygulamayla açılan PDF (çift tıklama veya "Birlikte aç") doğrudan yüklenir.
 
+Tek dosyayla çalışan araçlarda "Birden çok dosyaya uygula" seçilirse her dosya aynı ayarlarla ayrı ayrı işlenir. Sonuçlar tek ZIP olarak veya seçilen klasöre kaydedilir; klasördeki dosyaların üzerine yazılmaz. Her iki durumda da hangi dosyanın başarılı olduğunu, çıktı adını, boyutu, süreyi ve hata nedenini gösteren `islem-raporu.csv` eklenir (Excel'de Türkçe karakterlerle açılır). Hatalı bir dosya diğerlerinin işlenmesini durdurmaz.
+
 ## Komut satırı ve Gezgin menüsü
 
 Betikler ve RPA robotları araçları pencere açmadan çalıştırabilir (`src/cli.rs`). Araç, arayüzdeki kodla gizli bir pencerede çalışır; sonuç aynıdır.
