@@ -24,11 +24,25 @@
     LOCAL_ENGINE_UNREACHABLE: "PDF motoruna ulaşılamadı. Uygulamayı kapatıp yeniden açın.",
     LOCAL_EMPTY_OUTPUT: "İşlem boş bir sonuç üretti.",
     LOCAL_BAD_REQUEST: "İstek oluşturulamadı.",
+    FORMAT_NOT_ZIP: "Dosya geçerli bir UDF belgesi değil.",
+    FORMAT_BAD_ZIP: "UDF dosyası bozuk veya desteklenmeyen biçimde sıkıştırılmış.",
+    FORMAT_UDF_NO_CONTENT: "UDF dosyasında belge içeriği (content.xml) bulunamadı.",
+    FORMAT_UDF_BAD_XML: "UDF belgesinin içeriği okunamadı.",
+    FORMAT_XML_BAD: "XML dosyası okunamadı; dosya bozuk olabilir.",
+    FORMAT_NOT_UBL: "Bu XML bir e-Fatura, e-Arşiv veya e-İrsaliye (UBL-TR) belgesi değil.",
+    FORMAT_XSLT_BAD: "Belgedeki görsel şablon (XSLT) okunamadı.",
+    FORMAT_NO_TEXT: "PDF'te metin bulunamadı. Taranmış bir belgeyse önce OCR uygulayın.",
+    PRINT_LOAD_TIMEOUT: "Belge sayfası zamanında yüklenmedi.",
+    PRINT_TIMEOUT: "PDF oluşturma zaman aşımına uğradı.",
+    PRINT_FAILED: "PDF oluşturulamadı.",
+    PRINT_BAD_PAGE: "Sayfa boyutu veya kenar boşlukları geçersiz.",
   };
 
   function errorText(err) {
     const code = typeof err === "string" ? err : (err && err.message) || String(err);
     if (ERRORS[code]) return ERRORS[code];
+    const prefixed = Object.keys(ERRORS).find((key) => code.startsWith(key + ":"));
+    if (prefixed) return ERRORS[prefixed];
     const http = /^LOCAL_HTTP_(\d+)$/.exec(code);
     if (http) {
       return Number(http[1]) >= 500
@@ -177,11 +191,17 @@
     updateRunButton();
   }
 
+  // Tools with their own `run` work in the UI and only need the engine when they say so.
+  function needsEngine(tool) {
+    return Boolean(tool && (!tool.run || tool.usesEngine));
+  }
+
   function updateRunButton() {
     const run = $("run");
-    run.disabled = state.busy || state.engine !== "ready";
-    run.textContent = state.busy ? "İşleniyor…" : state.engine === "ready" ? "Çalıştır" : "Motor hazırlanıyor…";
-    if (state.engine === "failed" || state.engine === "missing") {
+    const waiting = needsEngine(state.tool) && state.engine !== "ready";
+    run.disabled = state.busy || waiting;
+    run.textContent = state.busy ? "İşleniyor…" : waiting ? "Motor hazırlanıyor…" : "Çalıştır";
+    if (needsEngine(state.tool) && (state.engine === "failed" || state.engine === "missing")) {
       run.textContent = "Motor çalışmıyor";
       $("formError").textContent = ($("engine").title || "PDF motoru başlatılamadı.") +
         " Kayıt: %LOCALAPPDATA%\\net.entera.securipdf.desktop\\engine\\engine.log";
@@ -556,7 +576,7 @@
     const first = state.files[state.tool.files[0].name][0];
     const base = first.name.replace(/\.[^.]+$/, "") || "belge";
     const suffix = state.tool.suffix ? "_" + state.tool.suffix : "";
-    return `${base}${suffix}.${outputExtension(bytes)}`;
+    return `${base}${suffix}.${state.tool.outputExt || outputExtension(bytes)}`;
   }
 
   // Callers re-render files or the preview afterwards; refreshing here could
@@ -570,9 +590,25 @@
     $("tabResult").setAttribute("aria-selected", "false");
   }
 
+  async function callEngine(apiPath, form) {
+    const request = new Request("http://local.invalid/", { method: "POST", body: form });
+    const body = new Uint8Array(await request.arrayBuffer());
+    const output = await core.invoke("run_local_tool", body, {
+      headers: {
+        "x-securipdf-api-path": apiPath,
+        "x-securipdf-content-type": request.headers.get("content-type"),
+      },
+    });
+    return new Uint8Array(output);
+  }
+
+  async function htmlToPdf(html, page) {
+    return new Uint8Array(await core.invoke("html_to_pdf", { html, page }));
+  }
+
   async function runTool(event) {
     event.preventDefault();
-    if (state.busy || state.engine !== "ready") return;
+    if (state.busy || (needsEngine(state.tool) && state.engine !== "ready")) return;
     const values = readValues();
     await countSourcePages(values);
     if (state.busy) return;
@@ -581,26 +617,26 @@
     if (problem) return;
 
     const tool = state.tool;
-    const apiPath = typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath;
     state.busy = true;
     clearResult();
     refreshPreview();
     updateRunButton();
     const started = Date.now();
     try {
-      const request = new Request("http://local.invalid/", { method: "POST", body: buildForm(values) });
-      const body = new Uint8Array(await request.arrayBuffer());
-      const output = await core.invoke("run_local_tool", body, {
-        headers: {
-          "x-securipdf-api-path": apiPath,
-          "x-securipdf-content-type": request.headers.get("content-type"),
-        },
-      });
+      let note = "";
+      const bytes = tool.run
+        ? await tool.run({
+          files: state.files,
+          values,
+          engine: callEngine,
+          htmlToPdf,
+          note: (text) => { note = text; },
+        })
+        : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values));
       if (state.tool !== tool) return;
-      const bytes = new Uint8Array(output);
       state.result = { bytes, name: outputName(bytes) };
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
-      $("resultText").textContent = `Hazır: ${state.result.name} (${formatSize(bytes.length)}, ${seconds} sn)`;
+      $("resultText").textContent = `Hazır: ${state.result.name} (${formatSize(bytes.length)}, ${seconds} sn)${note ? ". " + note : ""}`;
       $("continue").hidden = outputExtension(bytes) !== "pdf";
       $("result").hidden = false;
       $("tabResult").disabled = false;
@@ -668,6 +704,9 @@
   $("search").addEventListener("input", (event) => renderToolList(event.target.value));
   document.addEventListener("dragover", (event) => event.preventDefault());
   document.addEventListener("drop", (event) => event.preventDefault());
+
+  // Read-only view used by the automated UI tests.
+  window.SecuriApp = { lastResult: () => state.result && { name: state.result.name, bytes: state.result.bytes.slice() } };
 
   selectTool(tools[0].id);
   pollEngine();

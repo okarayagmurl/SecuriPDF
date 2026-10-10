@@ -1,4 +1,5 @@
 mod engine;
+mod print;
 
 use engine::{is_local_api_path, Engine, EngineFiles, EngineStatus};
 use serde::Serialize;
@@ -67,7 +68,8 @@ pub fn run() {
             run_local_tool,
             save_output,
             take_opened_files,
-            read_opened_file
+            read_opened_file,
+            print::html_to_pdf
         ])
         .build(tauri::generate_context!())
         .expect("SecuriPDF başlatılamadı")

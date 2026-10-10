@@ -268,5 +268,47 @@ async function countPages(data, password) {
   }
 }
 
-window.SecuriPreview = { show, closeViewer, countPages };
+/** Text lines of every page: [{ text, size, pageBreakBefore }]. */
+async function textLines(data, password) {
+  const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(data), password: password || undefined });
+  try {
+    const doc = await task.promise;
+    const lines = [];
+    for (let number = 1; number <= doc.numPages; number++) {
+      const page = await doc.getPage(number);
+      const content = await page.getTextContent();
+      let line = null;
+      let lastY = null;
+      let lastEnd = null;
+      const flush = () => {
+        if (line) lines.push({ ...line, text: line.text.replace(/\s+$/, "") });
+        line = null;
+      };
+      for (const item of content.items) {
+        if (typeof item.str !== "string") continue;
+        const size = Math.hypot(item.transform[2], item.transform[3]) || item.height || 12;
+        const x = item.transform[4];
+        const y = item.transform[5];
+        if (line && lastY !== null && Math.abs(y - lastY) > size * 0.5) flush();
+        if (!line) {
+          line = { text: "", size, pageBreakBefore: number > 1 && !lines.some((l) => l.page === number), page: number };
+          lastEnd = null;
+        }
+        if (lastEnd !== null && item.str && !/\s$/.test(line.text) && x - lastEnd > size * 0.15) line.text += " ";
+        line.text += item.str;
+        line.size = Math.max(line.size, size);
+        lastY = y;
+        lastEnd = x + (item.width || 0);
+        if (item.hasEOL) flush();
+      }
+      flush();
+      page.cleanup();
+    }
+    return lines;
+  } finally {
+    task.destroy();
+  }
+}
+
+window.SecuriPreview = { show, closeViewer, countPages, textLines };
 window.dispatchEvent(new Event("securipreview-ready"));

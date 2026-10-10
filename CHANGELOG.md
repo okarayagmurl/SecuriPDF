@@ -7,6 +7,8 @@
 - Windows uygulaması belgeyi ve sonucu önizler; sayfa silme, çıkarma ve bölmede sayfalar küçük resimlerden seçilir
 - Windows uygulamasının PDF motoru yaklaşık 15-20 saniyede hazır olur
 - Windows uygulaması açılışta logoyu, sürümü ve motorun gerçek açılış ilerlemesini gösterir; beklerken dosya seçilebilir
+- Windows uygulaması UYAP UDF belgelerini PDF'e, PDF'teki metni UDF'e dönüştürür
+- Windows uygulaması e-Fatura, e-Arşiv ve e-İrsaliye XML dosyalarını belgedeki şablonla veya standart şablonla PDF'e dönüştürür
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

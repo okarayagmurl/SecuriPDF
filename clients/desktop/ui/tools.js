@@ -2,6 +2,8 @@
 (function () {
   const PDF = ".pdf,application/pdf";
   const IMAGES = ".jpg,.jpeg,.png,.gif,.bmp,.tif,.tiff,.webp,image/*";
+  const UDF = ".udf";
+  const XML = ".xml,text/xml,application/xml";
 
   const MARGINS = [
     { value: "small", label: "Küçük" },
@@ -408,6 +410,57 @@
         { name: "colorType", label: "Renk", type: "select", default: "color", options: COLOR_TYPES },
         { name: "autoRotate", label: "Görseli sayfaya göre otomatik döndür", type: "checkbox", default: false },
       ],
+    },
+    {
+      id: "udf-to-pdf",
+      category: "convert",
+      title: "UDF → PDF",
+      description: "UYAP Doküman Editörü belgesini (.udf) PDF'e dönüştürün. Yazı tipi, hizalama, tablo ve görseller korunur.",
+      suffix: "",
+      files: [{ name: "fileInput", label: "UDF dosyası", accept: UDF }],
+      fields: [],
+      async run({ files, htmlToPdf }) {
+        const bytes = new Uint8Array(await files.fileInput[0].arrayBuffer());
+        const { html, page } = await window.SecuriFormats.udfToHtml(bytes);
+        return htmlToPdf(html, page);
+      },
+    },
+    {
+      id: "pdf-to-udf",
+      category: "convert",
+      title: "PDF → UDF",
+      description: "PDF'teki metni UYAP Doküman Editörü belgesine (.udf) aktarın. Metin ve satırlar aktarılır; görseller ve tablo düzeni aktarılmaz.",
+      suffix: "",
+      outputExt: "udf",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "password", label: "PDF parolası (varsa)", type: "password", local: true },
+      ],
+      async run({ files, values }) {
+        const lines = await window.SecuriPreview.textLines(files.fileInput[0], values.password);
+        if (!lines.some((line) => line.text.trim())) throw new Error("FORMAT_NO_TEXT");
+        return window.SecuriFormats.linesToUdf(lines);
+      },
+    },
+    {
+      id: "einvoice-to-pdf",
+      category: "convert",
+      title: "e-Fatura XML → PDF",
+      description: "e-Fatura, e-Arşiv fatura veya e-İrsaliye XML dosyasını PDF'e dönüştürün. Belgede gömülü görsel şablon (XSLT) varsa o kullanılır.",
+      suffix: "",
+      files: [{ name: "fileInput", label: "XML dosyası", accept: XML }],
+      fields: [
+        { name: "template", label: "Görünüm", type: "select", local: true, default: "embedded", options: [
+          { value: "embedded", label: "Belgedeki şablon (yoksa standart)" },
+          { value: "standard", label: "SecuriPDF standart şablonu" },
+        ] },
+      ],
+      async run({ files, values, htmlToPdf, note }) {
+        const text = new TextDecoder("utf-8").decode(await files.fileInput[0].arrayBuffer());
+        const { html, page, template } = window.SecuriFormats.invoiceToHtml(text, values.template === "embedded");
+        if (values.template === "embedded" && template === "standard") note("Belgede şablon bulunamadı; standart şablon kullanıldı");
+        return htmlToPdf(html, page);
+      },
     },
   ];
 })();
