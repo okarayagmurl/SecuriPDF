@@ -24,6 +24,7 @@
 - Windows uygulamasının açılışında "motor" yerine "ön gereksinimler hazırlanıyor" yazılır; ilerleme çubuğu ilk karede görünür, kısa beyaz ekran kapanır
 - Windows uygulamasında kırpma önizlemede sürüklenerek seçilir; damga ve sayfa numarası konumu 3×3 ızgaradan, saydamlık ve açı kaydırıcıdan ayarlanır
 - Windows uygulamasının filigran aracına QR kod eklendi; kod belgede tekrarlanır, internet gerekmez
+- Windows uygulamasında karartma kutuları kelime kenarında boşluk bırakmayacak şekilde birleştirilir; görüntüleyicide vurgu rengi ve metin seçimi açılır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

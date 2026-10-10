@@ -197,6 +197,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     linkService,
     findController,
     annotationEditorMode: pdfjs.AnnotationEditorType.NONE,
+    annotationEditorHighlightColors: "yellow=#FFFF98,green=#53FFBC,blue=#80EBFF,pink=#FFCBE6,red=#FF4F5F",
+    enableHighlightFloatingButton: true,
     imageResourcesPath: "./vendor/pdfjs/web/images/",
   });
   linkService.setViewer(pdfViewer);
@@ -278,9 +280,20 @@ async function openViewer(source, pageNumber, title, options = {}) {
   eventBus.on("updatefindcontrolstate", showCount);
 
   const setMark = (mark) => {
-    pdfViewer.annotationEditorMode = { mode: mark.mode };
+    try {
+      pdfViewer.annotationEditorMode = { mode: mark.mode };
+    } catch {
+      return;
+    }
     markButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === String(mark.mode)));
     color.hidden = !mark.color;
+    if (mark.mode === pdfjs.AnnotationEditorType.HIGHLIGHT) {
+      eventBus.dispatch("switchannotationeditorparams", {
+        source: color,
+        type: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_FREE,
+        value: false,
+      });
+    }
     if (mark.color) {
       color.value = mark.current || mark.initial;
       eventBus.dispatch("switchannotationeditorparams", { source: color, type: mark.color, value: color.value });
@@ -653,6 +666,30 @@ function measureFamily(page, item, styles) {
   return `"${spaced}", "${name}", ${generic}`;
 }
 
+function boxesOverlap(a, b, pad) {
+  return a.x < b.x + b.width + pad && a.x + a.width + pad > b.x
+    && a.y < b.y + b.height + pad && a.y + a.height + pad > b.y;
+}
+
+/** Join touching boxes on a page so a split word does not leave a visible gap. */
+function mergeBoxes(boxes) {
+  const out = [];
+  boxes.slice().sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x).forEach((box) => {
+    const prev = out.find((other) => other.page === box.page && boxesOverlap(other, box, 3));
+    if (!prev) {
+      out.push({ ...box });
+      return;
+    }
+    const x = Math.min(prev.x, box.x);
+    const y = Math.min(prev.y, box.y);
+    prev.width = Math.max(prev.x + prev.width, box.x + box.width) - x;
+    prev.height = Math.max(prev.y + prev.height, box.y + box.height) - y;
+    prev.x = x;
+    prev.y = y;
+  });
+  return out;
+}
+
 /**
  * Boxes around every match of `patterns` (global RegExps), in points from the
  * top-left corner of the page as displayed: [{ page, x, y, width, height }].
@@ -712,13 +749,14 @@ async function textBoxes(data, patterns, password) {
               const along = Math.hypot(a, b) || 1;
               const up = Math.hypot(c, d) || item.height || 12;
               const width = item.width || 0;
-              const start = width * textRatio(item.str.slice(0, run.from), item.str, family);
-              const end = width * textRatio(item.str.slice(0, run.to + 1), item.str, family);
-              // Measured positions inside a run are estimates; a little extra
-              // cover is better than a visible edge of a redacted character.
-              const padStart = up * (run.from > 0 ? 0.3 : 0.1);
-              const padEnd = up * (run.to < item.str.length - 1 ? 0.3 : 0.1);
-              const corners = [[start - padStart, -0.25 * up], [end + padEnd, -0.25 * up], [start - padStart, 0.95 * up], [end + padEnd, 0.95 * up]]
+              const whole = run.from === 0 && run.to === item.str.length - 1;
+              const start = whole ? 0 : width * textRatio(item.str.slice(0, run.from), item.str, family);
+              const end = whole ? width : width * textRatio(item.str.slice(0, run.to + 1), item.str, family);
+              // Canvas widths are estimates; extra cover hides the unredacted edge
+              // that otherwise survives convert-to-image and later OCR.
+              const padStart = up * (whole || run.from === 0 ? 0.2 : 0.5);
+              const padEnd = up * (whole || run.to === item.str.length - 1 ? 0.2 : 0.5);
+              const corners = [[start - padStart, -0.4 * up], [end + padEnd, -0.4 * up], [start - padStart, 1.2 * up], [end + padEnd, 1.2 * up]]
                 .map(([dx, dy]) => viewport.convertToViewportPoint(e + (a / along) * dx + (c / up) * dy, f + (b / along) * dx + (d / up) * dy));
               const xs = corners.map((point) => point[0]);
               const ys = corners.map((point) => point[1]);
@@ -737,7 +775,7 @@ async function textBoxes(data, patterns, password) {
       }
       page.cleanup();
     }
-    return boxes;
+    return mergeBoxes(boxes);
   } finally {
     task.destroy();
   }
