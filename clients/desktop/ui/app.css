@@ -130,7 +130,7 @@ h1 { margin: 0 0 4px; font-size: 24px; }
 .lead { margin: 0 0 20px; color: var(--muted); }
 .privacy { margin-top: 32px; font-size: 13px; color: var(--muted); }
 
-input, select {
+input, select, textarea {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   padding: 7px 10px;
@@ -173,7 +173,8 @@ input[type="color"] { padding: 2px; width: 56px; height: 34px; }
 
 .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px 20px; }
 .field label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-.field input:not([type="checkbox"]):not([type="color"]), .field select { width: 100%; }
+.field input:not([type="checkbox"]):not([type="color"]), .field select, .field textarea { width: 100%; }
+.field textarea { resize: vertical; box-sizing: border-box; }
 .field.check label { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 .field .hint { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .field .refresh { margin-top: 6px; padding: 4px 10px; font-size: 12px; }

@@ -111,6 +111,9 @@ try {
     }
     $tessdata = New-Item -ItemType Directory -Path (Join-Path $engine "tessdata")
     Copy-Item (Join-Path $tessUnpacked "tessdata\configs") $tessdata -Recurse
+    # Stirling renders pages for OCR at system.maxDPI (500) into PNGs without a
+    # resolution; Tesseract would assume 70 DPI and make the pages 7x too big.
+    Add-Content -Encoding ASCII (Join-Path $tessdata "configs\pdf") "user_defined_dpi 500"
     Copy-Item (Join-Path $tessUnpacked "tessdata\pdf.ttf"), (Join-Path $tessUnpacked "tessdata\osd.traineddata") $tessdata
     foreach ($lang in $languages.Keys) {
         Move-Item (Join-Path $tmp "$lang.traineddata") $tessdata

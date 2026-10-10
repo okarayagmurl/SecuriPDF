@@ -479,5 +479,115 @@ async function textLines(data, password) {
   }
 }
 
-window.SecuriPreview = { show, closeViewer, countPages, textLines };
+let measureContext = null;
+
+/** Width of `text` relative to `whole`, so a match inside a text run gets its own box. */
+function textRatio(text, whole, family) {
+  if (!measureContext) measureContext = document.createElement("canvas").getContext("2d");
+  measureContext.font = `100px ${family}`;
+  const full = measureContext.measureText(whole).width;
+  return full ? measureContext.measureText(text).width / full : text.length / Math.max(whole.length, 1);
+}
+
+/** CSS font list that measures like the PDF font: the installed font of the same name, if any. */
+function measureFamily(page, item, styles) {
+  const generic = (styles[item.fontName] && styles[item.fontName].fontFamily) || "sans-serif";
+  const font = page.commonObjs.has(item.fontName) ? page.commonObjs.get(item.fontName) : null;
+  const name = font && typeof font.name === "string" ? font.name.replace(/^[A-Z]{6}\+/, "").split(/[,-]/)[0] : "";
+  if (!/^[A-Za-z0-9 ]+$/.test(name)) return generic;
+  const spaced = name.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/MT$|PS$/, "").trim();
+  return `"${spaced}", "${name}", ${generic}`;
+}
+
+/**
+ * Boxes around every match of `patterns` (global RegExps), in points from the
+ * top-left corner of the page as displayed: [{ page, x, y, width, height }].
+ */
+async function textBoxes(data, patterns, password) {
+  const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(data), password: password || undefined });
+  try {
+    const doc = await task.promise;
+    const boxes = [];
+    for (let number = 1; number <= doc.numPages; number++) {
+      const page = await doc.getPage(number);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      await page.getOperatorList();
+      // One string per line; `owners[i]` is the text run and offset of character i.
+      const lines = [];
+      let line = null;
+      let lastY = null;
+      let lastEnd = null;
+      for (const item of content.items) {
+        if (typeof item.str !== "string" || !item.str) continue;
+        const size = Math.hypot(item.transform[2], item.transform[3]) || item.height || 12;
+        const x = item.transform[4];
+        const y = item.transform[5];
+        if (!line || (lastY !== null && Math.abs(y - lastY) > size * 0.5)) {
+          line = { text: "", owners: [] };
+          lines.push(line);
+          lastEnd = null;
+        }
+        if (lastEnd !== null && !/\s$/.test(line.text) && x - lastEnd > size * 0.15) {
+          line.text += " ";
+          line.owners.push(null);
+        }
+        for (let i = 0; i < item.str.length; i++) line.owners.push({ item, index: i });
+        line.text += item.str;
+        lastY = y;
+        lastEnd = x + (item.width || 0);
+        if (item.hasEOL) line = null;
+      }
+      for (const { text, owners } of lines) {
+        for (const pattern of patterns) {
+          pattern.lastIndex = 0;
+          let match;
+          while ((match = pattern.exec(text))) {
+            if (!match[0]) { pattern.lastIndex++; continue; }
+            const runs = new Map();
+            for (let i = match.index; i < match.index + match[0].length; i++) {
+              const owner = owners[i];
+              if (!owner) continue;
+              const run = runs.get(owner.item) || { from: owner.index, to: owner.index };
+              run.to = owner.index;
+              runs.set(owner.item, run);
+            }
+            for (const [item, run] of runs) {
+              const family = measureFamily(page, item, content.styles);
+              const [a, b, c, d, e, f] = item.transform;
+              const along = Math.hypot(a, b) || 1;
+              const up = Math.hypot(c, d) || item.height || 12;
+              const width = item.width || 0;
+              const start = width * textRatio(item.str.slice(0, run.from), item.str, family);
+              const end = width * textRatio(item.str.slice(0, run.to + 1), item.str, family);
+              // Measured positions inside a run are estimates; a little extra
+              // cover is better than a visible edge of a redacted character.
+              const padStart = up * (run.from > 0 ? 0.3 : 0.1);
+              const padEnd = up * (run.to < item.str.length - 1 ? 0.3 : 0.1);
+              const corners = [[start - padStart, -0.25 * up], [end + padEnd, -0.25 * up], [start - padStart, 0.95 * up], [end + padEnd, 0.95 * up]]
+                .map(([dx, dy]) => viewport.convertToViewportPoint(e + (a / along) * dx + (c / up) * dy, f + (b / along) * dx + (d / up) * dy));
+              const xs = corners.map((point) => point[0]);
+              const ys = corners.map((point) => point[1]);
+              const left = Math.max(0, Math.min(...xs));
+              const top = Math.max(0, Math.min(...ys));
+              boxes.push({
+                page: number,
+                x: left,
+                y: top,
+                width: Math.min(viewport.width, Math.max(...xs)) - left,
+                height: Math.min(viewport.height, Math.max(...ys)) - top,
+              });
+            }
+          }
+        }
+      }
+      page.cleanup();
+    }
+    return boxes;
+  } finally {
+    task.destroy();
+  }
+}
+
+window.SecuriPreview = { show, closeViewer, countPages, textLines, textBoxes };
 window.dispatchEvent(new Event("securipreview-ready"));

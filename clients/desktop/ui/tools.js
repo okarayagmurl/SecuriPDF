@@ -41,6 +41,57 @@
     return (capabilities.detectedLibraries || []).map((lib) => ({ value: lib.path, label: `${lib.name} (${lib.path})` }));
   }
 
+  // Personal data that is common in Turkish documents.
+  const REDACT_PRESETS = {
+    tckn: /(?<!\d)[1-9]\d{10}(?!\d)/gu,
+    iban: /TR\s?\d{2}(?:\s?\d{4}){5}\s?\d{2}/giu,
+    email: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gu,
+    phone: /(?<!\d)(?:\+90|0)?\s?\(?5\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}(?!\d)/gu,
+    card: /(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)/gu,
+  };
+
+  /** Global RegExps for the form values; throws when a regular expression is invalid. */
+  function redactPatterns(v) {
+    const escape = (text) => text.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&");
+    // JavaScript does not fold the Turkish dotted and dotless i into each other.
+    const turkishI = (pattern) => pattern.replace(/[iİıI]/g, "[iİıI]");
+    const words = v.words.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+      let source = v.regex ? line : escape(line);
+      if (v.ignoreCase && !v.regex) source = turkishI(source);
+      if (v.wholeWord) source = `(?<![\\p{L}\\p{N}])(?:${source})(?![\\p{L}\\p{N}])`;
+      try {
+        return new RegExp(source, v.ignoreCase ? "giu" : "gu");
+      } catch {
+        throw new Error(`Düzenli ifade geçersiz: ${line}`);
+      }
+    });
+    return words.concat(v.presets.map((key) => new RegExp(REDACT_PRESETS[key])));
+  }
+
+  // The engine's own text search misplaces boxes and leaves text behind, so
+  // the matches are located with PDF.js and the engine only paints the boxes
+  // and turns the pages into images, which removes the text underneath.
+  async function redact({ files, values, engine, note }) {
+    const file = files.fileInput[0];
+    const boxes = await window.SecuriPreview.textBoxes(file, redactPatterns(values));
+    if (!boxes.length) throw new Error("Aranan metinler belgede bulunamadı. Taranmış bir belgeyse önce OCR uygulayın.");
+    const form = new FormData();
+    form.append("fileInput", file, file.name);
+    form.append("redactions", JSON.stringify(boxes.map((box) => ({ ...box, color: values.redactColor }))));
+    form.append("convertPDFToImage", "true");
+    let bytes = await engine("/api/v1/security/redact", form);
+    if (values.ocr) {
+      const ocr = new FormData();
+      ocr.append("fileInput", new File([bytes], file.name, { type: "application/pdf" }), file.name);
+      ["tur", "eng"].forEach((language) => ocr.append("languages", language));
+      Object.entries({ ocrType: "skip-text", ocrRenderType: "hocr", deskew: "false", clean: "false", cleanFinal: "false", sidecar: "false", removeImagesAfter: "false" })
+        .forEach(([key, value]) => ocr.append(key, value));
+      bytes = await engine("/api/v1/misc/ocr-pdf", ocr);
+    }
+    note(`${boxes.length} alan karartıldı`);
+    return bytes;
+  }
+
   function signError(status, detail) {
     if (/CertificateExpired/i.test(detail)) return "Seçilen sertifikanın süresi dolmuş.";
     if (/CertificateNotYetValid/i.test(detail)) return "Seçilen sertifika henüz geçerli değil.";
@@ -398,6 +449,40 @@
       suffix: "parolasiz",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [{ name: "password", label: "Parola", type: "password", required: true }],
+    },
+    {
+      id: "redact",
+      category: "security",
+      title: "Karartma",
+      description: "Belirttiğiniz metinleri ve kişisel verileri (TC kimlik no, IBAN, e-posta, telefon, kart numarası) kalıcı olarak karartın. Sayfalar görsele çevrilir; karartılan bilgi belgede hiçbir biçimde kalmaz.",
+      suffix: "karartilmis",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "presets", label: "Kişisel veriler", type: "checks", local: true, default: [], options: [
+          { value: "tckn", label: "TC kimlik no" },
+          { value: "iban", label: "IBAN" },
+          { value: "email", label: "E-posta" },
+          { value: "phone", label: "Cep telefonu" },
+          { value: "card", label: "Kart numarası" },
+        ] },
+        { name: "words", label: "Karartılacak metinler", type: "textarea", local: true, placeholder: "Ahmet Yılmaz\nGizli Proje",
+          hint: "Her satıra bir metin yazın." },
+        { name: "ignoreCase", label: "Büyük/küçük harfe duyarsız", type: "checkbox", local: true, default: true },
+        { name: "wholeWord", label: "Yalnızca tam kelimeler", type: "checkbox", local: true, default: false },
+        { name: "regex", label: "Satırları düzenli ifade (regex) olarak yorumla", type: "checkbox", local: true, default: false },
+        { name: "redactColor", label: "Kutu rengi", type: "color", local: true, default: "#000000" },
+        { name: "ocr", label: "Karartmadan sonra metni yeniden tanı (OCR)", type: "checkbox", local: true, default: false,
+          hint: "Görsele çevrilen sayfalar Türkçe ve İngilizce OCR ile yeniden aranabilir olur; karartılan alanlar tanınmaz. İşlem uzar." },
+      ],
+      validate: (v) => {
+        try {
+          return redactPatterns(v).length ? null : "Karartılacak bir metin yazın veya kişisel veri türü seçin.";
+        } catch (err) {
+          return err.message;
+        }
+      },
+      usesEngine: true,
+      run: redact,
     },
     {
       id: "cert-sign",

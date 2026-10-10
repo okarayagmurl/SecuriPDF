@@ -370,6 +370,9 @@
           el("input", { type: "checkbox", value: option.value, checked: (field.default || []).includes(option.value) }),
           document.createTextNode(option.label),
         ])));
+      } else if (field.type === "textarea") {
+        input = el("textarea", { id, name: field.name, rows: field.rows || 4, placeholder: field.placeholder, spellcheck: "false" });
+        input.value = field.default || "";
       } else {
         input = el("input", {
           id,
