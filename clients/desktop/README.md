@@ -6,10 +6,11 @@ Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server J
 
 - Düzenle: birleştir, böl (sayfa, sayı/boyut, bölüm), bindir, düzleştir
 - Metin tanıma: OCR ile aranabilir PDF (Türkçe, İngilizce)
-- Sayfalar: döndür, sil, çıkar, sırala, ölçekle, kırp, çok sayfa düzeni, tek sayfa, sayfa numarası
-- Güvenlik: damga, parola ekle, parola kaldır, karartma (metin, düzenli ifade, TC kimlik no, IBAN, e-posta, telefon, kart numarası)
+- Sayfalar: döndür, sil, çıkar, sırala, ölçekle, kırp, çok sayfa düzeni, tek sayfa, sayfa numarası, kitapçık
+- Güvenlik: damga, filigran (metin veya görsel), parola ekle (AES-256), parola kaldır, karartma (metin, düzenli ifade, TC kimlik no, IBAN, e-posta, telefon, kart numarası)
 - E-imza: dijital imza (Windows sertifika deposu, PKCS#11 akıllı kart/token, PFX/P12, PEM), RFC 3161 zaman damgası, imza doğrulama raporu, imzaları kaldırma
-- Dönüştür: PDF'ten görsele, görselden PDF'e, UYAP UDF'ten PDF'e, PDF'ten UDF'e (yalnızca metin), e-Fatura / e-Arşiv / e-İrsaliye XML'inden PDF'e, Word / Excel / PowerPoint'ten PDF veya PDF/A'ya, PDF'ten Word'e
+- Dönüştür: PDF'ten görsele (PNG, JPEG, WebP, GIF, BMP), görselden PDF'e, PDF'ten Excel / CSV / metne, PDF'ten PDF/A'ya, UYAP UDF'ten PDF'e, PDF'ten UDF'e (yalnızca metin), e-Fatura / e-Arşiv / e-İrsaliye XML'inden PDF'e, Word / Excel / PowerPoint'ten PDF veya PDF/A'ya, PDF'ten Word'e
+- Optimize: sıkıştır, üstveri düzenle, boş sayfa sil, onar, temizle, görselleri çıkar
 
 UDF ve e-Fatura dönüşümleri motoru kullanmaz: belge arayüzde HTML olarak dizilir ve WebView2'nin yazdırma motoruyla PDF'e çevrilir (`src/print.rs`), böylece metin seçilebilir kalır. Bu sayfalarda betik çalıştırılmaz. e-Fatura'da belgeye gömülü XSLT şablonu varsa o, yoksa SecuriPDF standart şablonu kullanılır.
 
@@ -35,7 +36,9 @@ securipdf-desktop.exe --tool office-to-pdf --set format=pdfa --json --silent rap
 
 `--out` verilmezse sonuç girdinin yanına yazılır ve var olan dosyanın üzerine yazılmaz (`ad (2).pdf`). `--set ad=değer` araç ayarlarını verir; ayar adları ve geçerli değerler `--list-tools --json` çıktısındadır. `--json` sonucu tek satır JSON yazar, `--silent` hata penceresini kapatır. Çıkış kodları: 0 başarılı, 1 araç hatası, 2 kullanım hatası, 3 PDF motoru açılamadı, 4 girdi okunamadı, 5 çıktı yazılamadı, 6 zaman aşımı (30 dk). Motor yalnızca gereken araçlarda, ayrı bir çalışma klasöründe açılır ve işten sonra kapanır. Aynı anda başlatılan komutlar sırayla çalışır. Uygulama bir Windows (GUI) programı olduğundan komut isteminde `start "" /wait securipdf-desktop.exe ...`, PowerShell'de `Start-Process ... -Wait -PassThru` ile beklenir; çıktı yönlendirildiğinde (robotlar, `| Out-String`) doğrudan okunur.
 
-Üst çubuktaki "Gezgin sağ tık menüsü" kutusu PDF, Office ve UDF dosyalarına bir "SecuriPDF" alt menüsü ekler (OCR, Word'e, UDF'e, PDF'e dönüştür). Kayıtlar yönetici izni gerektirmeyen `HKCU\Software\Classes\SystemFileAssociations` altındadır; kutu kapatılınca ve uygulama kaldırılınca (`windows/hooks.nsh`) silinir.
+Üst çubuktaki "Gezgin sağ tık menüsü" kutusu PDF, Office ve UDF dosyalarına bir "SecuriPDF" alt menüsü ekler (OCR, Word'e, UDF'e, PDF'e, PDF/A'ya dönüştür, sıkıştır). Kayıtlar yönetici izni gerektirmeyen `HKCU\Software\Classes\SystemFileAssociations` altındadır; kutu kapatılınca ve uygulama kaldırılınca (`windows/hooks.nsh`) silinir.
+
+Onarma ve kayıpsız sıkıştırma için qpdf 12.4.2 paketlenir (`fetch-engine.ps1`). Onarma motora bırakılmaz; uygulama qpdf'i doğrudan çalıştırır (`src/qpdf.rs`). Ghostscript gerektiren sıkıştırma düzeyleri (6–9) paketlenmez.
 
 Motor yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. Açılış, derleme sırasında üretilen Java AOT önbelleği sayesinde yaklaşık 15-20 saniyedir; bu sırada dosya seçilip önizlenebilir. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
 

@@ -109,6 +109,7 @@
     { id: "security", title: "Güvenlik" },
     { id: "sign", title: "E-imza" },
     { id: "convert", title: "Dönüştür" },
+    { id: "optimize", title: "Optimize" },
   ];
 
   window.SECURIPDF_TOOLS = [
@@ -417,6 +418,36 @@
       constants: { stampType: "text", alphabet: "roman", overrideX: "-1", overrideY: "-1" },
     },
     {
+      id: "add-watermark",
+      category: "security",
+      title: "Filigran",
+      description: "Sayfalara tekrarlanan metin veya görsel filigran ekleyin.",
+      apiPath: "/api/v1/security/add-watermark",
+      suffix: "filigranli",
+      files: [
+        { name: "fileInput", label: "PDF dosyası", accept: PDF },
+        { name: "watermarkImage", label: "Filigran görseli", accept: IMAGES, showIf: { watermarkType: "image" } },
+      ],
+      fields: [
+        { name: "watermarkType", label: "Tür", type: "select", default: "text", options: [
+          { value: "text", label: "Metin" },
+          { value: "image", label: "Görsel" },
+        ] },
+        { name: "watermarkText", label: "Filigran metni", type: "text", default: "GİZLİ",
+          showIf: { watermarkType: "text" }, required: true },
+        { name: "fontSize", label: "Yazı boyutu", type: "number", default: 30, min: 4, max: 200,
+          showIf: { watermarkType: "text" } },
+        { name: "customColor", label: "Renk", type: "color", default: "#808080",
+          showIf: { watermarkType: "text" } },
+        { name: "rotation", label: "Açı (derece)", type: "number", default: 45, min: -360, max: 360 },
+        { name: "opacity", label: "Saydamlık (0-1)", type: "number", default: 0.3, min: 0, max: 1, step: 0.05 },
+        { name: "widthSpacer", label: "Yatay aralık", type: "number", default: 50, min: 0, max: 400 },
+        { name: "heightSpacer", label: "Dikey aralık", type: "number", default: 50, min: 0, max: 400 },
+        { name: "convertPDFToImage", label: "Sayfaları görsele çevir (filigran kaldırılamaz)", type: "checkbox", default: false },
+      ],
+      constants: { alphabet: "roman" },
+    },
+    {
       id: "add-password",
       category: "security",
       title: "Parola Ekle",
@@ -605,6 +636,7 @@
           { value: "jpeg", label: "JPEG" },
           { value: "webp", label: "WebP" },
           { value: "gif", label: "GIF" },
+          { value: "bmp", label: "BMP" },
         ] },
         { name: "singleOrMultiple", label: "Çıktı", type: "select", default: "multiple", options: [
           { value: "multiple", label: "Her sayfa ayrı görsel" },
@@ -709,6 +741,184 @@
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [],
       run: ({ files, office }) => office(files.fileInput[0], "docx"),
+    },
+    {
+      id: "pdf-to-excel",
+      category: "convert",
+      title: "PDF → Excel",
+      description: "PDF'teki tabloları Excel çalışma kitabına (.xlsx) aktarın.",
+      apiPath: "/api/v1/convert/pdf/xlsx",
+      suffix: "",
+      outputExt: "xlsx",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [{ name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint, pagePicker: true }],
+    },
+    {
+      id: "pdf-to-csv",
+      category: "convert",
+      title: "PDF → CSV",
+      description: "PDF'teki tabloları CSV olarak çıkarın.",
+      apiPath: "/api/v1/convert/pdf/csv",
+      suffix: "",
+      outputExt: "csv",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [{ name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint, pagePicker: true }],
+    },
+    {
+      id: "pdf-to-text",
+      category: "convert",
+      title: "PDF → Metin",
+      description: "PDF'teki metni düz metin dosyasına aktarın.",
+      apiPath: "/api/v1/convert/pdf/text",
+      suffix: "",
+      outputExt: "txt",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+      constants: { outputFormat: "txt" },
+    },
+    {
+      id: "pdf-to-pdfa",
+      category: "convert",
+      title: "PDF → PDF/A",
+      description: "PDF'i arşiv biçimine (PDF/A) dönüştürün.",
+      apiPath: "/api/v1/convert/pdf/pdfa",
+      suffix: "pdfa",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "outputFormat", label: "Biçim", type: "select", default: "pdfa-2b", options: [
+          { value: "pdfa-1", label: "PDF/A-1b" },
+          { value: "pdfa-2b", label: "PDF/A-2b" },
+          { value: "pdfa-3b", label: "PDF/A-3b" },
+        ] },
+      ],
+      constants: { strict: "false" },
+    },
+    {
+      id: "compress-pdf",
+      category: "optimize",
+      title: "Sıkıştır",
+      description: "PDF boyutunu küçültün. Düşük düzeyler metni korur; yüksek düzeyler görselleri yeniden kodlar.",
+      apiPath: "/api/v1/misc/compress-pdf",
+      suffix: "sikistirilmis",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "optimizeLevel", label: "Düzey", type: "select", default: "4", options: [
+          { value: "1", label: "1 — kayıpsız (yapı)" },
+          { value: "2", label: "2 — kayıpsız (akışlar)" },
+          { value: "3", label: "3 — kayıpsız (nesneler)" },
+          { value: "4", label: "4 — görselleri yeniden kodla" },
+          { value: "5", label: "5 — daha küçük görseller" },
+        ] },
+        { name: "grayscale", label: "Gri tonlamaya çevir", type: "checkbox", default: false },
+        { name: "linearize", label: "Web için doğrusal hale getir", type: "checkbox", default: false },
+      ],
+    },
+    {
+      id: "update-metadata",
+      category: "optimize",
+      title: "Üstveri",
+      description: "PDF başlığı, yazarı, konusu ve anahtar kelimelerini düzenleyin veya tümünü silin.",
+      apiPath: "/api/v1/misc/update-metadata",
+      suffix: "ustveri",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "deleteAll", label: "Tüm üstveriyi sil", type: "checkbox", default: false },
+        { name: "title", label: "Başlık", type: "text", showIf: { deleteAll: false } },
+        { name: "author", label: "Yazar", type: "text", showIf: { deleteAll: false } },
+        { name: "subject", label: "Konu", type: "text", showIf: { deleteAll: false } },
+        { name: "keywords", label: "Anahtar kelimeler", type: "text", showIf: { deleteAll: false } },
+      ],
+    },
+    {
+      id: "remove-blanks",
+      category: "optimize",
+      title: "Boş Sayfa Sil",
+      description: "Beyaz veya neredeyse boş sayfaları belgeden çıkarın.",
+      suffix: "bosluksuz",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "threshold", label: "Beyaz eşiği (0-255)", type: "number", default: 10, min: 0, max: 255 },
+        { name: "whitePercent", label: "Beyaz oranı (%)", type: "number", default: 99.9, min: 50, max: 100, step: 0.1 },
+      ],
+      usesEngine: true,
+      async run({ form, engine, note }) {
+        const zip = await engine("/api/v1/misc/remove-blanks", form());
+        const entries = await window.SecuriFormats.zipEntries(zip);
+        const kept = entries.find((entry) => /nonBlank|non-blank|_processed/i.test(entry.name) && entry.data[0] === 0x25)
+          || entries.find((entry) => entry.data[0] === 0x25);
+        if (!kept) throw new Error("Boş olmayan sayfa kalmadı.");
+        const blanks = entries.find((entry) => /blank/i.test(entry.name) && !/nonBlank|non-blank/i.test(entry.name));
+        if (blanks) {
+          const count = await window.SecuriPreview.countPages(new File([blanks.data], "blank.pdf"));
+          if (count) note(`${count} boş sayfa silindi`);
+        }
+        return kept.data;
+      },
+    },
+    {
+      id: "repair-pdf",
+      category: "optimize",
+      title: "Onar",
+      description: "Hasarlı veya kesik PDF yapısını onarın. Ağır hasarlı belgeler açılamayabilir.",
+      suffix: "onarilmis",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+      run: ({ files, repair }) => repair(files.fileInput[0]),
+    },
+    {
+      id: "sanitize-pdf",
+      category: "optimize",
+      title: "Temizle",
+      description: "JavaScript, gömülü dosya, bağlantı ve üstveriyi belgeden çıkarın.",
+      apiPath: "/api/v1/security/sanitize-pdf",
+      suffix: "temiz",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "removeJavaScript", label: "JavaScript'i kaldır", type: "checkbox", default: true },
+        { name: "removeEmbeddedFiles", label: "Gömülü dosyaları kaldır", type: "checkbox", default: true },
+        { name: "removeLinks", label: "Bağlantıları kaldır", type: "checkbox", default: true },
+        { name: "removeMetadata", label: "Üstveriyi kaldır", type: "checkbox", default: true },
+        { name: "removeXMPMetadata", label: "XMP üstverisini kaldır", type: "checkbox", default: true },
+        { name: "removeFonts", label: "Gömülü yazı tiplerini kaldır", type: "checkbox", default: false,
+          hint: "Yazı tipleri kaldırılırsa metin başka bir bilgisayarda bozulabilir." },
+      ],
+    },
+    {
+      id: "extract-images",
+      category: "optimize",
+      title: "Görselleri Çıkar",
+      description: "PDF'e gömülü görselleri ayrı dosyalar olarak çıkarın. Birden çok görsel ZIP olarak kaydedilir.",
+      apiPath: "/api/v1/misc/extract-images",
+      suffix: "gorseller",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "format", label: "Biçim", type: "select", default: "png", options: [
+          { value: "png", label: "PNG" },
+          { value: "jpeg", label: "JPEG" },
+          { value: "gif", label: "GIF" },
+        ] },
+      ],
+    },
+    {
+      id: "booklet",
+      category: "pages",
+      title: "Kitapçık",
+      description: "Sayfaları katlanıp ciltlenecek kitapçık düzenine yerleştirin (2 sayfa / yaprak).",
+      apiPath: "/api/v1/general/booklet-imposition",
+      suffix: "kitapcik",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "spineLocation", label: "Sırt", type: "select", default: "LEFT", options: [
+          { value: "LEFT", label: "Sol (soldan sağa)" },
+          { value: "RIGHT", label: "Sağ (sağdan sola)" },
+        ] },
+        { name: "doubleSided", label: "Çift taraflı yazdırma", type: "checkbox", default: true },
+        { name: "addGutter", label: "Cilt payı ekle", type: "checkbox", default: false },
+        { name: "gutterSize", label: "Cilt payı (punto)", type: "number", default: 12, min: 0, max: 72,
+          showIf: { addGutter: true } },
+        { name: "addBorder", label: "Kesim çizgisi ekle", type: "checkbox", default: false },
+      ],
+      constants: { pagesPerSheet: "2", duplexPass: "BOTH", flipOnShortEdge: "false" },
     },
   ];
 })();

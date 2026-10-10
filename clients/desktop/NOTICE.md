@@ -18,6 +18,10 @@ Kurulum dosyasına şu üçüncü taraf bileşenler eklenir:
   GCC çalışma zamanı (libgcc, libstdc++: GPLv3 ve GCC Runtime Library
   Exception), winpthreads (MIT). LGPL bileşenleri değiştirilmeden, ayrı DLL
   olarak dağıtılır.
+- qpdf 12.4.2 (Windows MSVC derlemesi): Apache License 2.0, Artifex. PDF onarma
+  ve kayıpsız sıkıştırma için paketlenir (`qpdf.exe`, `qpdf30.dll` ve Visual C++
+  çalışma zamanı DLL'leri). Onarma motora bırakılmaz; uygulama qpdf'i doğrudan
+  çağırır (`src/qpdf.rs`).
 - PDF.js 6.4.299 (`ui/vendor/pdfjs`): Apache License 2.0; `wasm/` altındaki
   JBIG2, OpenJPEG ve QCMS çözücüleri kendi lisans dosyalarıyla birliktedir.
   Görüntüleyici bileşeni (`web/pdf_viewer.mjs`, CSS ve simgeler) aynı lisanstadır.

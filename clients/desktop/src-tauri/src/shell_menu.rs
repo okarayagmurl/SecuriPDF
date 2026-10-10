@@ -22,6 +22,8 @@ fn entries(ext: &str) -> &'static [Entry] {
         Entry { verb: "10ocr", label: "Metin tanıma (OCR)", tool: "ocr-pdf" },
         Entry { verb: "20word", label: "Word'e dönüştür", tool: "pdf-to-word" },
         Entry { verb: "30udf", label: "UDF'e dönüştür", tool: "pdf-to-udf" },
+        Entry { verb: "40compress", label: "Sıkıştır", tool: "compress-pdf" },
+        Entry { verb: "50pdfa", label: "PDF/A'ya dönüştür", tool: "pdf-to-pdfa" },
     ];
     const TO_PDF_OFFICE: &[Entry] = &[Entry { verb: "10pdf", label: "PDF'e dönüştür", tool: "office-to-pdf" }];
     const TO_PDF_UDF: &[Entry] = &[Entry { verb: "10pdf", label: "PDF'e dönüştür", tool: "udf-to-pdf" }];

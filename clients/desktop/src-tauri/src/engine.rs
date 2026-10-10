@@ -71,6 +71,7 @@ pub struct EngineFiles {
     aot_cache: Option<PathBuf>,
     env: Vec<(String, String)>,
     tesseract: Option<PathBuf>,
+    qpdf: Option<PathBuf>,
     tessdata: Option<PathBuf>,
     versions: Versions,
 }
@@ -95,6 +96,7 @@ impl EngineFiles {
             env,
             tesseract: existing(root.join("tesseract").join("tesseract.exe"))
                 .and_then(|exe| exe.parent().map(Path::to_path_buf)),
+            qpdf: existing(root.join("qpdf").join("qpdf.exe")).and_then(|exe| exe.parent().map(Path::to_path_buf)),
             tessdata: existing(root.join("tessdata")),
             versions: std::fs::read_to_string(root.join("engine.json"))
                 .map(|text| parse_versions(&text))
@@ -200,10 +202,17 @@ impl Engine {
             .envs(files.env.iter().map(|(key, value)| (key, value)))
             .env("TAURI_PARENT_PID", std::process::id().to_string())
             .env("STIRLING_PKCS11_LIBRARIES", PKCS11_LIBRARIES);
-        if let Some(dir) = &files.tesseract {
-            let mut path = short_path(dir).into_os_string();
-            if let Some(current) = std::env::var_os("PATH") {
+        if let Some(dir) = &files.qpdf {
+            restore_qpdf(dir);
+        }
+        let tools: Vec<PathBuf> = [&files.tesseract, &files.qpdf].into_iter().flatten().map(|dir| short_path(dir)).collect();
+        if !tools.is_empty() {
+            let mut path = std::ffi::OsString::new();
+            for dir in &tools {
+                path.push(dir);
                 path.push(";");
+            }
+            if let Some(current) = std::env::var_os("PATH") {
                 path.push(current);
             }
             command.env("PATH", path);
@@ -302,6 +311,16 @@ fn free_port() -> Result<u16, String> {
         .and_then(|listener| listener.local_addr())
         .map(|addr| addr.port())
         .map_err(|err| format!("Yerel motor için kapı bulunamadı: {err}"))
+}
+
+/// Earlier builds renamed the real binary to `qpdf-real.exe` and put a shim on
+/// `qpdf.exe`. Stirling compress still needs the real `qpdf.exe` on PATH.
+fn restore_qpdf(dir: &Path) {
+    let real = dir.join("qpdf-real.exe");
+    let qpdf = dir.join("qpdf.exe");
+    if real.is_file() {
+        let _ = std::fs::copy(&real, &qpdf);
+    }
 }
 
 /// Tauri reports the resource dir as `\\?\C:\...`; Tesseract appends `/name`

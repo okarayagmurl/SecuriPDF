@@ -40,6 +40,33 @@
     return null;
   }
 
+  async function zipEntries(bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let end = -1;
+    for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+      if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
+    }
+    if (end < 0) throw new Error("FORMAT_NOT_ZIP");
+    const count = view.getUint16(end + 10, true);
+    const entries = [];
+    let offset = view.getUint32(end + 16, true);
+    for (let n = 0; n < count; n++) {
+      if (view.getUint32(offset, true) !== 0x02014b50) throw new Error("FORMAT_BAD_ZIP");
+      const method = view.getUint16(offset + 10, true);
+      const size = view.getUint32(offset + 20, true);
+      const nameLength = view.getUint16(offset + 28, true);
+      const extra = view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true);
+      const local = view.getUint32(offset + 42, true);
+      const name = new TextDecoder().decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
+      offset += 46 + nameLength + extra;
+      const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+      const raw = bytes.subarray(start, start + size);
+      const data = method === 0 ? raw : method === 8 ? await inflateRaw(raw) : null;
+      if (data) entries.push({ name, data });
+    }
+    return entries;
+  }
+
   const CRC_TABLE = (() => {
     const table = new Uint32Array(256);
     for (let n = 0; n < 256; n++) {
@@ -539,5 +566,5 @@ ${paragraphs.join("\n")}
     return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
   }
 
-  window.SecuriFormats = { zipEntry, zipStore, udfToHtml, linesToUdf, invoiceToHtml, signatureVerdict, signatureReport, crc32 };
+  window.SecuriFormats = { zipEntry, zipEntries, zipStore, udfToHtml, linesToUdf, invoiceToHtml, signatureVerdict, signatureReport, crc32 };
 })();

@@ -640,6 +640,7 @@
     if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpg";
     if (ascii(0, 4) === "GIF8") return "gif";
     if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "webp";
+    if (ascii(0, 2) === "BM") return "bmp";
     return "bin";
   }
 
@@ -647,7 +648,8 @@
     const first = files[state.tool.files[0].name][0];
     const base = first.name.replace(/\.[^.]+$/, "") || "belge";
     const suffix = state.tool.suffix ? "_" + state.tool.suffix : "";
-    return `${base}${suffix}.${state.tool.outputExt || outputExtension(bytes)}`;
+    const ext = typeof state.tool.outputExt === "function" ? state.tool.outputExt(bytes) : state.tool.outputExt;
+    return `${base}${suffix}.${ext || outputExtension(bytes)}`;
   }
 
   // Callers re-render files or the preview afterwards; refreshing here could
@@ -683,6 +685,14 @@
     return new Uint8Array(await core.invoke("html_to_pdf", { html, page }));
   }
 
+  async function repair(file) {
+    const body = new Uint8Array(await file.arrayBuffer());
+    const output = await core.invoke("repair_pdf", body, {
+      headers: { "x-securipdf-file-name": encodeURIComponent(file.name) },
+    });
+    return new Uint8Array(output);
+  }
+
   async function office(file, format) {
     const body = new Uint8Array(await file.arrayBuffer());
     const output = await core.invoke("office_convert", body, {
@@ -705,6 +715,7 @@
         form: () => buildForm(values, files),
         htmlToPdf,
         office,
+        repair,
         note: (text) => { note = text; },
       })
       : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));

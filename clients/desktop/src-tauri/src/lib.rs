@@ -2,6 +2,7 @@ mod cli;
 mod engine;
 mod office;
 mod print;
+mod qpdf;
 mod shell_menu;
 
 use engine::{is_local_api_path, Engine, EngineFiles, EngineStatus};
@@ -119,6 +120,7 @@ pub fn run() {
             read_opened_file,
             print::html_to_pdf,
             office::office_convert,
+            qpdf::repair_pdf,
             cli::cli_job,
             cli::cli_start_engine,
             cli::cli_finish,

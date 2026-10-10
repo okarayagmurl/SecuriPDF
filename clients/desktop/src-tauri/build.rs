@@ -11,6 +11,7 @@ fn main() {
             "read_opened_file",
             "html_to_pdf",
             "office_convert",
+            "repair_pdf",
             "cli_job",
             "cli_start_engine",
             "cli_finish",

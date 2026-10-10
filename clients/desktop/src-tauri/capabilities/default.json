@@ -14,6 +14,7 @@
     "allow-read-opened-file",
     "allow-html-to-pdf",
     "allow-office-convert",
+    "allow-repair-pdf",
     "allow-cli-job",
     "allow-cli-start-engine",
     "allow-cli-finish",

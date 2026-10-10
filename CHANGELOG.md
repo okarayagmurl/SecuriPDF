@@ -16,6 +16,8 @@
 - Windows uygulamasında taranmış belgelerin OCR sonrası sayfa boyutu 7 kat büyüyordu; düzeltildi (`fetch-engine.ps1` yeniden çalıştırılmalı)
 - Windows uygulaması PDF'i Windows sertifika deposundaki sertifikayla (e-imza kartları dahil), PKCS#11 token, PFX/P12 veya PEM ile imzalar; zaman damgası ekler, imzaları doğrulayıp rapor üretir ve imzaları kaldırır
 - Windows uygulaması bir aracı birden çok dosyaya uygular; sonuçları ZIP olarak veya bir klasöre kaydeder ve CSV işlem raporu üretir
+- Windows uygulamasına filigran, sıkıştırma, PDF→Excel/CSV/metin, PDF/A, üstveri, boş sayfa silme, onarma, temizleme, görsel çıkarma ve kitapçık eklendi; görsel dönüşümüne BMP eklendi
+- Windows uygulamasının PDF motoruna onarma ve kayıpsız sıkıştırma için qpdf 12.4.2 eklendi (`fetch-engine.ps1` yeniden çalıştırılmalı)
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

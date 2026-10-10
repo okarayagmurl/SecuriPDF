@@ -25,6 +25,16 @@ $tesseractFiles = @(
     "liblzma-5.dll", "libopenjp2-7.dll", "libpng16-16.dll", "libsharpyuv-0.dll", "libstdc++-6.dll",
     "libtiff-6.dll", "libwebp-7.dll", "libwebpmux-3.dll", "libwinpthread-1.dll", "libzstd.dll", "zlib1.dll"
 )
+# Stirling needs qpdf for repairing damaged PDFs and lossless compression.
+$qpdfVersion = "12.4.2"
+$qpdfZip = @{
+    Url = "https://github.com/qpdf/qpdf/releases/download/v$qpdfVersion/qpdf-$qpdfVersion-msvc64.zip"
+    Sha256 = "db87077e683630c1217e0e8f9a20a9749d952ab676e881c3689187763a5de25d"
+}
+$qpdfFiles = @(
+    "qpdf.exe", "qpdf30.dll", "concrt140.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll",
+    "msvcp140_atomic_wait.dll", "msvcp140_codecvt_ids.dll", "vcruntime140.dll", "vcruntime140_1.dll"
+)
 $languages = @{
     tur = "e0c3338dc17503dc7d335a507c9ae01b2b46cfd07561171e1e1ac55d85e8e438"
     eng = "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba"
@@ -88,6 +98,11 @@ try {
     $tessUnpacked = Join-Path $tmp "tesseract"
     & $SevenZip x $setup "-o$tessUnpacked" -y | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Tesseract paketi açılamadı" }
+    $qpdfArchive = Join-Path $tmp "qpdf.zip"
+    Get-Verified $qpdfZip.Url $qpdfZip.Sha256 $qpdfArchive
+    $qpdfUnpacked = Join-Path $tmp "qpdf"
+    Expand-Archive -Path $qpdfArchive -DestinationPath $qpdfUnpacked
+    $qpdfBin = Join-Path (Get-ChildItem $qpdfUnpacked -Directory | Select-Object -First 1).FullName "bin"
     foreach ($lang in $languages.Keys) {
         Get-Verified "https://github.com/tesseract-ocr/tessdata_best/raw/4.1.0/$lang.traineddata" `
             $languages[$lang] (Join-Path $tmp "$lang.traineddata")
@@ -117,6 +132,11 @@ try {
     Copy-Item (Join-Path $tessUnpacked "tessdata\pdf.ttf"), (Join-Path $tessUnpacked "tessdata\osd.traineddata") $tessdata
     foreach ($lang in $languages.Keys) {
         Move-Item (Join-Path $tmp "$lang.traineddata") $tessdata
+    }
+
+    $qpdfDir = New-Item -ItemType Directory -Path (Join-Path $engine "qpdf")
+    foreach ($file in $qpdfFiles) {
+        Copy-Item (Join-Path $qpdfBin $file) $qpdfDir
     }
 
     $jvmOptions | Set-Content -Encoding ASCII (Join-Path $engine "jvm.args")
@@ -153,6 +173,7 @@ try {
         jarSha256 = ($asset.digest -replace "^sha256:", "")
         java = $jre[0].release_name
         tesseract = $tesseractVersion
+        qpdf = $qpdfVersion
         tessdata = "tessdata_best 4.1.0: " + (($languages.Keys | Sort-Object) -join ", ")
     } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $engine "engine.json")
     Write-Host "Yerel motor hazır: $engine"
