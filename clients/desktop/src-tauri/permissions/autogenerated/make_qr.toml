@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-make-qr"
+description = "Enables the make_qr command without any pre-configured scope."
+commands.allow = ["make_qr"]
+
+[[permission]]
+identifier = "deny-make-qr"
+description = "Denies the make_qr command without any pre-configured scope."
+commands.deny = ["make_qr"]

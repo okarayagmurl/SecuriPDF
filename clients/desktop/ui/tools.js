@@ -92,6 +92,28 @@
     return bytes;
   }
 
+  async function qrPng(bmp) {
+    const url = URL.createObjectURL(new Blob([bmp], { type: "image/bmp" }));
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const node = new Image();
+        node.onload = () => resolve(node);
+        node.onerror = () => reject(new Error("QR görseli okunamadı."));
+        node.src = url;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext("2d").drawImage(image, 0, 0);
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((next) => (next ? resolve(next) : reject(new Error("QR görseli yazılamadı."))), "image/png");
+      });
+      return new Uint8Array(await blob.arrayBuffer());
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   function signError(status, detail) {
     if (/CertificateExpired/i.test(detail)) return "Seçilen sertifikanın süresi dolmuş.";
     if (/CertificateNotYetValid/i.test(detail)) return "Seçilen sertifika henüz geçerli değil.";
@@ -427,7 +449,7 @@
       id: "add-watermark",
       category: "security",
       title: "Filigran",
-      description: "Sayfalara tekrarlanan metin veya görsel filigran ekleyin.",
+      description: "Sayfalara tekrarlanan metin, görsel veya QR kod filigranı ekleyin.",
       apiPath: "/api/v1/security/add-watermark",
       suffix: "filigranli",
       files: [
@@ -438,20 +460,45 @@
         { name: "watermarkType", label: "Tür", type: "select", default: "text", options: [
           { value: "text", label: "Metin" },
           { value: "image", label: "Görsel" },
+          { value: "qr", label: "QR kod" },
         ] },
         { name: "watermarkText", label: "Filigran metni", type: "text", default: "GİZLİ",
           showIf: { watermarkType: "text" }, required: true },
+        { name: "qrText", label: "QR içeriği", type: "text", default: "https://",
+          showIf: { watermarkType: "qr" }, required: true, local: true,
+          hint: "Adres veya kısa metin. Kod bu bilgisayarda üretilir." },
         { name: "fontSize", label: "Yazı boyutu", type: "number", default: 30, min: 4, max: 200,
           showIf: { watermarkType: "text" } },
         { name: "customColor", label: "Renk", type: "color", default: "#808080",
           showIf: { watermarkType: "text" } },
-        { name: "rotation", label: "Açı", type: "range", default: 45, min: -180, max: 180, step: 5, unit: "°" },
+        { name: "rotation", label: "Açı", type: "range", default: 45, min: -180, max: 180, step: 5, unit: "°",
+          showIf: { watermarkType: ["text", "image"] } },
         { name: "opacity", label: "Saydamlık", type: "range", default: 0.3, min: 0, max: 1, step: 0.05, unit: "%" },
         { name: "widthSpacer", label: "Yatay aralık", type: "range", default: 50, min: 0, max: 400, step: 5 },
         { name: "heightSpacer", label: "Dikey aralık", type: "range", default: 50, min: 0, max: 400, step: 5 },
         { name: "convertPDFToImage", label: "Sayfaları görsele çevir (filigran kaldırılamaz)", type: "checkbox", default: false },
       ],
       constants: { alphabet: "roman" },
+      usesEngine: true,
+      async run({ files, values, engine, form, makeQr }) {
+        if (values.watermarkType !== "qr") return engine("/api/v1/security/add-watermark", form());
+        const text = (values.qrText || "").trim();
+        if (!text) throw new Error("QR içeriği boş bırakılamaz.");
+        const image = await qrPng(await makeQr(text));
+        const body = new FormData();
+        files.fileInput.forEach((file) => body.append("fileInput", file, file.name));
+        body.append("watermarkImage", new File([image], "qr.png", { type: "image/png" }), "qr.png");
+        body.append("watermarkType", "image");
+        body.append("alphabet", "roman");
+        body.append("fontSize", "30");
+        body.append("customColor", "#808080");
+        body.append("opacity", String(values.opacity || "0.3").replace(",", "."));
+        body.append("widthSpacer", String(values.widthSpacer || "50"));
+        body.append("heightSpacer", String(values.heightSpacer || "50"));
+        body.append("rotation", "0");
+        body.append("convertPDFToImage", values.convertPDFToImage ? "true" : "false");
+        return engine("/api/v1/security/add-watermark", body);
+      },
     },
     {
       id: "add-password",

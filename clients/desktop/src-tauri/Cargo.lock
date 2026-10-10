@@ -2624,6 +2624,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quick-xml"
 version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2927,6 +2933,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 name = "securipdf-desktop"
 version = "1.2.8"
 dependencies = [
+ "qrcode",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

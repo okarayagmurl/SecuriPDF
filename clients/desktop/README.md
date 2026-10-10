@@ -7,7 +7,7 @@ Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server J
 - Düzenle: birleştir, böl (sayfa, sayı/boyut, bölüm), bindir, düzleştir
 - Metin tanıma: OCR ile aranabilir PDF (Türkçe, İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca, Arapça)
 - Sayfalar: döndür, sil, çıkar, sırala, ölçekle, kırp, çok sayfa düzeni, tek sayfa, sayfa numarası, kitapçık
-- Güvenlik: damga, filigran (metin veya görsel), parola ekle (AES-256), parola kaldır, karartma (metin, düzenli ifade, TC kimlik no, IBAN, e-posta, telefon, kart numarası), Windows Defender ile virüs tarama
+- Güvenlik: damga, filigran (metin, görsel veya QR kod), parola ekle (AES-256), parola kaldır, karartma (metin, düzenli ifade, TC kimlik no, IBAN, e-posta, telefon, kart numarası), Windows Defender ile virüs tarama
 - E-imza: dijital imza (Windows sertifika deposu, PKCS#11 akıllı kart/token, PFX/P12, PEM), RFC 3161 zaman damgası, imza doğrulama raporu, imzaları kaldırma
 - Dönüştür: PDF'ten görsele (PNG, JPEG, WebP, GIF, BMP), görselden PDF'e, PDF'ten Excel / CSV / metne, PDF'ten PDF/A'ya, UYAP UDF'ten PDF'e, PDF'ten UDF'e (yalnızca metin), e-Fatura / e-Arşiv / e-İrsaliye XML'inden PDF'e, Word / Excel / PowerPoint'ten PDF veya PDF/A'ya, PDF'ten Word'e
 - Optimize: sıkıştır, üstveri düzenle, boş sayfa sil, onar, temizle, görselleri çıkar

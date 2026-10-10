@@ -285,6 +285,7 @@
     const name = file.name.toLowerCase();
     return accept.split(",").some((rule) => {
       rule = rule.trim().toLowerCase();
+      if (rule === "*/*" || rule === "*") return true;
       if (rule.startsWith(".")) return name.endsWith(rule);
       if (rule.endsWith("/*")) return (file.type || "").startsWith(rule.slice(0, -1));
       return file.type === rule;
@@ -781,6 +782,10 @@
     return new Uint8Array(output);
   }
 
+  async function makeQr(text) {
+    return new Uint8Array(await core.invoke("make_qr", { text }));
+  }
+
   async function office(file, format) {
     const body = new Uint8Array(await file.arrayBuffer());
     const output = await core.invoke("office_convert", body, {
@@ -805,6 +810,7 @@
         office,
         repair,
         scan,
+        makeQr,
         note: (text) => { note = text; },
       })
       : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));

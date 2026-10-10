@@ -4,6 +4,7 @@ mod engine;
 mod office;
 mod print;
 mod qpdf;
+mod qr;
 mod shell_menu;
 
 use engine::{is_local_api_path, Engine, EngineFiles, EngineStatus};
@@ -124,6 +125,7 @@ pub fn run() {
             office::office_convert,
             qpdf::repair_pdf,
             defender::scan_file,
+            qr::make_qr,
             cli::cli_job,
             cli::cli_start_engine,
             cli::cli_finish,

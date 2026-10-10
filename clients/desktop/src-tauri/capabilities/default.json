@@ -16,6 +16,7 @@
     "allow-office-convert",
     "allow-repair-pdf",
     "allow-scan-file",
+    "allow-make-qr",
     "allow-cli-job",
     "allow-cli-start-engine",
     "allow-cli-finish",
