@@ -387,6 +387,28 @@
       } else if (field.type === "textarea") {
         input = el("textarea", { id, name: field.name, rows: field.rows || 4, placeholder: field.placeholder, spellcheck: "false" });
         input.value = field.default || "";
+      } else if (field.type === "pad") {
+        input = el("div", { id, class: "pad", "data-value": String(field.default) }, field.options.map((option) =>
+          el("button", {
+            type: "button",
+            "data-value": option.value,
+            title: option.label,
+            class: String(option.value) === String(field.default) ? "active" : "",
+            text: option.mark || "",
+            onclick: () => {
+              input.dataset.value = option.value;
+              input.querySelectorAll("button").forEach((btn) => btn.classList.toggle("active", btn.dataset.value === option.value));
+              onFieldChange(field);
+            },
+          })));
+      } else if (field.type === "range") {
+        const slider = el("input", {
+          type: "range", min: field.min, max: field.max, step: field.step || 1,
+          value: field.default !== undefined ? String(field.default) : "0",
+        });
+        const shown = el("span", { class: "value", text: formatRange(field, slider.value) });
+        slider.addEventListener("input", () => { shown.textContent = formatRange(field, slider.value); onFieldChange(field); });
+        input = el("div", { id, class: "range" }, [slider, shown]);
       } else {
         input = el("input", {
           id,
@@ -404,15 +426,32 @@
       input.addEventListener("input", () => onFieldChange(field));
       const wrapper = field.type === "checkbox"
         ? el("div", { class: "field check", "data-field": field.name }, [el("label", { for: id }, [input, document.createTextNode(field.label)])])
-        : el("div", { class: "field", "data-field": field.name }, [el(field.type === "checks" ? "span" : "label", { for: id, class: "label", text: field.label }), input]);
+        : el("div", { class: "field", "data-field": field.name }, [el(field.type === "checks" || field.type === "pad" || field.type === "range" ? "span" : "label", { for: id, class: "label", text: field.label }), input]);
       if (field.load) {
         wrapper.appendChild(el("button", { type: "button", class: "secondary refresh", text: "Listeyi yenile", onclick: () => loadOptions(field, true) }));
       }
       if (field.hint) wrapper.appendChild(el("p", { class: "hint", text: field.hint }));
-      host.appendChild(wrapper);
+      if (field.advanced) {
+        if (!host.querySelector("details.advanced")) {
+          host.appendChild(el("details", { class: "advanced" }, [el("summary", { text: "Sayısal değerler" })]));
+        }
+        host.querySelector("details.advanced").appendChild(wrapper);
+      } else {
+        host.appendChild(wrapper);
+      }
     });
     state.loadedOptions = new Set();
     applyVisibility();
+  }
+
+  function formatRange(field, value) {
+    const number = Number(value);
+    if (field.unit === "%") {
+      const percent = number * (field.max <= 1 ? 100 : 1);
+      return (Math.round(percent * 10) / 10) + "%";
+    }
+    if (field.unit) return String(value) + field.unit;
+    return String(value);
   }
 
   // Options that come from the engine, such as the certificates in the
@@ -445,12 +484,23 @@
     if (field.pagePicker && state.preview.handle) {
       state.preview.handle.setSelected(parsePages(readValues()[field.name]));
     }
-    if ((field.pagePicker || field.showIf || field.type === "password" || field.type === "select") && state.preview.tab === "source") {
+    if (["x", "y", "width", "height"].includes(field.name) && state.preview.handle && state.preview.handle.setCrop) {
+      const values = readValues();
+      state.preview.handle.setCrop({
+        x: Number(values.x) || 0,
+        y: Number(values.y) || 0,
+        width: Number(values.width) || 0,
+        height: Number(values.height) || 0,
+      });
+    }
+    if ((field.pagePicker || field.showIf || field.name === "autoCrop" || field.type === "password" || field.type === "select") && state.preview.tab === "source") {
       const pick = activePicker();
+      const crop = activeCrop();
       const handle = state.preview.handle;
       const needsReload = (handle && handle.locked && field.type === "password") ||
         (handle && Boolean(pick) !== Boolean(handle.pickMode)) ||
-        (handle && pick && pick.pagePicker !== handle.pickMode);
+        (handle && pick && pick.pagePicker !== handle.pickMode) ||
+        (handle && Boolean(crop) !== Boolean(handle.cropMode));
       if (needsReload) refreshPreview(true);
     }
   }
@@ -462,6 +512,8 @@
       if (!input) values[field.name] = field.type === "checks" ? [] : field.type === "checkbox" ? false : "";
       else if (field.type === "checkbox") values[field.name] = input.checked;
       else if (field.type === "checks") values[field.name] = Array.from(input.querySelectorAll("input:checked")).map((box) => box.value);
+      else if (field.type === "pad") values[field.name] = input.dataset.value || "";
+      else if (field.type === "range") values[field.name] = (input.querySelector("input") || input).value;
       else values[field.name] = input.value.trim();
     });
     return values;
@@ -483,11 +535,35 @@
       const drop = document.querySelector(`[data-files="${spec.name}"]`);
       if (drop) drop.hidden = !isVisible(spec, values);
     });
+    const advanced = $("fields").querySelector("details.advanced");
+    if (advanced) {
+      advanced.hidden = !Array.from(advanced.querySelectorAll("[data-field]")).some((node) => !node.hidden);
+    }
   }
 
   function activePicker() {
     const values = readValues();
     return state.tool.fields.find((field) => field.pagePicker && isVisible(field, values)) || null;
+  }
+
+  function activeCrop() {
+    if (!state.tool || state.tool.id !== "crop") return null;
+    const values = readValues();
+    if (values.autoCrop) return null;
+    return {
+      box: {
+        x: Number(values.x) || 0,
+        y: Number(values.y) || 0,
+        width: Number(values.width) || 0,
+        height: Number(values.height) || 0,
+      },
+      onChange(box) {
+        ["x", "y", "width", "height"].forEach((name) => {
+          const input = $("f-" + name);
+          if (input) input.value = String(box[name]);
+        });
+      },
+    };
   }
 
   // ---- Preview ----
@@ -511,8 +587,11 @@
       ? state.result.preview || { data: state.result.bytes, name: state.result.name }
       : preview.file ? { data: preview.file, name: preview.file.name } : null;
     const pick = preview.tab === "source" ? activePicker() : null;
+    const crop = preview.tab === "source" ? activeCrop() : null;
     const key = source ? source.data : null;
-    if (!force && preview.handle && preview.key === key && preview.handle.pickMode === (pick && pick.pagePicker)) return;
+    if (!force && preview.handle && preview.key === key
+      && preview.handle.pickMode === (pick && pick.pagePicker)
+      && preview.handle.cropMode === Boolean(crop)) return;
 
     const token = ++preview.token;
     if (preview.handle) preview.handle.destroy();
@@ -539,12 +618,14 @@
         onToggle: (page) => togglePage(pick, page),
       };
     }
+    if (crop) options.crop = crop;
     // A slower, superseded render must not paint over the current one.
     const frame = el("div");
     host.replaceChildren(frame);
     const handle = await window.SecuriPreview.show(frame, source.data, options);
     if (token !== preview.token) { handle.destroy(); return; }
     handle.pickMode = pick ? pick.pagePicker : undefined;
+    handle.cropMode = Boolean(crop);
     preview.handle = handle;
     if (preview.tab === "source" && handle.pageCount) pageCounts.set(source.data, handle.pageCount);
   }
@@ -588,8 +669,8 @@
       if (!isVisible(field, values)) continue;
       const value = values[field.name];
       if (field.required && value === "") return `${field.label} boş bırakılamaz.`;
-      if (field.type === "number" && value !== "") {
-        const number = Number(value.replace(",", "."));
+      if ((field.type === "number" || field.type === "range") && value !== "") {
+        const number = Number(String(value).replace(",", "."));
         if (!Number.isFinite(number)) return `${field.label} bir sayı olmalı.`;
         if (field.min !== undefined && number < field.min) return `${field.label} en az ${field.min} olmalı.`;
         if (field.max !== undefined && number > field.max) return `${field.label} en fazla ${field.max} olmalı.`;
@@ -620,7 +701,7 @@
         return;
       }
       if (field.type === "checkbox") value = value ? "true" : "false";
-      else if (field.type === "number") value = value.replace(",", ".");
+      else if (field.type === "number" || field.type === "range") value = String(value).replace(",", ".");
       if (value === "" && field.type !== "checkbox") return;
       const times = field.perFile ? files[field.perFile].length : 1;
       for (let i = 0; i < times; i++) form.append(field.name, value);
@@ -962,9 +1043,19 @@
     } else if (field.load) {
       input.replaceChildren(el("option", { value, text: value }));
       state.loadedOptions.add(field.name);
-    } else if (field.type === "select") {
+    } else if (field.type === "select" || field.type === "pad") {
       if (!allowed.includes(value)) return `${name}: geçersiz değer "${value}". Geçerli: ${allowed.join(", ")}.`;
-      input.value = value;
+      if (field.type === "pad") {
+        input.dataset.value = value;
+        input.querySelectorAll("button").forEach((btn) => btn.classList.toggle("active", btn.dataset.value === value));
+      } else {
+        input.value = value;
+      }
+    } else if (field.type === "range") {
+      const slider = input.querySelector("input") || input;
+      slider.value = value;
+      const shown = input.querySelector(".value");
+      if (shown) shown.textContent = formatRange(field, value);
     } else {
       input.value = value;
     }

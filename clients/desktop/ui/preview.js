@@ -314,8 +314,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
 /**
  * Shows `source` (File or bytes) inside `host`.
  * options.pick: { mode: "remove" | "pick" | "split", selected: Set<number>, onToggle(page) }
+ * options.crop: { box: { x, y, width, height }, onChange(box) } — PDF points, bottom-left origin
  * options.password: used to open encrypted PDFs.
- * Returns { kind, pageCount, setSelected(set), destroy() }.
+ * Returns { kind, pageCount, setSelected(set), setCrop(box), destroy() }.
  */
 async function show(host, source, options = {}) {
   host.replaceChildren(el("p", "preview-note", "Önizleme hazırlanıyor…"));
@@ -371,6 +372,21 @@ async function show(host, source, options = {}) {
   }
 
   const pick = options.pick;
+  const crop = options.crop;
+  if (crop) {
+    const handle = await showCrop(host, doc, crop, () => open(1));
+    return {
+      kind,
+      pageCount: doc.numPages,
+      setSelected() {},
+      setCrop: handle.setCrop,
+      destroy() {
+        handle.destroy();
+        closeViewer();
+        task.destroy();
+      },
+    };
+  }
   const grid = el("div", "thumbs" + (pick ? " pickable mode-" + pick.mode : ""));
   const header = el("p", "preview-note", pick
     ? `${doc.numPages} sayfa. Sayfaya tıklayarak seçin; açmak için çift tıklayın.`
@@ -424,6 +440,144 @@ async function show(host, source, options = {}) {
       task.destroy();
     },
   };
+}
+
+/** PDF crop box uses a bottom-left origin, in points. */
+function showCrop(host, doc, crop, open) {
+  return doc.getPage(1).then(async (page) => {
+    const base = page.getViewport({ scale: 1 });
+    const note = el("p", "preview-note", "Kalacak alanı sürükleyerek çizin veya köşelerden tutup ayarlayın. Tüm sayfalara uygulanır.");
+    const stage = el("div", "crop-stage");
+    const canvas = el("canvas");
+    const boxEl = el("div", "crop-box");
+    ["nw", "n", "ne", "e", "se", "s", "sw", "w"].forEach((name) => {
+      const handle = el("span", "crop-handle " + name);
+      handle.dataset.handle = name;
+      boxEl.appendChild(handle);
+    });
+    stage.append(canvas, boxEl);
+    host.replaceChildren(note, stage);
+    const cssWidth = Math.min(400, Math.max(220, (host.clientWidth || 360) - 8));
+    await renderPage(page, canvas, cssWidth);
+    const cssHeight = canvas.offsetHeight || Math.round(cssWidth * base.height / base.width);
+    stage.style.width = cssWidth + "px";
+    stage.style.height = cssHeight + "px";
+
+    const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+    const toCss = (box) => ({
+      left: box.x / base.width * cssWidth,
+      top: (base.height - box.y - box.height) / base.height * cssHeight,
+      width: box.width / base.width * cssWidth,
+      height: box.height / base.height * cssHeight,
+    });
+    const toPdf = (rect) => ({
+      x: rect.left / cssWidth * base.width,
+      y: (cssHeight - rect.top - rect.height) / cssHeight * base.height,
+      width: rect.width / cssWidth * base.width,
+      height: rect.height / cssHeight * base.height,
+    });
+    const round = (box) => ({
+      x: Math.round(box.x * 10) / 10,
+      y: Math.round(box.y * 10) / 10,
+      width: Math.round(box.width * 10) / 10,
+      height: Math.round(box.height * 10) / 10,
+    });
+    const fullDefault = crop.box && crop.box.width === 595 && crop.box.height === 842 && crop.box.x === 0 && crop.box.y === 0;
+    let box = (!crop.box || crop.box.width < 1 || crop.box.height < 1 || fullDefault)
+      ? { x: base.width * 0.08, y: base.height * 0.08, width: base.width * 0.84, height: base.height * 0.84 }
+      : crop.box;
+    box = round({
+      x: clamp(box.x, 0, base.width - 2),
+      y: clamp(box.y, 0, base.height - 2),
+      width: clamp(box.width, 2, base.width),
+      height: clamp(box.height, 2, base.height),
+    });
+
+    const paint = () => {
+      const css = toCss(box);
+      boxEl.style.left = css.left + "px";
+      boxEl.style.top = css.top + "px";
+      boxEl.style.width = css.width + "px";
+      boxEl.style.height = css.height + "px";
+    };
+    const emit = () => { if (crop.onChange) crop.onChange(round(box)); };
+    paint();
+    if (fullDefault || !crop.box) emit();
+
+    let drag = null;
+    const point = (event) => {
+      const bounds = stage.getBoundingClientRect();
+      return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    };
+    stage.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      stage.setPointerCapture(event.pointerId);
+      const at = point(event);
+      const handle = event.target.dataset && event.target.dataset.handle;
+      const css = toCss(box);
+      drag = handle
+        ? { kind: "resize", handle, start: at, rect: { ...css } }
+        : event.target === boxEl
+          ? { kind: "move", start: at, rect: { ...css } }
+          : { kind: "draw", start: at, rect: { left: at.x, top: at.y, width: 0, height: 0 }, previous: { ...box } };
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      const at = point(event);
+      let rect = { ...drag.rect };
+      if (drag.kind === "draw") {
+        rect = {
+          left: Math.min(drag.start.x, at.x),
+          top: Math.min(drag.start.y, at.y),
+          width: Math.abs(at.x - drag.start.x),
+          height: Math.abs(at.y - drag.start.y),
+        };
+      } else if (drag.kind === "move") {
+        rect.left = clamp(drag.rect.left + at.x - drag.start.x, 0, cssWidth - drag.rect.width);
+        rect.top = clamp(drag.rect.top + at.y - drag.start.y, 0, cssHeight - drag.rect.height);
+      } else {
+        const dx = at.x - drag.start.x;
+        const dy = at.y - drag.start.y;
+        const h = drag.handle;
+        if (h.includes("w")) { rect.left = drag.rect.left + dx; rect.width = drag.rect.width - dx; }
+        if (h.includes("e")) rect.width = drag.rect.width + dx;
+        if (h.includes("n")) { rect.top = drag.rect.top + dy; rect.height = drag.rect.height - dy; }
+        if (h.includes("s")) rect.height = drag.rect.height + dy;
+        if (rect.width < 8) { rect.left = drag.rect.left; rect.width = 8; }
+        if (rect.height < 8) { rect.top = drag.rect.top; rect.height = 8; }
+      }
+      rect.left = clamp(rect.left, 0, cssWidth - 8);
+      rect.top = clamp(rect.top, 0, cssHeight - 8);
+      rect.width = clamp(rect.width, 8, cssWidth - rect.left);
+      rect.height = clamp(rect.height, 8, cssHeight - rect.top);
+      box = toPdf(rect);
+      paint();
+    });
+    const end = () => {
+      if (!drag) return;
+      const cssBox = toCss(box);
+      if (drag.kind === "draw" && drag.previous && (cssBox.width < 12 || cssBox.height < 12)) {
+        box = drag.previous;
+      }
+      drag = null;
+      box = round(box);
+      paint();
+      emit();
+    };
+    stage.addEventListener("pointerup", end);
+    stage.addEventListener("pointercancel", end);
+    boxEl.addEventListener("dblclick", (event) => { event.stopPropagation(); open(); });
+
+    return {
+      setCrop(next) {
+        if (!next || drag) return;
+        box = round(next);
+        paint();
+      },
+      destroy() {},
+    };
+  });
 }
 
 async function countPages(data, password) {
