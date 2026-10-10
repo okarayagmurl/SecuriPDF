@@ -38,6 +38,11 @@ $qpdfFiles = @(
 $languages = @{
     tur = "e0c3338dc17503dc7d335a507c9ae01b2b46cfd07561171e1e1ac55d85e8e438"
     eng = "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba"
+    ara = "ab9d157d8e38ca00e7e39c7d5363a5239e053f5b0dbdb3167dde9d8124335896"
+    deu = "8407331d6aa0229dc927685c01a7938fc5a641d1a9524f74838cdac599f0d06e"
+    fra = "907743d98915c91a3906dfbf6e48b97598346698fe53aaa797e1a064ffcac913"
+    spa = "e2c1ffdad8b30f26c45d4017a9183d3a7f9aa69e59918be4f88b126fac99ab2c"
+    ita = "8df9c89176fb93f56bf4b2d4ede04c01c1f31d4b7697fbd76cc336df700f3f38"
 }
 
 # The AOT cache is only used when the JVM runs with the same options and

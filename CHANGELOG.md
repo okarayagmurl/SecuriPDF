@@ -18,6 +18,9 @@
 - Windows uygulaması bir aracı birden çok dosyaya uygular; sonuçları ZIP olarak veya bir klasöre kaydeder ve CSV işlem raporu üretir
 - Windows uygulamasına filigran, sıkıştırma, PDF→Excel/CSV/metin, PDF/A, üstveri, boş sayfa silme, onarma, temizleme, görsel çıkarma ve kitapçık eklendi; görsel dönüşümüne BMP eklendi
 - Windows uygulamasının PDF motoruna onarma ve kayıpsız sıkıştırma için qpdf 12.4.2 eklendi (`fetch-engine.ps1` yeniden çalıştırılmalı)
+- Windows uygulamasının OCR dillerine Arapça, Almanca, Fransızca, İspanyolca ve İtalyanca eklendi (`fetch-engine.ps1` yeniden çalıştırılmalı)
+- Windows uygulaması dosyayı Windows Defender ile tarar; dosya karantinaya alınmaz, sonuç PDF rapor olur
+- Windows uygulamasının açılışında "motor" yerine "ön gereksinimler hazırlanıyor" yazılır; ilerleme çubuğu ilk karede görünür, kısa beyaz ekran kapanır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

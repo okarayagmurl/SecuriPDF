@@ -12,6 +12,7 @@ fn main() {
             "html_to_pdf",
             "office_convert",
             "repair_pdf",
+            "scan_file",
             "cli_job",
             "cli_start_engine",
             "cli_finish",

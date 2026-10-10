@@ -1,4 +1,5 @@
 mod cli;
+mod defender;
 mod engine;
 mod office;
 mod print;
@@ -93,6 +94,7 @@ pub fn run() {
                 .title("SecuriPDF")
                 .inner_size(1180.0, 780.0)
                 .min_inner_size(820.0, 560.0)
+                .background_color(tauri::window::Color(0xf8, 0xfa, 0xfc, 255))
                 .disable_drag_drop_handler()
                 .on_navigation(|url| is_app_url(url.scheme(), url.host_str()))
                 .on_web_resource_request(|request, response| {
@@ -121,6 +123,7 @@ pub fn run() {
             print::html_to_pdf,
             office::office_convert,
             qpdf::repair_pdf,
+            defender::scan_file,
             cli::cli_job,
             cli::cli_start_engine,
             cli::cli_finish,

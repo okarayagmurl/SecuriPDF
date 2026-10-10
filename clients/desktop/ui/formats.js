@@ -566,5 +566,31 @@ ${paragraphs.join("\n")}
     return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
   }
 
-  window.SecuriFormats = { zipEntry, zipEntries, zipStore, udfToHtml, linesToUdf, invoiceToHtml, signatureVerdict, signatureReport, crc32 };
+  function scanReport(fileName, result) {
+    const level = result.clean ? "ok" : "bad";
+    const verdict = result.clean ? "Tehdit bulunamadı" : "Tehdit bulundu";
+    const threats = (result.threats || []).map((name) => `<li>${escapeHtml(name)}</li>`).join("");
+    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
+      body { margin: 0; font: 10pt "Segoe UI", Arial, sans-serif; color: #111; }
+      h1 { font-size: 16pt; margin: 0 0 2pt; }
+      .file { color: #555; margin: 0 0 12pt; }
+      section { border: 0.75pt solid #999; border-left-width: 5pt; padding: 6pt 10pt; }
+      section.ok { border-left-color: #1a7f37; }
+      section.bad { border-left-color: #cf222e; }
+      .verdict { font-weight: 700; margin: 0 0 6pt; }
+      pre { white-space: pre-wrap; font: 8pt Consolas, monospace; color: #444; }
+    </style></head><body>
+      <h1>Windows Defender tarama raporu</h1>
+      <p class="file">${escapeHtml(fileName)} · ${escapeHtml(new Date().toLocaleString("tr-TR"))}</p>
+      <section class="${level}"><p class="verdict">${verdict}</p>
+        ${threats ? `<ul>${threats}</ul>` : ""}
+        <p>Tarayıcı: ${escapeHtml(result.scanner || "Windows Defender")}</p>
+        ${result.detail ? `<pre>${escapeHtml(result.detail)}</pre>` : ""}
+      </section>
+      <p class="file">Dosya karantinaya alınmaz ve silinmez; yalnızca tarama yapılır.</p>
+    </body></html>`;
+    return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
+  }
+
+  window.SecuriFormats = { zipEntry, zipEntries, zipStore, udfToHtml, linesToUdf, invoiceToHtml, signatureVerdict, signatureReport, scanReport, crc32 };
 })();

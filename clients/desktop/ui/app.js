@@ -21,8 +21,8 @@
   const pageCounts = new WeakMap();
 
   const ERRORS = {
-    LOCAL_ENGINE_NOT_READY: "PDF motoru henüz hazır değil. Biraz bekleyip tekrar deneyin.",
-    LOCAL_ENGINE_UNREACHABLE: "PDF motoruna ulaşılamadı. Uygulamayı kapatıp yeniden açın.",
+    LOCAL_ENGINE_NOT_READY: "Ön gereksinimler henüz hazır değil. Biraz bekleyip tekrar deneyin.",
+    LOCAL_ENGINE_UNREACHABLE: "Ön gereksinimlere ulaşılamadı. Uygulamayı kapatıp yeniden açın.",
     LOCAL_EMPTY_OUTPUT: "İşlem boş bir sonuç üretti.",
     LOCAL_BAD_REQUEST: "İstek oluşturulamadı.",
     FORMAT_NOT_ZIP: "Dosya geçerli bir UDF belgesi değil.",
@@ -131,18 +131,18 @@
   // Progress values reported by the engine (see STARTUP_MILESTONES in engine.rs).
   const MILESTONES = [5, 15, 30, 55, 70, 85, 95, 100];
   const STAGES = [
-    [15, "PDF motoru başlatılıyor…"],
+    [15, "Ön gereksinimler hazırlanıyor…"],
     [55, "Ayarlar yükleniyor…"],
-    [85, "PDF araçları hazırlanıyor…"],
+    [85, "Araçlar hazırlanıyor…"],
     [100, "Son hazırlıklar yapılıyor…"],
   ];
-  const splash = { shown: 0, versionSet: false, closed: false };
+  const splash = { shown: 12, versionSet: false, closed: false };
 
   function updateSplash(status) {
     if (!splash.versionSet && status.appVersion) {
       splash.versionSet = true;
       const parts = [`Sürüm ${status.appVersion}`];
-      if (status.engineVersion) parts.push(`PDF motoru ${status.engineVersion}`);
+      if (status.engineVersion) parts.push(`PDF ${status.engineVersion}`);
       if (status.ocrVersion) parts.push(`OCR ${status.ocrVersion.split(".").slice(0, 3).join(".")}`);
       $("splashVersion").textContent = parts.join(" · ");
       $("brandVersion").textContent = `v${status.appVersion}`;
@@ -151,7 +151,7 @@
     if (splash.closed) return;
 
     if (status.state === "failed" || status.state === "missing") {
-      $("splashStage").textContent = "PDF motoru açılamadı.";
+      $("splashStage").textContent = "Ön gereksinimler hazırlanamadı.";
       $("splashPercent").textContent = "";
       $("splashError").hidden = false;
       $("splashError").textContent = (status.detail || "Uygulamayı kapatıp yeniden açın.") +
@@ -190,10 +190,10 @@
     const badge = $("engine");
     badge.dataset.state = engineState;
     badge.textContent = {
-      ready: "Motor hazır",
-      starting: "Motor hazırlanıyor…",
-      failed: "Motor başlatılamadı",
-      missing: "Motor bulunamadı",
+      ready: "Hazır",
+      starting: "Ön gereksinimler hazırlanıyor…",
+      failed: "Hazırlık başarısız",
+      missing: "Kurulum eksik",
     }[engineState] || engineState;
     badge.title = detail || (engineState === "starting"
       ? "Bu sırada dosya seçip önizleyebilirsiniz."
@@ -211,10 +211,10 @@
     const run = $("run");
     const waiting = needsEngine(state.tool) && state.engine !== "ready";
     run.disabled = state.busy || waiting;
-    run.textContent = state.busy ? "İşleniyor…" : waiting ? "Motor hazırlanıyor…" : "Çalıştır";
+    run.textContent = state.busy ? "İşleniyor…" : waiting ? "Ön gereksinimler hazırlanıyor…" : "Çalıştır";
     if (needsEngine(state.tool) && (state.engine === "failed" || state.engine === "missing")) {
-      run.textContent = "Motor çalışmıyor";
-      $("formError").textContent = ($("engine").title || "PDF motoru başlatılamadı.") +
+      run.textContent = "Hazır değil";
+      $("formError").textContent = ($("engine").title || "Ön gereksinimler hazırlanamadı.") +
         " Kayıt: %LOCALAPPDATA%\\net.entera.securipdf.desktop\\engine\\engine.log";
     }
   }
@@ -685,6 +685,13 @@
     return new Uint8Array(await core.invoke("html_to_pdf", { html, page }));
   }
 
+  async function scan(file) {
+    const body = new Uint8Array(await file.arrayBuffer());
+    return JSON.parse(await core.invoke("scan_file", body, {
+      headers: { "x-securipdf-file-name": encodeURIComponent(file.name) },
+    }));
+  }
+
   async function repair(file) {
     const body = new Uint8Array(await file.arrayBuffer());
     const output = await core.invoke("repair_pdf", body, {
@@ -716,6 +723,7 @@
         htmlToPdf,
         office,
         repair,
+        scan,
         note: (text) => { note = text; },
       })
       : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));
@@ -1015,7 +1023,7 @@
         await core.invoke("cli_start_engine");
         await waitForEngine();
         if (state.engine !== "ready") {
-          await cliFail("ENGINE", $("engine").title || "PDF motoru başlatılamadı.");
+          await cliFail("ENGINE", $("engine").title || "Ön gereksinimler hazırlanamadı.");
           return;
         }
       }

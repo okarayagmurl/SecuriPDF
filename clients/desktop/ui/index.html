@@ -3,6 +3,19 @@
 <head>
   <meta charset="utf-8">
   <title>SecuriPDF</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #f8fafc; }
+    .splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #f8fafc 0%, #e0e7ff 100%); }
+    .splash-card { width: min(520px, 90vw); padding: 36px 40px 28px; border-radius: 18px; background: #fff; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14); text-align: center; font: 15px/1.5 "Segoe UI", sans-serif; color: #0f172a; }
+    .splash-logo { width: 100%; max-width: 380px; height: auto; }
+    .splash-version { margin: 4px 0 22px; color: #475569; font-size: 13px; min-height: 1.2em; }
+    .progress { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+    .progress-bar { width: 12%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2563eb, #1e40af); }
+    .splash-stage { margin: 10px 0 18px; font-size: 14px; }
+    .splash-error { margin: 0 0 16px; color: #b91c1c; font-size: 13px; }
+    .splash-note { margin: 18px 0 0; color: #475569; font-size: 12px; }
+    .splash button { font: 14px "Segoe UI", sans-serif; }
+  </style>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -10,10 +23,10 @@
     <div class="splash-card">
       <img class="splash-logo" src="logo.svg" alt="SecuriPDF">
       <p class="splash-version" id="splashVersion"></p>
-      <div class="progress" role="progressbar" aria-label="PDF motoru açılıyor" aria-valuemin="0" aria-valuemax="100" id="splashProgress">
-        <div class="progress-bar" id="splashBar"></div>
+      <div class="progress" role="progressbar" aria-label="Ön gereksinimler hazırlanıyor" aria-valuemin="0" aria-valuemax="100" aria-valuenow="12" id="splashProgress">
+        <div class="progress-bar" id="splashBar" style="width:12%"></div>
       </div>
-      <p class="splash-stage"><span id="splashStage">PDF motoru başlatılıyor…</span> <span id="splashPercent"></span></p>
+      <p class="splash-stage"><span id="splashStage">Ön gereksinimler hazırlanıyor…</span> <span id="splashPercent">%12</span></p>
       <p class="splash-error" id="splashError" hidden></p>
       <button type="button" class="secondary" id="splashSkip">Beklerken dosya seç</button>
       <p class="splash-note">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
@@ -24,7 +37,7 @@
     <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
       <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
     </label>
-    <span class="engine" id="engine" data-state="starting">Motor hazırlanıyor…</span>
+    <span class="engine" id="engine" data-state="starting">Ön gereksinimler hazırlanıyor…</span>
   </header>
   <div class="layout">
     <nav class="side">

@@ -179,6 +179,11 @@
         { name: "languages", label: "Belge dili", type: "checks", default: ["tur", "eng"], options: [
           { value: "tur", label: "Türkçe" },
           { value: "eng", label: "İngilizce" },
+          { value: "deu", label: "Almanca" },
+          { value: "fra", label: "Fransızca" },
+          { value: "spa", label: "İspanyolca" },
+          { value: "ita", label: "İtalyanca" },
+          { value: "ara", label: "Arapça" },
         ] },
         { name: "ocrType", label: "Metin içeren sayfalar", type: "select", default: "skip-text", options: [
           { value: "skip-text", label: "Atla, yalnızca taranmış sayfaları tanı" },
@@ -514,6 +519,22 @@
       },
       usesEngine: true,
       run: redact,
+    },
+    {
+      id: "scan-file",
+      category: "security",
+      title: "Virüs Tara",
+      description: "Dosyayı bu bilgisayardaki Windows Defender ile tarayın. Dosya karantinaya alınmaz ve silinmez; sonuç PDF rapor olarak hazırlanır.",
+      suffix: "tarama",
+      files: [{ name: "fileInput", label: "Dosya", accept: "*/*" }],
+      fields: [],
+      async run({ files, scan, htmlToPdf, note }) {
+        const file = files.fileInput[0];
+        const result = await scan(file);
+        note(result.clean ? "Tehdit bulunamadı" : "Tehdit bulundu");
+        const { html, page } = window.SecuriFormats.scanReport(file.name, result);
+        return htmlToPdf(html, page);
+      },
     },
     {
       id: "cert-sign",
