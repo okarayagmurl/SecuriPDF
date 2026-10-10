@@ -14,7 +14,7 @@ UDF ve e-Fatura dönüşümleri motoru kullanmaz: belge arayüzde HTML olarak di
 
 Office dönüşümleri bilgisayarda kurulu Microsoft Office ile yapılır (`src/office.rs`, `src/office.ps1`); Office yoksa araç bunu bildirir. Makrolar zorla kapatılır, belge salt okunur açılır. Office görünmeyen bir uyarıda takılırsa 3 dakika sonra süreç kapatılır ve kullanıcıya bildirilir. PDF/A çıktısını Word ve PowerPoint verir; Excel için PDF'e çevirip "PDF/A'ya dönüştür" aracı kullanılır.
 
-Seçilen belge ve sonuç sağ tarafta önizlenir (PDF.js). Sayfa silme, çıkarma ve bölmede sayfalar küçük resimlere tıklanarak seçilir; çift tıklama sayfayı tam ekranda açar. Sonuç kaydetmeden önce görülür ve "Sonuçla devam et" ile başka bir araca aktarılabilir. Uygulamayla açılan PDF (çift tıklama veya "Birlikte aç") doğrudan yüklenir.
+Seçilen belge ve sonuç sağ tarafta önizlenir (PDF.js). Sayfa silme, çıkarma ve bölmede sayfalar küçük resimlere tıklanarak seçilir; çift tıklama sayfayı tam ekranda açar. Tam ekran görüntüleyicide (PDF.js görüntüleyici bileşeni) metin arama (Ctrl+F), sayfaya gitme, genişliğe/sayfaya sığdırma, yakınlaştırma ve döndürme vardır; vurgulama, serbest çizim ve metin notu eklenip "Kaydet" ile işaretlemeler PDF'e yazılarak `_isaretli.pdf` olarak kaydedilir. Sonuç kaydetmeden önce görülür ve "Sonuçla devam et" ile başka bir araca aktarılabilir. Uygulamayla açılan PDF (çift tıklama veya "Birlikte aç") doğrudan yüklenir.
 
 Motor yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. Açılış, derleme sırasında üretilen Java AOT önbelleği sayesinde yaklaşık 15-20 saniyedir; bu sırada dosya seçilip önizlenebilir. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
 

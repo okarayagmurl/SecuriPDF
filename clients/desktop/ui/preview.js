@@ -81,66 +81,232 @@ async function renderPage(page, canvas, cssWidth) {
 // ---- Full-page viewer ----
 
 let viewer = null;
+let viewerLib = null;
 
-function closeViewer() {
-  if (!viewer) return;
-  viewer.root.remove();
-  document.removeEventListener("keydown", viewer.onKey);
-  viewer = null;
+// The viewer component reads the core library from a global, so it is loaded
+// only after that global exists.
+async function loadViewerLib() {
+  if (viewerLib) return viewerLib;
+  globalThis.pdfjsLib = pdfjs;
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "./vendor/pdfjs/web/pdf_viewer.css";
+  document.head.appendChild(css);
+  viewerLib = await import("./vendor/pdfjs/web/pdf_viewer.mjs");
+  return viewerLib;
 }
 
-async function openViewer(doc, pageNumber, title) {
-  closeViewer();
+function closeViewer(force = true) {
+  if (!viewer) return true;
+  if (!force && viewer.isDirty() && !window.confirm("Kaydedilmemiş işaretlemeler var. Görüntüleyici kapatılsın mı?")) return false;
+  viewer.root.remove();
+  document.removeEventListener("keydown", viewer.onKey, true);
+  viewer.task.destroy();
+  viewer = null;
+  return true;
+}
+
+function button(text, title) {
+  const node = el("button", "secondary", text);
+  node.type = "button";
+  if (title) node.title = title;
+  return node;
+}
+
+const MARKS = [
+  { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi ve gezinme" },
+  { mode: pdfjs.AnnotationEditorType.HIGHLIGHT, label: "Vurgula", title: "Metni seçerek vurgulayın", color: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_COLOR, initial: "#ffff98" },
+  { mode: pdfjs.AnnotationEditorType.INK, label: "Çiz", title: "Serbest çizim", color: pdfjs.AnnotationEditorParamsType.INK_COLOR, initial: "#e11d48" },
+  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Sayfaya tıklayıp yazın", color: pdfjs.AnnotationEditorParamsType.FREETEXT_COLOR, initial: "#1d4ed8" },
+];
+
+/**
+ * Opens `source` in a scrolling viewer with search, zoom and markup tools.
+ * options.onSave(bytes) receives the PDF with the markup written into it.
+ */
+async function openViewer(source, pageNumber, title, options = {}) {
+  if (!closeViewer(false)) return;
+  const lib = await loadViewerLib();
   const root = el("div", "viewer");
   const bar = el("div", "viewer-bar");
   const name = el("span", "viewer-title", title || "");
-  const prev = el("button", "secondary", "‹");
-  const position = el("span", "viewer-pos");
-  const next = el("button", "secondary", "›");
-  const zoomOut = el("button", "secondary", "−");
-  const zoomIn = el("button", "secondary", "+");
-  const fit = el("button", "secondary", "Sığdır");
-  const close = el("button", "secondary", "Kapat");
-  [prev, next, zoomOut, zoomIn, fit, close].forEach((b) => { b.type = "button"; });
-  prev.title = "Önceki sayfa";
-  next.title = "Sonraki sayfa";
-  bar.append(name, prev, position, next, zoomOut, zoomIn, fit, close);
+
+  const prev = button("‹", "Önceki sayfa");
+  const pageInput = el("input", "viewer-page");
+  pageInput.type = "number";
+  pageInput.min = "1";
+  pageInput.title = "Sayfaya git";
+  const pageTotal = el("span", "viewer-pos");
+  const next = button("›", "Sonraki sayfa");
+
+  const zoomOut = button("−", "Uzaklaştır");
+  const zoomLabel = el("span", "viewer-zoom");
+  const zoomIn = button("+", "Yakınlaştır");
+  const fitWidth = button("Genişlik", "Sayfa genişliğine sığdır");
+  const fitPage = button("Sayfa", "Tüm sayfayı göster");
+  const rotate = button("↻", "Sayfaları döndür");
+
+  const find = el("input", "viewer-find");
+  find.type = "search";
+  find.placeholder = "Belgede ara (Ctrl+F)";
+  const findPrev = button("▲", "Önceki eşleşme");
+  const findNext = button("▼", "Sonraki eşleşme");
+  const findCount = el("span", "viewer-count");
+
+  const marks = el("div", "viewer-marks");
+  const markButtons = MARKS.map((mark) => {
+    const node = button(mark.label, mark.title);
+    node.dataset.mode = String(mark.mode);
+    marks.appendChild(node);
+    return node;
+  });
+  const color = el("input", "viewer-color");
+  color.type = "color";
+  color.title = "Renk";
+  color.hidden = true;
+  marks.appendChild(color);
+  const save = button("Kaydet", "İşaretlemeleri PDF'e yazıp kaydedin");
+  save.classList.remove("secondary");
+  save.disabled = true;
+  const close = button("Kapat");
+
+  const group = (...items) => { const node = el("div", "viewer-group"); node.append(...items); return node; };
+  bar.append(
+    name,
+    group(prev, pageInput, pageTotal, next),
+    group(zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
+    group(find, findPrev, findNext, findCount),
+    marks,
+    group(save, close),
+  );
+  const body = el("div", "viewer-body");
   const stage = el("div", "viewer-stage");
-  const canvas = el("canvas");
-  stage.appendChild(canvas);
-  root.append(bar, stage);
+  const pages = el("div", "pdfViewer");
+  stage.appendChild(pages);
+  body.appendChild(stage);
+  root.append(bar, body);
   document.body.appendChild(root);
 
-  const state = { page: pageNumber, zoom: 0 };
-  const draw = async () => {
-    position.textContent = `${state.page} / ${doc.numPages}`;
-    prev.disabled = state.page <= 1;
-    next.disabled = state.page >= doc.numPages;
-    const page = await doc.getPage(state.page);
-    const fitWidth = Math.min(stage.clientWidth - 40, (stage.clientHeight - 40) * page.view[2] / page.view[3]);
-    const width = state.zoom ? fitWidth * state.zoom : Math.max(200, fitWidth);
-    await renderPage(page, canvas, width);
-  };
-  const go = (delta) => {
-    const target = Math.min(doc.numPages, Math.max(1, state.page + delta));
-    if (target !== state.page) { state.page = target; draw(); }
-  };
-  const zoom = (factor) => { state.zoom = Math.min(4, Math.max(0.5, (state.zoom || 1) * factor)); draw(); };
-  prev.onclick = () => go(-1);
-  next.onclick = () => go(1);
-  zoomIn.onclick = () => zoom(1.25);
-  zoomOut.onclick = () => zoom(0.8);
-  fit.onclick = () => { state.zoom = 0; draw(); };
-  close.onclick = closeViewer;
-  root.addEventListener("click", (event) => { if (event.target === stage) closeViewer(); });
+  const eventBus = new lib.EventBus();
+  const linkService = new lib.PDFLinkService({ eventBus });
+  const findController = new lib.PDFFindController({ eventBus, linkService });
+  const pdfViewer = new lib.PDFViewer({
+    container: stage,
+    viewer: pages,
+    eventBus,
+    linkService,
+    findController,
+    annotationEditorMode: pdfjs.AnnotationEditorType.NONE,
+    imageResourcesPath: "./vendor/pdfjs/web/images/",
+  });
+  linkService.setViewer(pdfViewer);
+
+  let dirty = false;
+  const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(source), password: options.password || undefined });
   const onKey = (event) => {
-    if (event.key === "Escape") closeViewer();
-    else if (event.key === "ArrowLeft" || event.key === "PageUp") go(-1);
-    else if (event.key === "ArrowRight" || event.key === "PageDown") go(1);
+    const typing = event.target.closest && event.target.closest("input, textarea, [contenteditable=true], .freeTextEditor");
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      find.focus();
+      find.select();
+    } else if (event.key === "Escape" && !typing) {
+      closeViewer(false);
+    }
   };
-  document.addEventListener("keydown", onKey);
-  viewer = { root, onKey };
-  await draw();
+  document.addEventListener("keydown", onKey, true);
+  const current = { root, onKey, task, isDirty: () => dirty };
+  viewer = current;
+
+  let doc;
+  try {
+    doc = await task.promise;
+  } catch {
+    if (viewer === current) pages.replaceChildren(el("p", "preview-note", "PDF açılamadı."));
+    return;
+  }
+  if (viewer !== current) return;
+  const markDirty = (value) => { dirty = value; save.disabled = !value; };
+  doc.annotationStorage.onSetModified = () => markDirty(true);
+  doc.annotationStorage.onResetModified = () => markDirty(false);
+  pdfViewer.setDocument(doc);
+  linkService.setDocument(doc, null);
+  pageTotal.textContent = `/ ${doc.numPages}`;
+  pageInput.max = String(doc.numPages);
+
+  eventBus.on("pagesinit", () => {
+    pdfViewer.currentScaleValue = "page-fit";
+    pdfViewer.currentPageNumber = Math.min(doc.numPages, Math.max(1, pageNumber));
+  });
+  eventBus.on("pagechanging", ({ pageNumber: number }) => {
+    pageInput.value = String(number);
+    prev.disabled = number <= 1;
+    next.disabled = number >= doc.numPages;
+  });
+  eventBus.on("scalechanging", ({ scale }) => { zoomLabel.textContent = Math.round(scale * 100) + "%"; });
+
+  prev.onclick = () => pdfViewer.previousPage();
+  next.onclick = () => pdfViewer.nextPage();
+  pageInput.onchange = () => {
+    const number = Math.round(Number(pageInput.value));
+    if (number >= 1 && number <= doc.numPages) pdfViewer.currentPageNumber = number;
+    else pageInput.value = String(pdfViewer.currentPageNumber);
+  };
+  zoomIn.onclick = () => pdfViewer.increaseScale();
+  zoomOut.onclick = () => pdfViewer.decreaseScale();
+  fitWidth.onclick = () => { pdfViewer.currentScaleValue = "page-width"; };
+  fitPage.onclick = () => { pdfViewer.currentScaleValue = "page-fit"; };
+  rotate.onclick = () => { pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360; };
+
+  const search = (type, findPrevious = false) => {
+    eventBus.dispatch("find", {
+      source: find, type, query: find.value, caseSensitive: false, entireWord: false,
+      highlightAll: true, findPrevious, matchDiacritics: false,
+    });
+  };
+  find.addEventListener("input", () => search(""));
+  find.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); search("again", event.shiftKey); }
+  });
+  findNext.onclick = () => search("again");
+  findPrev.onclick = () => search("again", true);
+  const showCount = ({ matchesCount, state }) => {
+    if (!find.value) findCount.textContent = "";
+    else if (state === lib.FindState.NOT_FOUND || (matchesCount && !matchesCount.total)) findCount.textContent = "Bulunamadı";
+    else if (matchesCount && matchesCount.total) findCount.textContent = `${matchesCount.current} / ${matchesCount.total}`;
+  };
+  eventBus.on("updatefindmatchescount", showCount);
+  eventBus.on("updatefindcontrolstate", showCount);
+
+  const setMark = (mark) => {
+    pdfViewer.annotationEditorMode = { mode: mark.mode };
+    markButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === String(mark.mode)));
+    color.hidden = !mark.color;
+    if (mark.color) {
+      color.value = mark.current || mark.initial;
+      eventBus.dispatch("switchannotationeditorparams", { source: color, type: mark.color, value: color.value });
+    }
+  };
+  let activeMark = MARKS[0];
+  markButtons.forEach((node, index) => { node.onclick = () => { activeMark = MARKS[index]; setMark(activeMark); }; });
+  color.oninput = () => {
+    activeMark.current = color.value;
+    eventBus.dispatch("switchannotationeditorparams", { source: color, type: activeMark.color, value: color.value });
+  };
+  eventBus.on("annotationeditoruimanager", () => setMark(MARKS[0]));
+
+  save.onclick = async () => {
+    if (!options.onSave) return;
+    save.disabled = true;
+    try {
+      const bytes = await doc.saveDocument();
+      const saved = await options.onSave(bytes);
+      markDirty(!saved);
+    } catch {
+      markDirty(true);
+      window.alert("İşaretlemeler kaydedilemedi.");
+    }
+  };
+  close.onclick = () => closeViewer(false);
 }
 
 // ---- Thumbnail grid ----
@@ -189,6 +355,9 @@ async function show(host, source, options = {}) {
     return { kind, pageCount: 0, setSelected() {}, destroy() {} };
   }
 
+  // The viewer loads its own copy so markup there never touches the thumbnails.
+  const original = bytes.slice();
+  const open = (number) => openViewer(original, number, name, { password: options.password, onSave: options.onSave });
   const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: bytes, password: options.password || undefined });
   let doc;
   try {
@@ -204,8 +373,8 @@ async function show(host, source, options = {}) {
   const pick = options.pick;
   const grid = el("div", "thumbs" + (pick ? " pickable mode-" + pick.mode : ""));
   const header = el("p", "preview-note", pick
-    ? `${doc.numPages} sayfa. Sayfaya tıklayarak seçin; büyütmek için çift tıklayın.`
-    : `${doc.numPages} sayfa. Büyütmek için sayfaya tıklayın.`);
+    ? `${doc.numPages} sayfa. Sayfaya tıklayarak seçin; açmak için çift tıklayın.`
+    : `${doc.numPages} sayfa. Açmak, aramak veya işaretlemek için sayfaya tıklayın.`);
   host.replaceChildren(header, grid);
 
   const cells = [];
@@ -231,9 +400,9 @@ async function show(host, source, options = {}) {
     cell.append(canvas, el("span", "thumb-label", String(number)));
     if (pick) {
       cell.addEventListener("click", () => pick.onToggle(number));
-      cell.addEventListener("dblclick", () => openViewer(doc, number, name));
+      cell.addEventListener("dblclick", () => open(number));
     } else {
-      cell.addEventListener("click", () => openViewer(doc, number, name));
+      cell.addEventListener("click", () => open(number));
     }
     grid.appendChild(cell);
     cells.push(cell);

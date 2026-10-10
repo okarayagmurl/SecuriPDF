@@ -469,7 +469,11 @@
     await previewReady;
     if (token !== preview.token) return;
     const values = readValues();
-    const options = { name: source.name, password: values.password || undefined };
+    const options = {
+      name: source.name,
+      password: values.password || undefined,
+      onSave: (bytes) => saveBytes(bytes, (source.name.replace(/\.[^.]+$/, "") || "belge") + "_isaretli.pdf"),
+    };
     if (pick) {
       options.pick = {
         mode: pick.pagePicker,
@@ -668,14 +672,19 @@
     }
   }
 
+  /** Returns the saved path, or null when the user cancels the dialog. */
+  function saveBytes(bytes, name) {
+    return core.invoke("save_output", bytes, {
+      headers: { "x-securipdf-file-name": encodeURIComponent(name) },
+    });
+  }
+
   async function saveResult() {
     if (!state.result) return;
     const button = $("save");
     button.disabled = true;
     try {
-      const saved = await core.invoke("save_output", state.result.bytes, {
-        headers: { "x-securipdf-file-name": encodeURIComponent(state.result.name) },
-      });
+      const saved = await saveBytes(state.result.bytes, state.result.name);
       if (saved) $("resultText").textContent = `Kaydedildi: ${saved}`;
     } catch (err) {
       $("formError").textContent = errorText(err);

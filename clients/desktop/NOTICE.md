@@ -20,6 +20,7 @@ Kurulum dosyasına şu üçüncü taraf bileşenler eklenir:
   olarak dağıtılır.
 - PDF.js 6.4.299 (`ui/vendor/pdfjs`): Apache License 2.0; `wasm/` altındaki
   JBIG2, OpenJPEG ve QCMS çözücüleri kendi lisans dosyalarıyla birliktedir.
+  Görüntüleyici bileşeni (`web/pdf_viewer.mjs`, CSS ve simgeler) aynı lisanstadır.
 
 Stirling-PDF MIT bildirimi:
 
