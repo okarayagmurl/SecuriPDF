@@ -33,6 +33,19 @@ body {
 .brand img { width: 26px; height: 26px; }
 .brand-version { font-size: 12px; font-weight: 400; color: #94a3b8; }
 .shell-menu { margin-left: auto; margin-right: 14px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #cbd5e1; cursor: pointer; }
+.license-badge {
+  margin-right: 10px;
+  border: 0;
+  font: 13px "Segoe UI", sans-serif;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #334155;
+  color: #fff;
+  cursor: pointer;
+}
+.license-badge[data-state="demo"] { background: #b45309; }
+.license-badge[data-state="commercial"] { background: var(--ok); }
+.license-badge[data-state="expired"] { background: var(--danger); }
 
 .splash {
   position: fixed;
@@ -371,3 +384,30 @@ button:disabled { opacity: 0.55; cursor: default; }
 .viewer-body { position: relative; flex: 1; }
 .viewer-stage { position: absolute; inset: 0; overflow: auto; }
 .viewer-stage .pdfViewer .page { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); }
+
+.license-banner { margin-top: 16px; color: var(--danger); font-size: 13px; }
+.dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+}
+.dialog[hidden] { display: none; }
+.dialog-card {
+  width: min(460px, 92vw);
+  padding: 22px 24px 18px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+}
+.dialog-card h2 { margin: 0 0 8px; font-size: 20px; }
+.dialog-card form { display: grid; gap: 10px; margin: 16px 0; }
+.dialog-card label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.license-facts { margin: 12px 0 0; display: grid; gap: 8px; }
+.license-facts div { display: grid; grid-template-columns: 88px 1fr; gap: 8px; font-size: 13px; }
+.license-facts dt { color: var(--muted); font-weight: 600; }
+.license-facts dd { margin: 0; word-break: break-all; }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; }

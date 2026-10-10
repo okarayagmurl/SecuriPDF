@@ -1,6 +1,7 @@
 mod cli;
 mod defender;
 mod engine;
+mod license;
 mod office;
 mod print;
 mod qpdf;
@@ -126,6 +127,9 @@ pub fn run() {
             qpdf::repair_pdf,
             defender::scan_file,
             qr::make_qr,
+            license::license_status,
+            license::license_save_request,
+            license::license_open_and_activate,
             cli::cli_job,
             cli::cli_start_engine,
             cli::cli_finish,
@@ -160,11 +164,47 @@ fn command_line(args: &[String]) -> cli::Cli {
         cli::print(false, 0, &serde_json::Value::Null, cli::HELP);
         std::process::exit(0);
     }
+    if options.license_status {
+        match license::evaluate() {
+            Ok(status) => {
+                let report = serde_json::to_value(&status).unwrap_or_default();
+                let code = if status.valid { 0 } else { cli::EXIT_LICENSE };
+                cli::print(options.json, code, &report, &status.message);
+                std::process::exit(code);
+            }
+            Err(message) => fail(cli::EXIT_LICENSE, "LICENSE", message),
+        }
+    }
+    if let Some(path) = &options.license_activate {
+        match license::activate_path(path) {
+            Ok(status) => {
+                let report = serde_json::to_value(&status).unwrap_or_default();
+                let code = if status.valid { 0 } else { cli::EXIT_LICENSE };
+                cli::print(options.json, code, &report, &status.message);
+                std::process::exit(code);
+            }
+            Err(message) => fail(cli::EXIT_LICENSE, "LICENSE", message),
+        }
+    }
+    if !options.list_tools {
+        if let Err(message) = license::require() {
+            fail(cli::EXIT_LICENSE, &message, license_fail_text(&message));
+        }
+    }
     if let Err(message) = cli::resolve_inputs(&options.inputs) {
         fail(cli::EXIT_INPUT, "INPUT", message);
     }
     cli::wait_for_turn();
     cli::Cli::new(options)
+}
+
+fn license_fail_text(code: &str) -> String {
+    match code {
+        "LICENSE_EXPIRED" => {
+            "Lisans süresi doldu. --license-activate ile .lic yükleyin veya uygulamadan talep oluşturun.".into()
+        }
+        _ => "Geçerli lisans yok. --license-status ile durumu görün.".into(),
+    }
 }
 
 fn remove_cli_engine_dir(app: &AppHandle) {
@@ -231,6 +271,7 @@ async fn run_local_tool(
     };
     let api_path = header(&request, HEADER_API_PATH).ok_or("LOCAL_BAD_REQUEST")?;
     let content_type = header(&request, HEADER_CONTENT_TYPE).ok_or("LOCAL_BAD_REQUEST")?;
+    license::require()?;
     if !is_local_api_path(&api_path) || !content_type.starts_with("multipart/form-data; boundary=")
     {
         return Err("LOCAL_BAD_REQUEST".into());

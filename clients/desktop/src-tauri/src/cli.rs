@@ -20,6 +20,7 @@ pub const EXIT_ENGINE: i32 = 3;
 pub const EXIT_INPUT: i32 = 4;
 pub const EXIT_OUTPUT: i32 = 5;
 pub const EXIT_TIMEOUT: i32 = 6;
+pub const EXIT_LICENSE: i32 = 7;
 const JOB_LIMIT: Duration = Duration::from_secs(30 * 60);
 const HEADER_STATUS: &str = "x-securipdf-cli-status";
 const HEADER_NOTE: &str = "x-securipdf-cli-note";
@@ -29,6 +30,8 @@ pub const HELP: &str = "SecuriPDF komut satırı
 Kullanım:
   securipdf-desktop.exe --tool <araç> [seçenekler] <girdi> [girdi...]
   securipdf-desktop.exe --list-tools [--json]
+  securipdf-desktop.exe --license-status [--json]
+  securipdf-desktop.exe --license-activate <dosya.lic>
 
 Seçenekler:
   --tool <araç>       Çalıştırılacak araç (liste için --list-tools)
@@ -37,10 +40,12 @@ Seçenekler:
   --password <parola> Parolalı girdi için parola
   --json              Sonucu tek satır JSON olarak yaz
   --silent            Hata olsa da pencere gösterme
+  --license-status    Lisans / 15 günlük deneme durumunu yaz
+  --license-activate  İmzalı .lic dosyasını bu kuruluma yükle
 
 Çıkış kodları:
   0 başarılı, 1 araç hatası, 2 kullanım hatası, 3 PDF motoru açılamadı,
-  4 girdi okunamadı, 5 çıktı yazılamadı, 6 zaman aşımı
+  4 girdi okunamadı, 5 çıktı yazılamadı, 6 zaman aşımı, 7 lisans yok veya süresi doldu
 
 Komut isteminde bitmesini beklemek için: start \"\" /wait securipdf-desktop.exe ...
 PowerShell'de: Start-Process securipdf-desktop.exe -ArgumentList ... -Wait -PassThru
@@ -56,14 +61,19 @@ pub struct Options {
     pub out: Option<PathBuf>,
     pub json: bool,
     pub silent: bool,
+    pub license_status: bool,
+    pub license_activate: Option<PathBuf>,
 }
 
 /// Command-line mode starts only for these switches, so "Open with" and
 /// double-clicking a PDF keep opening the window.
 pub fn requested(args: &[String]) -> bool {
-    args.iter()
-        .skip(1)
-        .any(|arg| matches!(arg.as_str(), "--tool" | "--list-tools" | "--help" | "-h" | "/?"))
+    args.iter().skip(1).any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--tool" | "--list-tools" | "--help" | "-h" | "/?" | "--license-status" | "--license-activate"
+        )
+    })
 }
 
 pub fn parse(args: &[String]) -> Result<Options, String> {
@@ -88,12 +98,14 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             "--json" => options.json = true,
             "--silent" => options.silent = true,
             "--list-tools" => options.list_tools = true,
+            "--license-status" => options.license_status = true,
+            "--license-activate" => options.license_activate = Some(PathBuf::from(value("--license-activate")?)),
             "--help" | "-h" | "/?" => options.help = true,
             other if other.starts_with("--") => return Err(format!("Bilinmeyen seçenek: {other}")),
             other => options.inputs.push(PathBuf::from(other)),
         }
     }
-    if !options.help && !options.list_tools {
+    if !options.help && !options.list_tools && !options.license_status && options.license_activate.is_none() {
         if options.tool.is_none() {
             return Err("--tool gerekli.".into());
         }
@@ -238,6 +250,7 @@ fn exit_code_for(kind: &str) -> i32 {
         "USAGE" | "UNKNOWN_TOOL" | "UNKNOWN_PARAM" | "INVALID" => EXIT_USAGE,
         "ENGINE" => EXIT_ENGINE,
         "INPUT" => EXIT_INPUT,
+        "LICENSE" | "LICENSE_EXPIRED" | "LICENSE_REQUIRED" => EXIT_LICENSE,
         _ => EXIT_TOOL_FAILED,
     }
 }
@@ -333,7 +346,7 @@ fn attach_console() {}
 
 #[cfg(test)]
 mod tests {
-    use super::{exit_code_for, output_path, parse, requested, unused_path, EXIT_ENGINE, EXIT_USAGE};
+    use super::{exit_code_for, output_path, parse, requested, unused_path, EXIT_ENGINE, EXIT_LICENSE, EXIT_USAGE};
     use std::path::{Path, PathBuf};
 
     fn args(list: &[&str]) -> Vec<String> {
@@ -344,6 +357,8 @@ mod tests {
     fn only_switches_start_command_line_mode() {
         assert!(requested(&args(&["--tool", "ocr-pdf", "a.pdf"])));
         assert!(requested(&args(&["--list-tools"])));
+        assert!(requested(&args(&["--license-status"])));
+        assert!(requested(&args(&["--license-activate", "a.lic"])));
         assert!(!requested(&args(&[r"C:\belgeler\sözleşme.pdf"])));
         assert!(!requested(&args(&[])));
     }
@@ -371,12 +386,15 @@ mod tests {
         assert!(parse(&args(&["--tool", "x", "--set", "=1", "a.pdf"])).is_err());
         assert!(parse(&args(&["--tool", "x", "--frobnicate", "a.pdf"])).is_err());
         assert!(parse(&args(&["--list-tools"])).is_ok());
+        assert!(parse(&args(&["--license-status"])).is_ok());
+        assert!(parse(&args(&["--license-activate", "firma.lic"])).is_ok());
     }
 
     #[test]
     fn maps_failures_to_exit_codes() {
         assert_eq!(exit_code_for("UNKNOWN_TOOL"), EXIT_USAGE);
         assert_eq!(exit_code_for("ENGINE"), EXIT_ENGINE);
+        assert_eq!(exit_code_for("LICENSE_EXPIRED"), EXIT_LICENSE);
         assert_eq!(exit_code_for("LOCAL_HTTP_500"), 1);
     }
 

@@ -173,6 +173,7 @@ def cmd_issue(args: argparse.Namespace) -> int:
         request_id=str(req.get("request_id") or ""),
         customer_id=cust["id"],
         license_type="commercial",
+        edition=str(req.get("edition") or ""),
     )
     priv = load_private_key(Path(args.key) if args.key else None)
     doc = sign_license(payload, priv)

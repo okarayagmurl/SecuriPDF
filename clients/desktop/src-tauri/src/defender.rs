@@ -21,6 +21,7 @@ pub struct ScanResult {
 
 #[tauri::command]
 pub async fn scan_file(app: AppHandle, request: Request<'_>) -> Result<String, String> {
+    crate::license::require()?;
     let InvokeBody::Raw(body) = request.body() else {
         return Err("Taranacak veri yok.".into());
     };

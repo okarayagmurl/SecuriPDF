@@ -387,6 +387,7 @@ class LicenseApp(tk.Tk):
             request_id=str(self.req_data.get("request_id") or ""),
             customer_id=cust["id"],
             license_type="commercial",
+            edition=str(self.req_data.get("edition") or ""),
         )
         out = filedialog.asksaveasfilename(
             defaultextension=".lic",

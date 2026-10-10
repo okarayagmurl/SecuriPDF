@@ -34,6 +34,7 @@ struct Job {
 
 #[tauri::command]
 pub async fn office_convert(app: AppHandle, request: Request<'_>) -> Result<Response, String> {
+    crate::license::require()?;
     let InvokeBody::Raw(body) = request.body() else {
         return Err("OFFICE_BAD_INPUT".into());
     };

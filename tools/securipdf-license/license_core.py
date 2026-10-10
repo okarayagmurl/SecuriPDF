@@ -71,6 +71,7 @@ def build_payload(
     request_id: str = "",
     customer_id: str = "",
     license_type: str = "commercial",
+    edition: str = "",
 ) -> dict[str, Any]:
     issued = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     limits: dict[str, int] = {}
@@ -98,6 +99,8 @@ def build_payload(
         payload["customer_id"] = customer_id.strip()
     if enabled_tools is not None:
         payload["enabled_tools"] = list(enabled_tools)
+    if edition.strip():
+        payload["edition"] = edition.strip()
     return payload
 
 

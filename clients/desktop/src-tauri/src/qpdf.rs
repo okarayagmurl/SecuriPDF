@@ -12,6 +12,7 @@ static JOBS: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
 pub async fn repair_pdf(app: AppHandle, request: Request<'_>) -> Result<Response, String> {
+    crate::license::require()?;
     let InvokeBody::Raw(body) = request.body() else {
         return Err("Onarılacak veri yok.".into());
     };

@@ -51,6 +51,7 @@ impl PageSetup {
 
 #[tauri::command]
 pub async fn html_to_pdf(app: AppHandle, html: String, page: PageSetup) -> Result<Response, String> {
+    crate::license::require()?;
     let page = page.checked()?;
     let dir = app
         .path()

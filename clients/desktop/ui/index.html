@@ -37,6 +37,7 @@
     <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
       <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
     </label>
+    <button type="button" class="license-badge" id="licenseBtn" data-state="unknown" title="Lisans">Lisans</button>
     <span class="engine" id="engine" data-state="starting">Ön gereksinimler hazırlanıyor…</span>
   </header>
   <div class="layout">
@@ -64,6 +65,7 @@
           </div>
         </div>
         <p class="privacy">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
+      <p class="license-banner" id="licenseBanner" hidden></p>
       </section>
       <aside class="preview">
         <div class="tabs" role="tablist">
@@ -76,6 +78,27 @@
         </div>
       </aside>
     </main>
+  </div>
+  <div class="dialog" id="licenseDialog" hidden>
+    <div class="dialog-card" role="dialog" aria-labelledby="licenseTitle">
+      <h2 id="licenseTitle">Lisans</h2>
+      <p id="licenseSummary"></p>
+      <dl class="license-facts">
+        <div><dt>Kurulum</dt><dd id="licenseInstall"></dd></div>
+        <div><dt>Müşteri</dt><dd id="licenseCustomer"></dd></div>
+        <div><dt>Bitiş</dt><dd id="licenseExpiry"></dd></div>
+      </dl>
+      <form id="licenseRequest">
+        <label>Kurum / müşteri <input id="licenseCompany" required minlength="2" autocomplete="organization"></label>
+        <label>E-posta <input id="licenseEmail" type="email" autocomplete="email"></label>
+        <button type="submit" class="secondary">Talep dosyası kaydet (.req)</button>
+      </form>
+      <div class="dialog-actions">
+        <button type="button" class="primary" id="licenseLoad">Lisans dosyası yükle (.lic)</button>
+        <button type="button" class="secondary" id="licenseClose">Kapat</button>
+      </div>
+      <p class="error" id="licenseError" role="alert"></p>
+    </div>
   </div>
   <script src="formats.js"></script>
   <script src="tools.js"></script>

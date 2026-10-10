@@ -8,6 +8,7 @@ const MAX_CHARS: usize = 800;
 
 #[tauri::command]
 pub fn make_qr(text: String) -> Result<Vec<u8>, String> {
+    crate::license::require()?;
     render_bmp(&text)
 }
 

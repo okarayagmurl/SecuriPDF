@@ -13,6 +13,7 @@
     busy: false,
     batch: false,
     preview: { tab: "source", file: null, handle: null, token: 0 },
+    license: null,
   };
 
   const previewReady = window.SecuriPreview
@@ -44,6 +45,8 @@
     OFFICE_PDFA_WORD_ONLY: "Excel PDF/A çıktısı vermez. PDF seçin, ardından \"PDF/A'ya dönüştür\" aracını kullanın.",
     OFFICE_TIMEOUT: "Office 3 dakika içinde yanıt vermedi ve kapatıldı. Office'i bir kez elle açıp bekleyen bir uyarı (etkinleştirme, duyarlılık etiketi vb.) olup olmadığını kontrol edin.",
     OFFICE_SCRIPT_FAILED: "Office dönüştürücüsü başlatılamadı (PowerShell bulunamadı veya engellendi).",
+    LICENSE_EXPIRED: "Lisans süresi doldu. Üst çubuktaki Lisans düğmesinden .lic yükleyin.",
+    LICENSE_REQUIRED: "Çalıştırmak için geçerli bir lisans veya deneme süresi gerekir.",
   };
 
   function errorText(err) {
@@ -210,8 +213,10 @@
   function updateRunButton() {
     const run = $("run");
     const waiting = needsEngine(state.tool) && state.engine !== "ready";
-    run.disabled = state.busy || waiting;
+    const unlicensed = state.license && !state.license.valid;
+    run.disabled = state.busy || waiting || unlicensed;
     run.textContent = state.busy ? "İşleniyor…" : waiting ? "Ön gereksinimler hazırlanıyor…" : "Çalıştır";
+    if (unlicensed) run.textContent = "Lisans gerekli";
     if (needsEngine(state.tool) && (state.engine === "failed" || state.engine === "missing")) {
       run.textContent = "Hazır değil";
       $("formError").textContent = ($("engine").title || "Ön gereksinimler hazırlanamadı.") +
@@ -852,6 +857,10 @@
 
   async function runTool(event) {
     event.preventDefault();
+    if (state.license && !state.license.valid) {
+      openLicense(true);
+      return;
+    }
     if (state.busy || (needsEngine(state.tool) && state.engine !== "ready")) return;
     const values = readValues();
     await countSourcePages(values);
@@ -1139,6 +1148,88 @@
     }
   }
 
+  // ---- License ----
+
+  function formatLicenseDate(iso) {
+    if (!iso) return "Süresiz";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    return date.toLocaleDateString("tr-TR");
+  }
+
+  function applyLicense(status) {
+    state.license = status;
+    const btn = $("licenseBtn");
+    const banner = $("licenseBanner");
+    const kind = !status.valid ? "expired" : status.licenseType === "demo" ? "demo" : "commercial";
+    btn.dataset.state = kind;
+    btn.textContent = !status.valid
+      ? "Lisans doldu"
+      : status.licenseType === "demo"
+        ? `Demo · ${status.daysLeft == null ? "?" : status.daysLeft} gün`
+        : (status.customer ? `Lisanslı · ${status.customer}` : "Lisanslı");
+    btn.title = status.message || "Lisans";
+    $("licenseSummary").textContent = status.message || "";
+    $("licenseInstall").textContent = status.installationId || "—";
+    $("licenseCustomer").textContent = status.customer || "—";
+    $("licenseExpiry").textContent = formatLicenseDate(status.expiresAt);
+    banner.hidden = status.valid;
+    banner.textContent = status.valid ? "" : status.message;
+    updateRunButton();
+  }
+
+  function openLicense(force) {
+    $("licenseDialog").hidden = false;
+    if (force) $("licenseError").textContent = state.license && !state.license.valid
+      ? (state.license.message || "Lisans gerekli.")
+      : "";
+  }
+
+  async function refreshLicense(openIfExpired) {
+    if (!core) return;
+    try {
+      applyLicense(await core.invoke("license_status"));
+      if (openIfExpired && state.license && !state.license.valid) openLicense(true);
+    } catch (err) {
+      $("licenseBtn").dataset.state = "expired";
+      $("licenseBtn").textContent = "Lisans";
+      $("licenseError").textContent = errorText(err);
+    }
+  }
+
+  function initLicense() {
+    $("licenseBtn").addEventListener("click", () => openLicense(false));
+    $("licenseClose").addEventListener("click", () => { $("licenseDialog").hidden = true; });
+    $("licenseDialog").addEventListener("click", (event) => {
+      if (event.target === $("licenseDialog")) $("licenseDialog").hidden = true;
+    });
+    $("licenseRequest").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      $("licenseError").textContent = "";
+      try {
+        const path = await core.invoke("license_save_request", {
+          company: $("licenseCompany").value,
+          email: $("licenseEmail").value,
+          contactName: "",
+          notes: "",
+        });
+        if (path) $("licenseSummary").textContent = `Talep kaydedildi: ${path}. Bu dosyayı Entera'ya gönderin.`;
+      } catch (err) {
+        $("licenseError").textContent = errorText(err);
+      }
+    });
+    $("licenseLoad").addEventListener("click", async () => {
+      $("licenseError").textContent = "";
+      try {
+        applyLicense(await core.invoke("license_open_and_activate"));
+        if (state.license && state.license.valid) $("licenseDialog").hidden = true;
+      } catch (err) {
+        $("licenseError").textContent = errorText(err);
+      }
+    });
+    refreshLicense(true);
+  }
+
   // ---- Explorer right-click menu ----
 
   async function initShellMenu() {
@@ -1169,7 +1260,10 @@
     }
     pollEngine();
     loadOpenedFiles();
-    if (core) initShellMenu();
+    if (core) {
+      initShellMenu();
+      initLicense();
+    }
     if (tauri && tauri.event) tauri.event.listen("securipdf-opened", loadOpenedFiles);
   })();
 })();
