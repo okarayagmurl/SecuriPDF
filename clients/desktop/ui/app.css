@@ -32,6 +32,7 @@ body {
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; }
 .brand img { width: 26px; height: 26px; }
 .brand-version { font-size: 12px; font-weight: 400; color: #94a3b8; }
+.shell-menu { margin-left: auto; margin-right: 14px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #cbd5e1; cursor: pointer; }
 
 .splash {
   position: fixed;

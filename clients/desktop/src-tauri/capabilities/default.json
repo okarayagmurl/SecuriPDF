@@ -10,6 +10,11 @@
     "allow-take-opened-files",
     "allow-read-opened-file",
     "allow-html-to-pdf",
-    "allow-office-convert"
+    "allow-office-convert",
+    "allow-cli-job",
+    "allow-cli-start-engine",
+    "allow-cli-finish",
+    "allow-shell-menu-status",
+    "allow-shell-menu-set"
   ]
 }

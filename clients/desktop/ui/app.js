@@ -628,6 +628,21 @@
     return new Uint8Array(output);
   }
 
+  async function execute(tool, values) {
+    let note = "";
+    const bytes = tool.run
+      ? await tool.run({
+        files: state.files,
+        values,
+        engine: callEngine,
+        htmlToPdf,
+        office,
+        note: (text) => { note = text; },
+      })
+      : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values));
+    return { bytes, note };
+  }
+
   async function runTool(event) {
     event.preventDefault();
     if (state.busy || (needsEngine(state.tool) && state.engine !== "ready")) return;
@@ -645,17 +660,7 @@
     updateRunButton();
     const started = Date.now();
     try {
-      let note = "";
-      const bytes = tool.run
-        ? await tool.run({
-          files: state.files,
-          values,
-          engine: callEngine,
-          htmlToPdf,
-          office,
-          note: (text) => { note = text; },
-        })
-        : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values));
+      const { bytes, note } = await execute(tool, values);
       if (state.tool !== tool) return;
       state.result = { bytes, name: outputName(bytes) };
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
@@ -733,11 +738,159 @@
   document.addEventListener("dragover", (event) => event.preventDefault());
   document.addEventListener("drop", (event) => event.preventDefault());
 
+  // ---- Command line (see cli.rs): the window stays hidden and reports back ----
+
+  function cliFinish(status, body, headers = {}) {
+    return core.invoke("cli_finish", body, { headers: { "x-securipdf-cli-status": status, ...headers } });
+  }
+
+  function cliFail(code, message) {
+    return cliFinish("error", new TextEncoder().encode(JSON.stringify({ code, message })));
+  }
+
+  function describeTool(tool) {
+    return {
+      id: tool.id,
+      title: tool.title,
+      description: tool.description,
+      accepts: tool.files[0].accept,
+      multiple: Boolean(tool.files[0].multiple),
+      usesEngine: needsEngine(tool),
+      settings: tool.fields.map((field) => ({
+        name: field.name,
+        label: field.label,
+        type: field.type,
+        default: field.default,
+        values: field.options ? field.options.map((option) => option.value) : undefined,
+      })),
+    };
+  }
+
+  function applySetting(tool, name, value) {
+    const field = tool.fields.find((item) => item.name === name);
+    if (!field) {
+      return `"${tool.id}" aracında "${name}" ayarı yok. Ayarlar: ${tool.fields.map((item) => item.name).join(", ") || "yok"}.`;
+    }
+    const input = $("f-" + name);
+    const allowed = field.options ? field.options.map((option) => String(option.value)) : null;
+    if (field.type === "checkbox") {
+      input.checked = /^(1|true|evet|yes|on)$/i.test(value);
+    } else if (field.type === "checks") {
+      const wanted = value.split(",").map((item) => item.trim()).filter(Boolean);
+      const unknown = wanted.filter((item) => !allowed.includes(item));
+      if (unknown.length) return `${name}: geçersiz değer (${unknown.join(", ")}). Geçerli: ${allowed.join(", ")}.`;
+      input.querySelectorAll("input").forEach((box) => { box.checked = wanted.includes(box.value); });
+    } else if (field.type === "select") {
+      if (!allowed.includes(value)) return `${name}: geçersiz değer "${value}". Geçerli: ${allowed.join(", ")}.`;
+      input.value = value;
+    } else {
+      input.value = value;
+    }
+    return null;
+  }
+
+  function waitForEngine() {
+    return new Promise((resolve) => {
+      const check = () => core.invoke("local_engine_status").then((status) => {
+        setEngine(status.state, status.detail);
+        if (status.state === "starting") setTimeout(check, 500);
+        else resolve();
+      }).catch((err) => { setEngine("failed", errorText(err)); resolve(); });
+      check();
+    });
+  }
+
+  async function runCli(job) {
+    try {
+      if (job.listTools) {
+        await cliFinish("list", new TextEncoder().encode(JSON.stringify(tools.map(describeTool))));
+        return;
+      }
+      const tool = tools.find((item) => item.id === job.tool);
+      if (!tool) {
+        await cliFail("UNKNOWN_TOOL", `Bilinmeyen araç: ${job.tool}. Araçların listesi için --list-tools kullanın.`);
+        return;
+      }
+      selectTool(tool.id);
+      const spec = tool.files[0];
+      const files = [];
+      for (const input of job.inputs) {
+        const data = await core.invoke("read_opened_file", { path: input.path });
+        files.push(new File([data], input.name, { type: /\.pdf$/i.test(input.name) ? "application/pdf" : "" }));
+      }
+      if (files.some((file) => !matchesAccept(file, spec.accept))) {
+        await cliFail("INPUT", `"${tool.id}" aracı bu dosya türünü kabul etmez (${spec.accept}).`);
+        return;
+      }
+      if (!spec.multiple && files.length > 1) {
+        await cliFail("USAGE", `"${tool.id}" aracı tek dosya alır.`);
+        return;
+      }
+      state.files[spec.name] = files;
+      for (const [name, value] of Object.entries(job.params)) {
+        const problem = applySetting(tool, name, value);
+        if (problem) {
+          await cliFail("UNKNOWN_PARAM", problem);
+          return;
+        }
+      }
+      applyVisibility();
+      const values = readValues();
+      await previewReady;
+      if (needsEngine(tool)) {
+        await core.invoke("cli_start_engine");
+        await waitForEngine();
+        if (state.engine !== "ready") {
+          await cliFail("ENGINE", $("engine").title || "PDF motoru başlatılamadı.");
+          return;
+        }
+      }
+      await countSourcePages(values);
+      const problem = validate(values);
+      if (problem) {
+        await cliFail("INVALID", problem);
+        return;
+      }
+      const { bytes, note } = await execute(tool, values);
+      const headers = { "x-securipdf-file-name": encodeURIComponent(outputName(bytes)) };
+      if (note) headers["x-securipdf-cli-note"] = encodeURIComponent(note);
+      await cliFinish("ok", bytes, headers);
+    } catch (err) {
+      await cliFail("TOOL", errorText(err));
+    }
+  }
+
+  // ---- Explorer right-click menu ----
+
+  async function initShellMenu() {
+    const box = $("shellMenu");
+    box.checked = await core.invoke("shell_menu_status").catch(() => false);
+    box.addEventListener("change", async () => {
+      box.disabled = true;
+      try {
+        box.checked = await core.invoke("shell_menu_set", { enabled: box.checked });
+      } catch (err) {
+        box.checked = !box.checked;
+        $("formError").textContent = errorText(err);
+      } finally {
+        box.disabled = false;
+      }
+    });
+  }
+
   // Read-only view used by the automated UI tests.
   window.SecuriApp = { lastResult: () => state.result && { name: state.result.name, bytes: state.result.bytes.slice() } };
 
   selectTool(tools[0].id);
-  pollEngine();
-  loadOpenedFiles();
-  if (tauri && tauri.event) tauri.event.listen("securipdf-opened", loadOpenedFiles);
+  (async () => {
+    const job = core ? await core.invoke("cli_job").catch(() => null) : null;
+    if (job) {
+      runCli(job);
+      return;
+    }
+    pollEngine();
+    loadOpenedFiles();
+    if (core) initShellMenu();
+    if (tauri && tauri.event) tauri.event.listen("securipdf-opened", loadOpenedFiles);
+  })();
 })();

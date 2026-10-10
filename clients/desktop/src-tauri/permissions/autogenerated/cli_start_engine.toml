@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cli-start-engine"
+description = "Enables the cli_start_engine command without any pre-configured scope."
+commands.allow = ["cli_start_engine"]
+
+[[permission]]
+identifier = "deny-cli-start-engine"
+description = "Denies the cli_start_engine command without any pre-configured scope."
+commands.deny = ["cli_start_engine"]

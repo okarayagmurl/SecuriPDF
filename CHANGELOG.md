@@ -9,6 +9,7 @@
 - Windows uygulaması açılışta logoyu, sürümü ve motorun gerçek açılış ilerlemesini gösterir; beklerken dosya seçilebilir
 - Windows uygulaması UYAP UDF belgelerini PDF'e, PDF'teki metni UDF'e dönüştürür
 - Windows uygulaması e-Fatura, e-Arşiv ve e-İrsaliye XML dosyalarını belgedeki şablonla veya standart şablonla PDF'e dönüştürür
+- Windows uygulaması komut satırından çalışır (`--tool`, `--set`, `--out`, `--json`, `--silent`, çıkış kodları) ve isteğe bağlı Gezgin sağ tık menüsü ekler
 - Windows uygulamasının görüntüleyicisinde metin arama, sayfaya gitme, sığdırma, döndürme ile vurgulama, çizim ve metin notu ekleyip PDF'e kaydetme
 - Windows uygulaması kurulu Microsoft Office ile Word, Excel ve PowerPoint belgelerini PDF veya PDF/A'ya, PDF'i Word'e dönüştürür
 

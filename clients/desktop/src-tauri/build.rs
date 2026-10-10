@@ -8,6 +8,11 @@ fn main() {
             "read_opened_file",
             "html_to_pdf",
             "office_convert",
+            "cli_job",
+            "cli_start_engine",
+            "cli_finish",
+            "shell_menu_status",
+            "shell_menu_set",
         ]),
     ))
     .expect("tauri build failed");

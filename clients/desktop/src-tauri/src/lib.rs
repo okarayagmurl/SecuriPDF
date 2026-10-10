@@ -1,6 +1,8 @@
+mod cli;
 mod engine;
 mod office;
 mod print;
+mod shell_menu;
 
 use engine::{is_local_api_path, Engine, EngineFiles, EngineStatus};
 use serde::Serialize;
@@ -33,20 +35,55 @@ struct OpenedFile {
     name: String,
 }
 
+impl OpenedFile {
+    fn from_path(path: &Path) -> Self {
+        Self {
+            name: path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            path: path.display().to_string(),
+        }
+    }
+}
+
 pub fn run() {
-    tauri::Builder::default()
+    let args: Vec<String> = std::env::args().collect();
+    let cli = cli::requested(&args).then(|| command_line(&args));
+    let is_cli = cli.is_some();
+    let mut builder = tauri::Builder::default()
         .manage(Engine::new())
-        .manage(Opened::default())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        .manage(Opened::default());
+    builder = match cli {
+        Some(cli) => builder.manage(cli),
+        None => builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             focus_main(app);
             if remember_pdfs(app, &args) {
                 let _ = app.emit(OPENED_EVENT, ());
             }
-        }))
+        })),
+    };
+    builder
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
-            remember_pdfs(app.handle(), &std::env::args().collect::<Vec<_>>());
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .setup(move |app| {
+            if let Some(cli) = app.try_state::<cli::Cli>() {
+                let inputs = cli.inputs().unwrap_or_default();
+                if let Ok(mut files) = app.state::<Opened>().0.lock() {
+                    files.readable.extend(inputs);
+                }
+                cli::watch(app.handle().clone());
+            } else {
+                remember_pdfs(app.handle(), &args);
+            }
+            let mut window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
+            if is_cli {
+                // A WebView2 profile already open with other options would refuse a second browser.
+                if let Ok(dir) = app.path().app_local_data_dir() {
+                    window = window.data_directory(dir.join("cli-webview"));
+                }
+            }
+            window
+                .visible(!is_cli)
                 .title("SecuriPDF")
                 .inner_size(1180.0, 780.0)
                 .min_inner_size(820.0, 560.0)
@@ -61,7 +98,9 @@ pub fn run() {
                     }
                 })
                 .build()?;
-            start_engine(app.handle());
+            if !is_cli {
+                start_engine(app.handle(), "engine");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -71,15 +110,63 @@ pub fn run() {
             take_opened_files,
             read_opened_file,
             print::html_to_pdf,
-            office::office_convert
+            office::office_convert,
+            cli::cli_job,
+            cli::cli_start_engine,
+            cli::cli_finish,
+            shell_menu::shell_menu_status,
+            shell_menu::shell_menu_set
         ])
         .build(tauri::generate_context!())
         .expect("SecuriPDF başlatılamadı")
-        .run(|app, event| {
+        .run(move |app, event| {
             if let RunEvent::Exit = event {
                 app.state::<Engine>().stop();
+                if is_cli {
+                    remove_cli_engine_dir(app);
+                }
             }
         });
+}
+
+/// Parses the command line, or prints why it cannot run and exits.
+fn command_line(args: &[String]) -> cli::Cli {
+    let as_json = args.iter().any(|arg| arg == "--json");
+    let fail = |code: i32, kind: &str, message: String| -> ! {
+        let report = serde_json::json!({ "ok": false, "code": kind, "message": message });
+        cli::print(as_json, code, &report, &format!("Hata: {message}\n\n{}", cli::HELP));
+        std::process::exit(code);
+    };
+    let options = match cli::parse(args) {
+        Ok(options) => options,
+        Err(message) => fail(cli::EXIT_USAGE, "USAGE", message),
+    };
+    if options.help {
+        cli::print(false, 0, &serde_json::Value::Null, cli::HELP);
+        std::process::exit(0);
+    }
+    if let Err(message) = cli::resolve_inputs(&options.inputs) {
+        fail(cli::EXIT_INPUT, "INPUT", message);
+    }
+    cli::wait_for_turn();
+    cli::Cli::new(options)
+}
+
+fn remove_cli_engine_dir(app: &AppHandle) {
+    let Ok(dir) = app
+        .path()
+        .app_local_data_dir()
+        .map(|dir| dir.join(format!("engine-cli-{}", std::process::id())))
+    else {
+        return;
+    };
+    // The engine's files stay locked for a moment after it is killed.
+    for _ in 0..10 {
+        if !dir.exists() || std::fs::remove_dir_all(&dir).is_ok() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(300));
+    }
 }
 
 fn is_app_url(scheme: &str, host: Option<&str>) -> bool {
@@ -188,17 +275,7 @@ fn take_opened_files(opened: tauri::State<'_, Opened>) -> Vec<OpenedFile> {
     let Ok(mut files) = opened.0.lock() else {
         return Vec::new();
     };
-    files
-        .pending
-        .drain(..)
-        .map(|path| OpenedFile {
-            name: path
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-            path: path.display().to_string(),
-        })
-        .collect()
+    files.pending.drain(..).map(|path| OpenedFile::from_path(&path)).collect()
 }
 
 /// Only files the user opened with the app can be read back.
@@ -282,7 +359,7 @@ fn remember_pdfs(app: &AppHandle, args: &[String]) -> bool {
     true
 }
 
-fn start_engine(app: &AppHandle) {
+fn start_engine(app: &AppHandle, work_dir_name: &str) {
     let engine = app.state::<Engine>().inner().clone();
     let Some(files) = app
         .path()
@@ -292,7 +369,7 @@ fn start_engine(app: &AppHandle) {
     else {
         return;
     };
-    let Ok(work_dir) = app.path().app_local_data_dir().map(|dir| dir.join("engine")) else {
+    let Ok(work_dir) = app.path().app_local_data_dir().map(|dir| dir.join(work_dir_name)) else {
         return;
     };
     match engine.start(files, &work_dir) {
