@@ -4,6 +4,7 @@
   const IMAGES = ".jpg,.jpeg,.png,.gif,.bmp,.tif,.tiff,.webp,image/*";
   const UDF = ".udf";
   const XML = ".xml,text/xml,application/xml";
+  const OFFICE = ".doc,.docx,.docm,.dot,.dotx,.rtf,.odt,.txt,.xls,.xlsx,.xlsm,.xlsb,.ods,.csv,.ppt,.pptx,.pptm,.pps,.ppsx,.odp";
 
   const MARGINS = [
     { value: "small", label: "Küçük" },
@@ -461,6 +462,32 @@
         if (values.template === "embedded" && template === "standard") note("Belgede şablon bulunamadı; standart şablon kullanıldı");
         return htmlToPdf(html, page);
       },
+    },
+    {
+      id: "office-to-pdf",
+      category: "convert",
+      title: "Office → PDF",
+      description: "Word, Excel veya PowerPoint belgesini bilgisayardaki Microsoft Office ile PDF'e dönüştürün. Makrolar çalıştırılmaz.",
+      suffix: "",
+      files: [{ name: "fileInput", label: "Office belgesi", accept: OFFICE }],
+      fields: [
+        { name: "format", label: "Çıktı", type: "select", local: true, default: "pdf", options: [
+          { value: "pdf", label: "PDF" },
+          { value: "pdfa", label: "PDF/A (arşiv; Word ve PowerPoint)" },
+        ] },
+      ],
+      run: ({ files, values, office }) => office(files.fileInput[0], values.format),
+    },
+    {
+      id: "pdf-to-word",
+      category: "convert",
+      title: "PDF → Word",
+      description: "PDF'i bilgisayardaki Microsoft Word ile düzenlenebilir Word belgesine (.docx) dönüştürün. Karmaşık sayfa düzenleri birebir korunmayabilir.",
+      suffix: "",
+      outputExt: "docx",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+      run: ({ files, office }) => office(files.fileInput[0], "docx"),
     },
   ];
 })();

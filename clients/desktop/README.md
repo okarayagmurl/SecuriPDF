@@ -8,9 +8,11 @@ Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server J
 - Metin tanıma: OCR ile aranabilir PDF (Türkçe, İngilizce)
 - Sayfalar: döndür, sil, çıkar, sırala, ölçekle, kırp, çok sayfa düzeni, tek sayfa, sayfa numarası
 - Güvenlik: damga, parola ekle, parola kaldır
-- Dönüştür: PDF'ten görsele, görselden PDF'e, UYAP UDF'ten PDF'e, PDF'ten UDF'e (yalnızca metin), e-Fatura / e-Arşiv / e-İrsaliye XML'inden PDF'e
+- Dönüştür: PDF'ten görsele, görselden PDF'e, UYAP UDF'ten PDF'e, PDF'ten UDF'e (yalnızca metin), e-Fatura / e-Arşiv / e-İrsaliye XML'inden PDF'e, Word / Excel / PowerPoint'ten PDF veya PDF/A'ya, PDF'ten Word'e
 
 UDF ve e-Fatura dönüşümleri motoru kullanmaz: belge arayüzde HTML olarak dizilir ve WebView2'nin yazdırma motoruyla PDF'e çevrilir (`src/print.rs`), böylece metin seçilebilir kalır. Bu sayfalarda betik çalıştırılmaz. e-Fatura'da belgeye gömülü XSLT şablonu varsa o, yoksa SecuriPDF standart şablonu kullanılır.
+
+Office dönüşümleri bilgisayarda kurulu Microsoft Office ile yapılır (`src/office.rs`, `src/office.ps1`); Office yoksa araç bunu bildirir. Makrolar zorla kapatılır, belge salt okunur açılır. Office görünmeyen bir uyarıda takılırsa 3 dakika sonra süreç kapatılır ve kullanıcıya bildirilir. PDF/A çıktısını Word ve PowerPoint verir; Excel için PDF'e çevirip "PDF/A'ya dönüştür" aracı kullanılır.
 
 Seçilen belge ve sonuç sağ tarafta önizlenir (PDF.js). Sayfa silme, çıkarma ve bölmede sayfalar küçük resimlere tıklanarak seçilir; çift tıklama sayfayı tam ekranda açar. Sonuç kaydetmeden önce görülür ve "Sonuçla devam et" ile başka bir araca aktarılabilir. Uygulamayla açılan PDF (çift tıklama veya "Birlikte aç") doğrudan yüklenir.
 

@@ -36,6 +36,13 @@
     PRINT_TIMEOUT: "PDF oluşturma zaman aşımına uğradı.",
     PRINT_FAILED: "PDF oluşturulamadı.",
     PRINT_BAD_PAGE: "Sayfa boyutu veya kenar boşlukları geçersiz.",
+    OFFICE_MISSING: "Bu dönüşüm için bilgisayarda Microsoft Office (Word, Excel veya PowerPoint) kurulu olmalı.",
+    OFFICE_OPEN_FAILED: "Office belgeyi açamadı. Dosya bozuk veya parola korumalı olabilir.",
+    OFFICE_EXPORT_FAILED: "Office belgeyi dönüştüremedi.",
+    OFFICE_BAD_INPUT: "Bu dosya türü bu dönüşümde desteklenmiyor.",
+    OFFICE_PDFA_WORD_ONLY: "Excel PDF/A çıktısı vermez. PDF seçin, ardından \"PDF/A'ya dönüştür\" aracını kullanın.",
+    OFFICE_TIMEOUT: "Office 3 dakika içinde yanıt vermedi ve kapatıldı. Office'i bir kez elle açıp bekleyen bir uyarı (etkinleştirme, duyarlılık etiketi vb.) olup olmadığını kontrol edin.",
+    OFFICE_SCRIPT_FAILED: "Office dönüştürücüsü başlatılamadı (PowerShell bulunamadı veya engellendi).",
   };
 
   function errorText(err) {
@@ -606,6 +613,17 @@
     return new Uint8Array(await core.invoke("html_to_pdf", { html, page }));
   }
 
+  async function office(file, format) {
+    const body = new Uint8Array(await file.arrayBuffer());
+    const output = await core.invoke("office_convert", body, {
+      headers: {
+        "x-securipdf-file-name": encodeURIComponent(file.name),
+        "x-securipdf-office-format": format,
+      },
+    });
+    return new Uint8Array(output);
+  }
+
   async function runTool(event) {
     event.preventDefault();
     if (state.busy || (needsEngine(state.tool) && state.engine !== "ready")) return;
@@ -630,6 +648,7 @@
           values,
           engine: callEngine,
           htmlToPdf,
+          office,
           note: (text) => { note = text; },
         })
         : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values));

@@ -9,6 +9,7 @@
     "allow-save-output",
     "allow-take-opened-files",
     "allow-read-opened-file",
-    "allow-html-to-pdf"
+    "allow-html-to-pdf",
+    "allow-office-convert"
   ]
 }

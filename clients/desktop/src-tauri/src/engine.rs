@@ -298,7 +298,7 @@ fn free_port() -> Result<u16, String> {
 
 /// Tauri reports the resource dir as `\\?\C:\...`; Tesseract appends `/name`
 /// to such paths, which verbatim paths do not allow.
-fn plain_path(path: &Path) -> PathBuf {
+pub(crate) fn plain_path(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
     match text.strip_prefix(r"\\?\") {
         Some(rest) if !rest.starts_with("UNC\\") => PathBuf::from(rest),
@@ -309,7 +309,7 @@ fn plain_path(path: &Path) -> PathBuf {
 /// Tesseract opens files with ANSI calls, so a path with non-ASCII letters
 /// (for example a Turkish user name) is passed in its 8.3 short form.
 #[cfg(windows)]
-fn short_path(path: &Path) -> PathBuf {
+pub(crate) fn short_path(path: &Path) -> PathBuf {
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
 
@@ -323,7 +323,7 @@ fn short_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(not(windows))]
-fn short_path(path: &Path) -> PathBuf {
+pub(crate) fn short_path(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
@@ -336,14 +336,14 @@ fn java_binary() -> &'static str {
 }
 
 #[cfg(windows)]
-fn hide_console(command: &mut Command) {
+pub(crate) fn hide_console(command: &mut Command) {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     command.creation_flags(CREATE_NO_WINDOW);
 }
 
 #[cfg(not(windows))]
-fn hide_console(_command: &mut Command) {}
+pub(crate) fn hide_console(_command: &mut Command) {}
 
 #[cfg(windows)]
 fn tie_to_app(child: &Child) {

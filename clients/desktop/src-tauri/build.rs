@@ -7,6 +7,7 @@ fn main() {
             "take_opened_files",
             "read_opened_file",
             "html_to_pdf",
+            "office_convert",
         ]),
     ))
     .expect("tauri build failed");

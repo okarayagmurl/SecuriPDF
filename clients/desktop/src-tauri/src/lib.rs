@@ -1,4 +1,5 @@
 mod engine;
+mod office;
 mod print;
 
 use engine::{is_local_api_path, Engine, EngineFiles, EngineStatus};
@@ -69,7 +70,8 @@ pub fn run() {
             save_output,
             take_opened_files,
             read_opened_file,
-            print::html_to_pdf
+            print::html_to_pdf,
+            office::office_convert
         ])
         .build(tauri::generate_context!())
         .expect("SecuriPDF başlatılamadı")
