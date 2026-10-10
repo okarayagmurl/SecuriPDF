@@ -5,7 +5,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-const JAR_NAME: &str = "stirling-pdf-server.jar";
+const APP_JAR: [&str; 2] = ["app", "stirling-pdf-server.jar"];
 const STARTUP_LIMIT: Duration = Duration::from_secs(180);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -17,11 +17,28 @@ pub enum EngineState {
     Failed,
 }
 
+/// Startup log lines of Stirling-PDF and how far along startup each one is.
+/// The splash screen shows real progress instead of a guess.
+const STARTUP_MILESTONES: [(&str, u8); 6] = [
+    ("Settings file:", 15),
+    ("Starting SPDFApplication", 30),
+    ("Using fileUploadLimit setting", 55),
+    ("Using Tesseract data path", 70),
+    ("Starting JobQueue lifecycle", 85),
+    ("Started SPDFApplication", 95),
+];
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineStatus {
     pub state: EngineState,
     pub detail: Option<String>,
+    /// 0-100 while starting, 100 once ready.
+    pub progress: u8,
+    pub elapsed_ms: u64,
+    pub app_version: &'static str,
+    pub engine_version: Option<String>,
+    pub ocr_version: Option<String>,
 }
 
 struct Inner {
@@ -29,23 +46,85 @@ struct Inner {
     detail: Option<String>,
     port: Option<u16>,
     child: Option<Child>,
+    log: Option<PathBuf>,
+    started: Option<Instant>,
+    versions: Versions,
+}
+
+#[derive(Clone, Default)]
+struct Versions {
+    engine: Option<String>,
+    ocr: Option<String>,
 }
 
 #[derive(Clone)]
 pub struct Engine(Arc<Mutex<Inner>>);
 
+/// Layout written by `scripts/fetch-engine.ps1`.
 pub struct EngineFiles {
-    pub java: PathBuf,
-    pub jar: PathBuf,
+    java: PathBuf,
+    jar: PathBuf,
+    jvm_args: Option<PathBuf>,
+    aot_cache: Option<PathBuf>,
+    env: Vec<(String, String)>,
+    tesseract: Option<PathBuf>,
+    tessdata: Option<PathBuf>,
+    versions: Versions,
 }
 
 impl EngineFiles {
     pub fn locate(resource_dir: &Path) -> Option<Self> {
-        let root = resource_dir.join("engine");
+        let root = plain_path(&resource_dir.join("engine"));
         let java = root.join("jre").join("bin").join(java_binary());
-        let jar = root.join(JAR_NAME);
-        (java.is_file() && jar.is_file()).then_some(Self { java, jar })
+        let jar = APP_JAR.iter().fold(root.clone(), |path, part| path.join(part));
+        if !java.is_file() || !jar.is_file() {
+            return None;
+        }
+        let existing = |path: PathBuf| path.exists().then_some(path);
+        let env = std::fs::read_to_string(root.join("engine.env"))
+            .map(|text| parse_env(&text))
+            .unwrap_or_default();
+        Some(Self {
+            java,
+            jar,
+            jvm_args: existing(root.join("jvm.args")),
+            aot_cache: existing(root.join("engine.aot")),
+            env,
+            tesseract: existing(root.join("tesseract").join("tesseract.exe"))
+                .and_then(|exe| exe.parent().map(Path::to_path_buf)),
+            tessdata: existing(root.join("tessdata")),
+            versions: std::fs::read_to_string(root.join("engine.json"))
+                .map(|text| parse_versions(&text))
+                .unwrap_or_default(),
+        })
     }
+}
+
+fn parse_versions(text: &str) -> Versions {
+    let manifest: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap_or_default();
+    let field = |key: &str| manifest.get(key).and_then(|value| value.as_str()).map(str::to_string);
+    Versions {
+        engine: field("stirlingVersion"),
+        ocr: field("tesseract"),
+    }
+}
+
+fn startup_progress(log: &str) -> u8 {
+    STARTUP_MILESTONES
+        .iter()
+        .filter(|(marker, _)| log.contains(marker))
+        .map(|(_, progress)| *progress)
+        .max()
+        .unwrap_or(5)
+}
+
+fn parse_env(text: &str) -> Vec<(String, String)> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter_map(|line| line.split_once('='))
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .collect()
 }
 
 impl Engine {
@@ -55,14 +134,32 @@ impl Engine {
             detail: None,
             port: None,
             child: None,
+            log: None,
+            started: None,
+            versions: Versions::default(),
         })))
     }
 
     pub fn status(&self) -> EngineStatus {
         let inner = self.0.lock().expect("engine lock");
+        let progress = match inner.state {
+            EngineState::Ready => 100,
+            EngineState::Starting => inner
+                .log
+                .as_ref()
+                .and_then(|path| std::fs::read(path).ok())
+                .map(|bytes| startup_progress(&String::from_utf8_lossy(&bytes)))
+                .unwrap_or(5),
+            _ => 0,
+        };
         EngineStatus {
             state: inner.state,
             detail: inner.detail.clone(),
+            progress,
+            elapsed_ms: inner.started.map_or(0, |at| at.elapsed().as_millis() as u64),
+            app_version: env!("CARGO_PKG_VERSION"),
+            engine_version: inner.versions.engine.clone(),
+            ocr_version: inner.versions.ocr.clone(),
         }
     }
 
@@ -77,26 +174,36 @@ impl Engine {
     pub fn start(&self, files: EngineFiles, work_dir: &Path) -> Result<u16, String> {
         std::fs::create_dir_all(work_dir).map_err(|err| err.to_string())?;
         let port = free_port()?;
-        let log = std::fs::File::create(work_dir.join("engine.log")).map_err(|err| err.to_string())?;
+        let log_path = work_dir.join("engine.log");
+        let log = std::fs::File::create(&log_path).map_err(|err| err.to_string())?;
         let log_err = log.try_clone().map_err(|err| err.to_string())?;
         let mut command = Command::new(&files.java);
+        command.current_dir(work_dir);
+        match &files.jvm_args {
+            Some(args) => command.arg(format!("@{}", args.display())),
+            None => command.args(["-Xmx1g", "-Djava.awt.headless=true"]),
+        };
+        if let Some(cache) = &files.aot_cache {
+            command.arg(format!("-XX:AOTCache={}", cache.display()));
+        }
         command
-            .current_dir(work_dir)
-            .arg("-Xmx1g")
-            .arg("-Djava.awt.headless=true")
             .arg("-jar")
             .arg(&files.jar)
             .arg("--server.address=127.0.0.1")
             .arg(format!("--server.port={port}"))
-            .env("SECURITY_ENABLELOGIN", "false")
-            .env("DOCKER_ENABLE_SECURITY", "false")
-            .env("DISABLE_ADDITIONAL_FEATURES", "true")
-            .env("SYSTEM_ENABLEANALYTICS", "false")
-            .env("SYSTEM_GOOGLEVISIBILITY", "false")
-            .env("SYSTEM_DEFAULTLOCALE", "tr-TR")
-            .env("SYSTEM_MAXFILESIZE", "500")
-            .env("METRICS_ENABLED", "false")
-            .env("SHOW_SURVEY", "false")
+            .envs(files.env.iter().map(|(key, value)| (key, value)));
+        if let Some(dir) = &files.tesseract {
+            let mut path = short_path(dir).into_os_string();
+            if let Some(current) = std::env::var_os("PATH") {
+                path.push(";");
+                path.push(current);
+            }
+            command.env("PATH", path);
+        }
+        if let Some(dir) = &files.tessdata {
+            command.env("TESSDATA_PREFIX", short_path(dir));
+        }
+        command
             .stdin(Stdio::null())
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(log_err));
@@ -110,6 +217,9 @@ impl Engine {
         inner.detail = None;
         inner.port = Some(port);
         inner.child = Some(child);
+        inner.log = Some(log_path);
+        inner.started = Some(Instant::now());
+        inner.versions = files.versions;
         Ok(port)
     }
 
@@ -186,6 +296,37 @@ fn free_port() -> Result<u16, String> {
         .map_err(|err| format!("Yerel motor için kapı bulunamadı: {err}"))
 }
 
+/// Tauri reports the resource dir as `\\?\C:\...`; Tesseract appends `/name`
+/// to such paths, which verbatim paths do not allow.
+fn plain_path(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with("UNC\\") => PathBuf::from(rest),
+        _ => path.to_path_buf(),
+    }
+}
+
+/// Tesseract opens files with ANSI calls, so a path with non-ASCII letters
+/// (for example a Turkish user name) is passed in its 8.3 short form.
+#[cfg(windows)]
+fn short_path(path: &Path) -> PathBuf {
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
+
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut buffer = vec![0u16; 1024];
+    let len = unsafe { GetShortPathNameW(wide.as_ptr(), buffer.as_mut_ptr(), buffer.len() as u32) } as usize;
+    if len == 0 || len >= buffer.len() {
+        return path.to_path_buf();
+    }
+    PathBuf::from(std::ffi::OsString::from_wide(&buffer[..len]))
+}
+
+#[cfg(not(windows))]
+fn short_path(path: &Path) -> PathBuf {
+    path.to_path_buf()
+}
+
 fn java_binary() -> &'static str {
     if cfg!(windows) {
         "java.exe"
@@ -239,7 +380,53 @@ fn tie_to_app(_child: &Child) {}
 
 #[cfg(test)]
 mod tests {
-    use super::is_local_api_path;
+    use super::{is_local_api_path, parse_env, parse_versions, plain_path, startup_progress};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn startup_progress_follows_the_engine_log() {
+        assert_eq!(startup_progress(""), 5);
+        assert_eq!(startup_progress("INFO Starting SPDFApplication v2.14.3"), 30);
+        let log = "Starting SPDFApplication\nUsing Tesseract data path: C:\\x\nStarted SPDFApplication in 9 s";
+        assert_eq!(startup_progress(log), 95);
+    }
+
+    #[test]
+    fn reads_versions_from_engine_manifest() {
+        let versions = parse_versions("\u{feff}{\"stirlingVersion\":\"2.14.3\",\"tesseract\":\"5.4.0.20240606\"}");
+        assert_eq!(versions.engine.as_deref(), Some("2.14.3"));
+        assert_eq!(versions.ocr.as_deref(), Some("5.4.0.20240606"));
+        assert!(parse_versions("not json").engine.is_none());
+    }
+
+    #[test]
+    fn verbatim_resource_paths_become_plain() {
+        assert_eq!(plain_path(Path::new(r"\\?\C:\Program Files\SecuriPDF\engine")), PathBuf::from(r"C:\Program Files\SecuriPDF\engine"));
+        assert_eq!(plain_path(Path::new(r"\\?\UNC\srv\share\engine")), PathBuf::from(r"\\?\UNC\srv\share\engine"));
+        assert_eq!(plain_path(Path::new(r"C:\engine")), PathBuf::from(r"C:\engine"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn short_paths_are_ascii() {
+        let dir = std::env::temp_dir().join("securipdf-kısa-yol-ğüş");
+        std::fs::create_dir_all(&dir).unwrap();
+        let short = super::short_path(&dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(short.to_string_lossy().is_ascii(), "{}", short.display());
+    }
+
+    #[test]
+    fn reads_engine_settings_file() {
+        let env = parse_env("# yorum\nSECURITY_ENABLELOGIN=false\n\nENDPOINTS_GROUPSTOREMOVE = OCRmyPDF\r\n");
+        assert_eq!(
+            env,
+            vec![
+                ("SECURITY_ENABLELOGIN".to_string(), "false".to_string()),
+                ("ENDPOINTS_GROUPSTOREMOVE".to_string(), "OCRmyPDF".to_string()),
+            ]
+        );
+    }
 
     #[test]
     fn accepts_stirling_tool_paths() {

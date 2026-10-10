@@ -12,7 +12,7 @@ from .auth import AuthUser, get_current_user, require_admin
 from .config import get_settings
 from .database import init_db
 from .maintenance import purge_soft_deleted
-from .routes import admin, app_routes, desktop, jobs, license, orchestration, pdf_proxy, setup, vault
+from .routes import admin, app_routes, jobs, license, orchestration, pdf_proxy, setup, vault
 from .job_queue import start_job_worker, stop_job_worker
 from .retention_worker import start_retention_worker, stop_retention_worker
 from .setup_wizard import ensure_legacy_setup_complete, is_setup_complete
@@ -85,7 +85,6 @@ app.include_router(orchestration.router, prefix="/api")
 app.include_router(license.router, prefix="/api")
 app.include_router(app_routes.router, prefix="/api/app/v1")
 app.include_router(jobs.router, prefix="/api/app/v1")
-app.include_router(desktop.router, prefix="/api/app/v1")
 app.include_router(pdf_proxy.router, prefix="/api/pdf/v1")
 
 

@@ -3,96 +3,64 @@
 <head>
   <meta charset="utf-8">
   <title>SecuriPDF</title>
-  <style>
-    :root { color-scheme: light; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #0f172a;
-      color: #0f172a;
-      font: 16px/1.5 "Segoe UI", sans-serif;
-    }
-    main {
-      width: min(440px, calc(100% - 32px));
-      background: #fff;
-      border-radius: 12px;
-      padding: 28px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-    }
-    h1 { margin: 0 0 8px; font-size: 28px; }
-    p { margin: 0 0 16px; color: #334155; }
-    label { display: block; font-weight: 600; margin-bottom: 6px; }
-    input {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font: inherit;
-    }
-    button {
-      margin-top: 16px;
-      border: 0;
-      border-radius: 8px;
-      background: #1d4ed8;
-      color: #fff;
-      font: inherit;
-      font-weight: 600;
-      padding: 10px 16px;
-      cursor: pointer;
-    }
-    button:disabled { opacity: 0.6; cursor: default; }
-    .error { color: #b91c1c; min-height: 1.5em; }
-  </style>
+  <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <main>
-    <h1>SecuriPDF</h1>
-    <p id="lead">Uygulama, kurum sunucusundaki SecuriPDF arayüzünü açar. PDF işlemi bu bilgisayarda çalışmaz.</p>
-    <form id="form">
-      <label for="server">Sunucu adresi</label>
-      <input id="server" name="server" type="url" placeholder="https://pdf.sirket.local:8444" required autocomplete="off">
-      <p class="error" id="error"></p>
-      <button id="save" type="submit">Kaydet ve aç</button>
-    </form>
-  </main>
-  <script>
-    const form = document.getElementById("form");
-    const server = document.getElementById("server");
-    const error = document.getElementById("error");
-    const lead = document.getElementById("lead");
-    const save = document.getElementById("save");
-
-    function invoke(command, args) {
-      if (!window.__TAURI__ || !window.__TAURI__.core) {
-        return Promise.reject(new Error("Bu sayfa SecuriPDF uygulamasının içinde açılır."));
-      }
-      return window.__TAURI__.core.invoke(command, args);
-    }
-
-    invoke("get_shell_config").then((config) => {
-      if (config.serverUrl) server.value = config.serverUrl;
-      if (config.locked) {
-        lead.textContent = "Sunucu adresi yönetici tarafından kilitli.";
-        server.disabled = true;
-        save.disabled = true;
-      }
-    }).catch((err) => {
-      error.textContent = err && err.message ? err.message : String(err);
-    });
-
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      error.textContent = "";
-      save.disabled = true;
-      invoke("set_server_url", { url: server.value, allowedHosts: [] })
-        .catch((err) => {
-          error.textContent = typeof err === "string" ? err : (err.message || String(err));
-          save.disabled = false;
-        });
-    });
-  </script>
+  <div class="splash" id="splash" role="status" aria-live="polite">
+    <div class="splash-card">
+      <img class="splash-logo" src="logo.svg" alt="SecuriPDF">
+      <p class="splash-version" id="splashVersion"></p>
+      <div class="progress" role="progressbar" aria-label="PDF motoru açılıyor" aria-valuemin="0" aria-valuemax="100" id="splashProgress">
+        <div class="progress-bar" id="splashBar"></div>
+      </div>
+      <p class="splash-stage"><span id="splashStage">PDF motoru başlatılıyor…</span> <span id="splashPercent"></span></p>
+      <p class="splash-error" id="splashError" hidden></p>
+      <button type="button" class="secondary" id="splashSkip">Beklerken dosya seç</button>
+      <p class="splash-note">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
+    </div>
+  </div>
+  <header class="top">
+    <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
+    <span class="engine" id="engine" data-state="starting">Motor hazırlanıyor…</span>
+  </header>
+  <div class="layout">
+    <nav class="side">
+      <input id="search" type="search" placeholder="Araç ara" autocomplete="off">
+      <div id="toolList"></div>
+    </nav>
+    <main class="workspace">
+      <section class="panel" id="tool" hidden>
+        <h1 id="toolTitle"></h1>
+        <p class="lead" id="toolDescription"></p>
+        <form id="toolForm" novalidate>
+          <div id="fileInputs"></div>
+          <div id="fields" class="fields"></div>
+          <p class="error" id="formError" role="alert"></p>
+          <button id="run" type="submit" class="primary">Çalıştır</button>
+        </form>
+        <div id="result" class="result" hidden>
+          <p id="resultText"></p>
+          <div class="result-actions">
+            <button id="save" type="button" class="primary">Kaydet…</button>
+            <button id="continue" type="button" class="secondary">Sonuçla devam et</button>
+          </div>
+        </div>
+        <p class="privacy">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
+      </section>
+      <aside class="preview">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" id="tabSource" aria-selected="true">Belge</button>
+          <button type="button" role="tab" id="tabResult" aria-selected="false" disabled>Sonuç</button>
+          <span class="preview-name" id="previewName"></span>
+        </div>
+        <div class="preview-scroll">
+          <div id="previewHost"><p class="preview-note">Önizleme için bir dosya seçin.</p></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+  <script src="tools.js"></script>
+  <script type="module" src="preview.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

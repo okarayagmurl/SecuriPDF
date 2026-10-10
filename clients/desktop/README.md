@@ -1,32 +1,22 @@
 # SecuriPDF Windows uygulaması
 
-Kurum sunucusundaki SecuriPDF arayüzünü Windows penceresinde açar. Giriş, sunucudaki Active Directory akışıdır.
+Sunucu gerektirmeyen masaüstü uygulaması. Dosyalar bilgisayarda işlenir, hiçbir yere gönderilmez; sunucu adresi, oturum veya ağ bağlantısı gerekmez.
 
-Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server JAR ve Java 25). Sunucu bir aracın bilgisayarda çalışmasına izin verirse dosya bilgisayarda işlenir ve sunucuya gönderilmez. İzin listesi `services/platform/app/routes/desktop.py` içindedir: birleştirme, bölme, döndürme, sayfa işlemleri, sayfa numarası, damga, düzleştirme, şifre ekleme/kaldırma, PDF↔görsel. OCR, ofis dönüşümleri, filigran, karartma, imza ve diğer araçlar sunucuda çalışır.
+Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server JAR, Java 25, Tesseract OCR). Araçlar:
 
-Yerel iş de sunucudan geçer: lisans ve kullanıcı aracı yetkisi kontrol edilir, form alanları normalleştirilir, başlangıç ve sonuç denetim kaydına yazılır. "Belgelere kaydet" seçiliyse yalnızca sonuç dosyası belgelere yüklenir. Motor hazır değilse iş bugünkü gibi sunucu kuyruğuna gider. Motor bir işi reddederse dosya sessizce sunucuya gönderilmez, hata gösterilir.
+- Düzenle: birleştir, böl (sayfa, sayı/boyut, bölüm), bindir, düzleştir
+- Metin tanıma: OCR ile aranabilir PDF (Türkçe, İngilizce)
+- Sayfalar: döndür, sil, çıkar, sırala, ölçekle, kırp, çok sayfa düzeni, tek sayfa, sayfa numarası
+- Güvenlik: damga, parola ekle, parola kaldır
+- Dönüştür: PDF'ten görsele, görselden PDF'e
 
-Motor açılışta yaklaşık bir dakikada hazır olur ve yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
+Seçilen belge ve sonuç sağ tarafta önizlenir (PDF.js). Sayfa silme, çıkarma ve bölmede sayfalar küçük resimlere tıklanarak seçilir; çift tıklama sayfayı tam ekranda açar. Sonuç kaydetmeden önce görülür ve "Sonuçla devam et" ile başka bir araca aktarılabilir. Uygulamayla açılan PDF (çift tıklama veya "Birlikte aç") doğrudan yüklenir.
 
-## Sunucu adresi
-
-İlk açılışta sunucu adresi sorulur. Örnek: `https://pdf.sirket.local:8444`. Adres `%APPDATA%\SecuriPDF\securipdf-provisioning.json` dosyasına yazılır. Aynı ada sahip Keycloak kapısı (8443) ayrıca izin istemez.
-
-Yönetici adresi kilitlemek için `C:\ProgramData\SecuriPDF\securipdf-provisioning.json` bırakır:
-
-```json
-{
-  "serverUrl": "https://pdf.sirket.local:8444",
-  "lockConnection": true,
-  "allowedHosts": []
-}
-```
-
-`allowedHosts` yalnızca giriş ekranı farklı bir alan adındaysa doldurulur. Sunucudan açılan sayfa yalnızca motor durumunu sorabilir ve motora iş verebilir; sunucu adresini değiştiremez.
+Motor yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. Açılış, derleme sırasında üretilen Java AOT önbelleği sayesinde yaklaşık 15-20 saniyedir; bu sırada dosya seçilip önizlenebilir. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
 
 ## Derleme
 
-Rust, MSVC derleyicisi, Windows SDK ve WebView2 gerekir. `clients/desktop` içinde:
+Rust, MSVC derleyicisi, Windows SDK, WebView2 ve 7-Zip gerekir. `clients/desktop` içinde:
 
 ```text
 powershell -ExecutionPolicy Bypass -File scripts\fetch-engine.ps1
@@ -35,4 +25,13 @@ cargo install tauri-cli --version "~2" --locked
 cargo tauri build
 ```
 
-`fetch-engine.ps1`, Stirling-PDF 2.14.3 server JAR'ını ve Temurin 25 JRE'yi SHA256 özetini doğrulayarak `src-tauri\engine` altına indirir; bu dosyalar repoya girmez. Kurulum dosyası `src-tauri\target\release\bundle\nsis` altındadır.
+`fetch-engine.ps1` şunları SHA256 özetini doğrulayarak `src-tauri\engine` altına koyar; bu dosyalar repoya girmez:
+
+- Stirling-PDF 2.14.3 server JAR (açılmış hali `app\`)
+- Temurin 25 JRE (`jre\`)
+- UB Mannheim Tesseract 5.4 (`tesseract\`, yalnızca `tesseract.exe` ve yüklediği DLL'ler)
+- `tessdata_best` 4.1.0 Türkçe ve İngilizce dil verisi (`tessdata\`)
+
+Betik ardından motoru bir kez açıp kapatarak AOT önbelleğini (`engine.aot`) eğitir. JVM seçenekleri (`jvm.args`) ve motor ayarları (`engine.env`) da buraya yazılır; uygulama motoru bu dosyalarla başlatır. Önbellek yalnızca aynı seçeneklerle kullanılabildiği için bu iki dosya elle değiştirilmemeli, betik yeniden çalıştırılmalıdır.
+
+Kurulum dosyası `src-tauri\target\release\bundle\nsis` altındadır. PDF.js 6.4.299 `ui\vendor\pdfjs` altında repoda durur.

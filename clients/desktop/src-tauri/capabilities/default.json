@@ -1,10 +1,13 @@
 {
   "identifier": "default",
-  "description": "SecuriPDF kabuğunun kurulum sayfası",
+  "description": "SecuriPDF arayüzü",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "allow-get-shell-config",
-    "allow-set-server-url"
+    "allow-local-engine-status",
+    "allow-run-local-tool",
+    "allow-save-output",
+    "allow-take-opened-files",
+    "allow-read-opened-file"
   ]
 }

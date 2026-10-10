@@ -1,6 +1,5 @@
 SecuriPDF Windows uygulaması, Stirling-PDF masaüstü uygulamasının yapısını izler:
-Tauri penceresi, yanında paketlenmiş Java ve Stirling-PDF motoru, araç bazında
-yerel veya sunucu yönlendirmesi.
+Tauri penceresi ve yanında paketlenmiş Java ile Stirling-PDF motoru.
 
 Bu dizindeki Rust ve arayüz kaynakları SecuriPDF için yazılmıştır. Stirling-PDF
 `frontend/editor/src/desktop` ve `frontend/editor/src/proprietary` altındaki
@@ -11,6 +10,16 @@ Kurulum dosyasına şu üçüncü taraf bileşenler eklenir:
 - Stirling-PDF 2.14.3 `Stirling-PDF-server.jar`: MIT lisansı (aşağıda). JAR,
   proprietary modül içermez; içindeki kütüphaneler kendi lisanslarına tabidir.
 - Eclipse Temurin 25 JRE: GPLv2 ve Classpath Exception.
+- Tesseract OCR 5.4 (UB Mannheim Windows derlemesi) ve `tessdata_best` dil
+  verileri: Apache License 2.0. Yanındaki DLL'ler kendi lisanslarına tabidir:
+  Leptonica (BSD-2), libarchive (BSD-2), OpenSSL 3 (Apache 2.0), libtiff,
+  libpng, libjpeg-turbo, libwebp, zlib, zstd, lz4, xz, bzip2, giflib, expat,
+  OpenJPEG, LERC, libdeflate, libb2, jbigkit (GPLv2+), libiconv (LGPL 2.1),
+  GCC çalışma zamanı (libgcc, libstdc++: GPLv3 ve GCC Runtime Library
+  Exception), winpthreads (MIT). LGPL bileşenleri değiştirilmeden, ayrı DLL
+  olarak dağıtılır.
+- PDF.js 6.4.299 (`ui/vendor/pdfjs`): Apache License 2.0; `wasm/` altındaki
+  JBIG2, OpenJPEG ve QCMS çözücüleri kendi lisans dosyalarıyla birliktedir.
 
 Stirling-PDF MIT bildirimi:
 

@@ -1,7 +1,7 @@
 [package]
 name = "securipdf-desktop"
 version = "1.2.8"
-description = "SecuriPDF Windows shell. Opens the SecuriPDF server in a native window."
+description = "SecuriPDF for Windows. Runs PDF tools on the user's machine without a server."
 authors = ["Entera"]
 license = "MIT"
 edition = "2021"
@@ -19,7 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-single-instance = "2.4.1"
-url = "2.5"
+tauri-plugin-dialog = "2"
 reqwest = { version = "0.12", default-features = false }
 tokio = { version = "1", features = ["time"] }
 
@@ -27,6 +27,7 @@ tokio = { version = "1", features = ["time"] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",
+    "Win32_Storage_FileSystem",
     "Win32_System_JobObjects",
 ] }
 

@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Windows uygulaması kurum sunucusunu yerel pencerede açar
-- Sunucunun izin verdiği basit araçlar Windows uygulamasında bilgisayarda çalışır; lisans, yetki ve denetim kaydı sunucuda kalır
+- Windows uygulaması sunucusuz çalışır; 19 araç dosyayı bilgisayardan çıkarmadan işler
+- Windows uygulamasında Türkçe ve İngilizce OCR ile aranabilir PDF bilgisayarda üretilir
+- Windows uygulaması belgeyi ve sonucu önizler; sayfa silme, çıkarma ve bölmede sayfalar küçük resimlerden seçilir
+- Windows uygulamasının PDF motoru yaklaşık 15-20 saniyede hazır olur
+- Windows uygulaması açılışta logoyu, sürümü ve motorun gerçek açılış ilerlemesini gösterir; beklerken dosya seçilebilir
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 
