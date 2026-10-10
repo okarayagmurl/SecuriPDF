@@ -7,6 +7,9 @@ use std::time::{Duration, Instant};
 
 const APP_JAR: [&str; 2] = ["app", "stirling-pdf-server.jar"];
 const STARTUP_LIMIT: Duration = Duration::from_secs(180);
+/// e-signature token drivers common in Turkey (AKİS, SafeSign, DataKey,
+/// ePass2003) that Stirling does not allow by default. Separated with `;`.
+const PKCS11_LIBRARIES: &str = r"C:\Windows\System32\akisp11.dll;C:\Windows\System32\aetpkss1.dll;C:\Windows\System32\dkck201.dll;C:\Windows\System32\eps2003csp11.dll";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -186,12 +189,17 @@ impl Engine {
         if let Some(cache) = &files.aot_cache {
             command.arg(format!("-XX:AOTCache={}", cache.display()));
         }
+        // Desktop mode unlocks signing with the Windows certificate store and
+        // PKCS#11 tokens, and stops the engine when this process goes away.
         command
+            .arg("-DSTIRLING_PDF_TAURI_MODE=true")
             .arg("-jar")
             .arg(&files.jar)
             .arg("--server.address=127.0.0.1")
             .arg(format!("--server.port={port}"))
-            .envs(files.env.iter().map(|(key, value)| (key, value)));
+            .envs(files.env.iter().map(|(key, value)| (key, value)))
+            .env("TAURI_PARENT_PID", std::process::id().to_string())
+            .env("STIRLING_PKCS11_LIBRARIES", PKCS11_LIBRARIES);
         if let Some(dir) = &files.tesseract {
             let mut path = short_path(dir).into_os_string();
             if let Some(current) = std::env::var_os("PATH") {

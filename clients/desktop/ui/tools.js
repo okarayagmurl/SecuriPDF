@@ -23,11 +23,40 @@
   ];
   const pageHint = "Örnek: 1,3,5-9. Tümü için all yazın.";
 
+  const HARDWARE = "/api/v1/security/cert-sign/hardware";
+  const CERTS = ".cer,.crt,.pem,.der";
+
+  async function windowsCertificates({ get }) {
+    const list = await get(`${HARDWARE}/windows-certificates`);
+    const usable = (cert) => !cert.expired && !cert.notYetValid;
+    return list.filter(usable).concat(list.filter((cert) => !usable(cert))).map((cert) => ({
+      value: cert.alias,
+      label: `${cert.subjectCommonName || cert.subject || cert.alias} · ${String(cert.notAfter || "").slice(0, 10)}` +
+        (cert.expired ? " (süresi dolmuş)" : cert.notYetValid ? " (henüz geçerli değil)" : ""),
+    }));
+  }
+
+  async function tokenDrivers({ get }) {
+    const capabilities = await get(`${HARDWARE}/capabilities`);
+    return (capabilities.detectedLibraries || []).map((lib) => ({ value: lib.path, label: `${lib.name} (${lib.path})` }));
+  }
+
+  function signError(status, detail) {
+    if (/CertificateExpired/i.test(detail)) return "Seçilen sertifikanın süresi dolmuş.";
+    if (/CertificateNotYetValid/i.test(detail)) return "Seçilen sertifika henüz geçerli değil.";
+    if (/password|keystore|mac check|decrypt|\bPIN\b|CKR_PIN|login/i.test(detail)) return "Sertifika açılamadı. Parolayı veya PIN'i kontrol edin.";
+    if (/allowed list/i.test(detail)) return "Bu kart sürücüsünün kullanılmasına izin verilmiyor.";
+    if (/alias/i.test(detail)) return "Seçilen sertifika bulunamadı. Kartın takılı olduğundan emin olup listeyi yenileyin.";
+    if (/desktop app/i.test(detail)) return "Donanımla imzalama yalnızca masaüstü uygulamasında kullanılabilir.";
+    return detail ? `İmzalanamadı: ${detail}` : null;
+  }
+
   window.SECURIPDF_CATEGORIES = [
     { id: "edit", title: "Düzenle" },
     { id: "ocr", title: "Metin tanıma" },
     { id: "pages", title: "Sayfalar" },
     { id: "security", title: "Güvenlik" },
+    { id: "sign", title: "E-imza" },
     { id: "convert", title: "Dönüştür" },
   ];
 
@@ -369,6 +398,113 @@
       suffix: "parolasiz",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [{ name: "password", label: "Parola", type: "password", required: true }],
+    },
+    {
+      id: "cert-sign",
+      category: "sign",
+      title: "Dijital İmza",
+      description: "PDF'i sertifikanızla imzalayın: Windows sertifika deposu (e-imza kartları dahil), PKCS#11 akıllı kart, PFX/P12 veya PEM dosyası. İmza, belgenin imzadan sonra değişmediğini kanıtlar.",
+      apiPath: "/api/v1/security/cert-sign",
+      suffix: "imzali",
+      files: [
+        { name: "fileInput", label: "PDF dosyası", accept: PDF },
+        { name: "p12File", label: "Sertifika dosyası (.pfx / .p12)", accept: ".pfx,.p12", preview: false, showIf: { certType: "PKCS12" } },
+        { name: "certFile", label: "Sertifika (.pem / .crt / .cer)", accept: CERTS, preview: false, showIf: { certType: "PEM" } },
+        { name: "privateKeyFile", label: "Özel anahtar (.pem / .key)", accept: ".pem,.key,.der", preview: false, showIf: { certType: "PEM" } },
+      ],
+      fields: [
+        { name: "certType", label: "Sertifika kaynağı", type: "select", default: "WINDOWS_STORE", options: [
+          { value: "WINDOWS_STORE", label: "Windows sertifika deposu" },
+          { value: "PKCS11", label: "Akıllı kart / token (PKCS#11)" },
+          { value: "PKCS12", label: "PFX / P12 dosyası" },
+          { value: "PEM", label: "PEM sertifika ve anahtar" },
+        ] },
+        { name: "alias", label: "Sertifika", type: "select", options: [], load: windowsCertificates, required: true,
+          empty: "Özel anahtarı olan sertifika bulunamadı",
+          hint: "Kartınız Windows'a tanıtıldıysa (sürücüsü kuruluysa) sertifikası burada görünür. PIN gerekirse Windows sorar.",
+          showIf: { certType: "WINDOWS_STORE" } },
+        { name: "pkcs11LibraryPath", label: "Kart sürücüsü", type: "select", options: [], load: tokenDrivers, required: true,
+          empty: "Bilinen bir kart sürücüsü bulunamadı",
+          hint: "AKİS, SafeNet, Gemalto IDPrime, OpenSC, YubiKey, SafeSign, DataKey ve ePass2003 sürücüleri tanınır.",
+          showIf: { certType: "PKCS11" } },
+        { name: "tokenAlias", label: "Karttaki sertifika adı (isteğe bağlı)", type: "text", local: true,
+          hint: "Kartta birden çok sertifika varsa yazın; boşsa ilk sertifika kullanılır.", showIf: { certType: "PKCS11" } },
+        { name: "password", label: "Parola / PIN", type: "password", required: true, showIf: { certType: ["PKCS11", "PKCS12", "PEM"] },
+          hint: "Yalnızca bu işlem için kullanılır, saklanmaz." },
+        { name: "reason", label: "İmza nedeni", type: "text", placeholder: "Onaylıyorum" },
+        { name: "location", label: "Yer", type: "text", placeholder: "İstanbul" },
+        { name: "showSignature", label: "Sayfada görünür imza kutusu ekle", type: "checkbox", default: false },
+        { name: "name", label: "Kutuda görünecek ad", type: "text", showIf: { showSignature: true } },
+        { name: "pageNumber", label: "Sayfa", type: "number", default: 1, min: 1, showIf: { showSignature: true } },
+      ],
+      constants: (v) => ({ showLogo: "false", ...(v.certType === "PKCS11" && v.tokenAlias ? { alias: v.tokenAlias } : {}) }),
+      httpError: signError,
+      usesEngine: true,
+      // The engine signs with another certificate of the store when the alias is unknown.
+      async run({ values, engine, engineGet, form }) {
+        if (values.certType === "WINDOWS_STORE") {
+          const certs = await windowsCertificates({ get: engineGet });
+          if (!certs.some((cert) => cert.value === values.alias)) {
+            throw new Error("Seçilen sertifika Windows sertifika deposunda bulunamadı. Listeyi yenileyip yeniden seçin.");
+          }
+        }
+        return engine("/api/v1/security/cert-sign", form());
+      },
+    },
+    {
+      id: "timestamp-pdf",
+      category: "sign",
+      title: "Zaman Damgası",
+      description: "Belgeye RFC 3161 zaman damgası ekleyerek o anda bu içerikle var olduğunu kanıtlayın. Sunucuya yalnızca belgenin SHA-256 özeti gönderilir; internet bağlantısı gerekir.",
+      apiPath: "/api/v1/security/timestamp-pdf",
+      suffix: "zaman-damgali",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "tsaUrl", label: "Zaman damgası sunucusu", type: "select", default: "http://timestamp.digicert.com", options: [
+          { value: "http://timestamp.digicert.com", label: "DigiCert" },
+          { value: "http://timestamp.sectigo.com", label: "Sectigo" },
+          { value: "http://ts.ssl.com", label: "SSL.com" },
+          { value: "https://freetsa.org/tsr", label: "FreeTSA" },
+          { value: "http://tsa.mesign.com", label: "MeSign" },
+        ] },
+      ],
+      httpError: (status, detail) => (/TSA|timestamp|connect|timed out|UnknownHost/i.test(detail)
+        ? "Zaman damgası sunucusundan yanıt alınamadı. İnternet bağlantısını kontrol edin veya başka bir sunucu seçin."
+        : null),
+    },
+    {
+      id: "validate-signature",
+      category: "sign",
+      title: "İmza Doğrula",
+      description: "PDF'teki dijital imzaları denetleyin: belge imzadan sonra değişmiş mi, sertifika güvenilir mi, süresi geçerli mi. Sonuç PDF rapor olarak hazırlanır.",
+      suffix: "imza-raporu",
+      usesEngine: true,
+      files: [
+        { name: "fileInput", label: "İmzalı PDF", accept: PDF },
+        { name: "certFile", label: "Güvenilen kök sertifika (isteğe bağlı)", accept: CERTS, preview: false, min: 0 },
+      ],
+      fields: [],
+      async run({ files, engine, form, htmlToPdf, note }) {
+        const data = JSON.parse(new TextDecoder("utf-8").decode(await engine("/api/v1/security/validate-signature", form())));
+        const results = Array.isArray(data) ? data : data.results || [];
+        const verdicts = results.map((result) => window.SecuriFormats.signatureVerdict(result).level);
+        note(!results.length ? "Belgede imza yok"
+          : verdicts.every((level) => level === "ok") ? `${results.length} imza, tümü geçerli`
+          : verdicts.includes("bad") ? `${results.length} imza, geçersiz imza var`
+          : `${results.length} imza, uyarı var`);
+        const { html, page } = window.SecuriFormats.signatureReport(results, files.fileInput[0].name);
+        return htmlToPdf(html, page);
+      },
+    },
+    {
+      id: "remove-cert-sign",
+      category: "sign",
+      title: "İmzaları Kaldır",
+      description: "PDF'teki dijital imzaları kaldırın. Belge içeriği değişmez; imzalı hâli gerekiyorsa orijinali saklayın.",
+      apiPath: "/api/v1/security/remove-cert-sign",
+      suffix: "imzasiz",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
     },
     {
       id: "pdf-to-img",

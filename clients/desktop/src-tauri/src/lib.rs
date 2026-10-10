@@ -106,6 +106,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             local_engine_status,
             run_local_tool,
+            local_engine_get,
             save_output,
             take_opened_files,
             read_opened_file,
@@ -231,7 +232,7 @@ async fn run_local_tool(
         .map_err(|_| "LOCAL_ENGINE_UNREACHABLE".to_string())?;
     let status = resp.status();
     if !status.is_success() {
-        return Err(format!("LOCAL_HTTP_{}", status.as_u16()));
+        return Err(http_error(resp).await);
     }
     let bytes = resp
         .bytes()
@@ -241,6 +242,51 @@ async fn run_local_tool(
         return Err("LOCAL_EMPTY_OUTPUT".into());
     }
     Ok(Response::new(bytes.to_vec()))
+}
+
+/// Read-only engine queries, such as the certificates usable for signing.
+#[tauri::command]
+async fn local_engine_get(
+    api_path: String,
+    engine: tauri::State<'_, Engine>,
+) -> Result<String, String> {
+    if !is_local_api_path(&api_path) {
+        return Err("LOCAL_BAD_REQUEST".into());
+    }
+    let base = engine.base_url().ok_or("LOCAL_ENGINE_NOT_READY")?;
+    let resp = reqwest::Client::new()
+        .get(format!("{base}{api_path}"))
+        .timeout(LOCAL_TIMEOUT)
+        .send()
+        .await
+        .map_err(|_| "LOCAL_ENGINE_UNREACHABLE".to_string())?;
+    if !resp.status().is_success() {
+        return Err(http_error(resp).await);
+    }
+    resp.text()
+        .await
+        .map_err(|_| "LOCAL_ENGINE_UNREACHABLE".to_string())
+}
+
+/// `LOCAL_HTTP_<status>`, followed by `:<detail>` when the engine explains
+/// the failure (wrong keystore password, unknown alias and so on).
+async fn http_error(resp: reqwest::Response) -> String {
+    let code = format!("LOCAL_HTTP_{}", resp.status().as_u16());
+    let body = resp.text().await.unwrap_or_default();
+    match engine_error_detail(&body) {
+        Some(detail) => format!("{code}:{detail}"),
+        None => code,
+    }
+}
+
+fn engine_error_detail(body: &str) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_str(body).ok()?;
+    let detail = ["detail", "message", "error"]
+        .iter()
+        .filter_map(|key| json.get(key).and_then(|value| value.as_str()))
+        .map(str::trim)
+        .find(|text| !text.is_empty())?;
+    Some(detail.chars().take(300).collect())
 }
 
 /// Returns the saved path, or `None` when the user cancels the dialog.
@@ -389,7 +435,17 @@ fn focus_main(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{asset_mime, is_app_url, percent_decode, safe_file_name};
+    use super::{asset_mime, engine_error_detail, is_app_url, percent_decode, safe_file_name};
+
+    #[test]
+    fn engine_errors_keep_their_explanation() {
+        assert_eq!(
+            engine_error_detail(r#"{"status":400,"detail":"keystore password was incorrect"}"#).as_deref(),
+            Some("keystore password was incorrect")
+        );
+        assert_eq!(engine_error_detail(r#"{"message":" ","error":"Bad Request"}"#).as_deref(), Some("Bad Request"));
+        assert_eq!(engine_error_detail("<html>500</html>"), None);
+    }
 
     #[test]
     fn scripts_are_served_by_extension() {

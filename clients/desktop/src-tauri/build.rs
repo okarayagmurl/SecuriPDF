@@ -3,6 +3,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "local_engine_status",
             "run_local_tool",
+            "local_engine_get",
             "save_output",
             "take_opened_files",
             "read_opened_file",

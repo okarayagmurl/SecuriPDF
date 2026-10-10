@@ -176,6 +176,7 @@ input[type="color"] { padding: 2px; width: 56px; height: 34px; }
 .field input:not([type="checkbox"]):not([type="color"]), .field select { width: 100%; }
 .field.check label { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 .field .hint { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.field .refresh { margin-top: 6px; padding: 4px 10px; font-size: 12px; }
 
 button.primary, button.secondary {
   border: 0;

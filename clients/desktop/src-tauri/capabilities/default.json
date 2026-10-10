@@ -6,6 +6,7 @@
     "core:default",
     "allow-local-engine-status",
     "allow-run-local-tool",
+    "allow-local-engine-get",
     "allow-save-output",
     "allow-take-opened-files",
     "allow-read-opened-file",

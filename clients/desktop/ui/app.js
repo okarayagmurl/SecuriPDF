@@ -50,8 +50,10 @@
     if (ERRORS[code]) return ERRORS[code];
     const prefixed = Object.keys(ERRORS).find((key) => code.startsWith(key + ":"));
     if (prefixed) return ERRORS[prefixed];
-    const http = /^LOCAL_HTTP_(\d+)$/.exec(code);
+    const http = /^LOCAL_HTTP_(\d+)(?::([\s\S]*))?$/.exec(code);
     if (http) {
+      const specific = state.tool && state.tool.httpError && state.tool.httpError(Number(http[1]), http[2] || "");
+      if (specific) return specific;
       return Number(http[1]) >= 500
         ? "İşlem tamamlanamadı. Dosya bozuk olabilir, parola yanlış olabilir veya seçenek dosyaya uymuyor olabilir."
         : "Seçenekler kabul edilmedi. Değerleri kontrol edin.";
@@ -194,8 +196,9 @@
     }[engineState] || engineState;
     badge.title = detail || (engineState === "starting"
       ? "Bu sırada dosya seçip önizleyebilirsiniz."
-      : "");
+        : "");
     updateRunButton();
+    if (engineState === "ready" && state.tool && state.loadedOptions) applyVisibility();
   }
 
   // Tools with their own `run` work in the UI and only need the engine when they say so.
@@ -288,7 +291,7 @@
   }
 
   function allFiles() {
-    return state.tool.files.flatMap((spec) => state.files[spec.name]);
+    return state.tool.files.filter((spec) => spec.preview !== false).flatMap((spec) => state.files[spec.name]);
   }
 
   function renderFiles() {
@@ -306,13 +309,15 @@
       });
       const list = state.files[spec.name];
       const items = list.map((file, index) => el("li", { class: file === state.preview.file ? "previewing" : "" }, [
-        el("span", { class: "name link", text: file.name, title: "Önizle", onclick: () => previewFile(file) }),
+        spec.preview === false
+          ? el("span", { class: "name", text: file.name })
+          : el("span", { class: "name link", text: file.name, title: "Önizle", onclick: () => previewFile(file) }),
         el("span", { class: "size", text: formatSize(file.size) }),
         spec.multiple && index > 0 ? el("button", { type: "button", title: "Yukarı taşı", text: "↑", onclick: () => moveFile(spec, index, -1) }) : null,
         spec.multiple && index < list.length - 1 ? el("button", { type: "button", title: "Aşağı taşı", text: "↓", onclick: () => moveFile(spec, index, 1) }) : null,
         el("button", { type: "button", title: "Kaldır", text: "✕", onclick: () => removeFile(spec, index) }),
       ]));
-      const drop = el("div", { class: "drop" }, [
+      const drop = el("div", { class: "drop", "data-files": spec.name, hidden: !isVisible(spec, readValues()) }, [
         el("div", { class: "drop-head" }, [
           el("strong", { text: spec.label }),
           el("button", { type: "button", class: "secondary", text: spec.multiple ? "Dosya ekle" : "Dosya seç", onclick: () => picker.click() }),
@@ -383,10 +388,39 @@
       const wrapper = field.type === "checkbox"
         ? el("div", { class: "field check", "data-field": field.name }, [el("label", { for: id }, [input, document.createTextNode(field.label)])])
         : el("div", { class: "field", "data-field": field.name }, [el(field.type === "checks" ? "span" : "label", { for: id, class: "label", text: field.label }), input]);
+      if (field.load) {
+        wrapper.appendChild(el("button", { type: "button", class: "secondary refresh", text: "Listeyi yenile", onclick: () => loadOptions(field, true) }));
+      }
       if (field.hint) wrapper.appendChild(el("p", { class: "hint", text: field.hint }));
       host.appendChild(wrapper);
     });
+    state.loadedOptions = new Set();
     applyVisibility();
+  }
+
+  // Options that come from the engine, such as the certificates in the
+  // Windows store, are read when the field first becomes visible.
+  async function loadOptions(field, force) {
+    if (state.engine !== "ready" || (!force && state.loadedOptions.has(field.name))) return;
+    state.loadedOptions.add(field.name);
+    const tool = state.tool;
+    const select = $("f-" + field.name);
+    const previous = select.value;
+    select.replaceChildren(el("option", { value: previous, text: "Yükleniyor…" }));
+    let options;
+    try {
+      options = await field.load({ get: engineGet });
+    } catch (err) {
+      options = [];
+      if (state.tool === tool) $("formError").textContent = errorText(err);
+    }
+    if (state.tool !== tool) return;
+    field.options = options;
+    const current = select.value;
+    select.replaceChildren(...(options.length
+      ? options.map((option) => el("option", { value: option.value, text: option.label }))
+      : [el("option", { value: "", text: field.empty || "Kayıt bulunamadı" })]));
+    if (options.some((option) => option.value === current)) select.value = current;
   }
 
   function onFieldChange(field) {
@@ -417,13 +451,20 @@
   }
 
   function isVisible(field, values) {
-    return Object.entries(field.showIf || {}).every(([key, expected]) => values[key] === expected);
+    return Object.entries(field.showIf || {}).every(([key, expected]) =>
+      (Array.isArray(expected) ? expected.includes(values[key]) : values[key] === expected));
   }
 
   function applyVisibility() {
     const values = readValues();
     state.tool.fields.forEach((field) => {
-      document.querySelector(`[data-field="${field.name}"]`).hidden = !isVisible(field, values);
+      const visible = isVisible(field, values);
+      document.querySelector(`[data-field="${field.name}"]`).hidden = !visible;
+      if (visible && field.load) loadOptions(field);
+    });
+    state.tool.files.forEach((spec) => {
+      const drop = document.querySelector(`[data-files="${spec.name}"]`);
+      if (drop) drop.hidden = !isVisible(spec, values);
     });
   }
 
@@ -519,8 +560,9 @@
 
   function validate(values) {
     for (const spec of state.tool.files) {
+      if (!isVisible(spec, values)) continue;
       const count = state.files[spec.name].length;
-      const min = spec.min || 1;
+      const min = spec.min !== undefined ? spec.min : 1;
       if (count < min) {
         return min > 1 ? `${spec.label}: en az ${min} dosya seçin.` : `${spec.label}: dosya seçin.`;
       }
@@ -550,6 +592,7 @@
   function buildForm(values) {
     const form = new FormData();
     state.tool.files.forEach((spec) => {
+      if (!isVisible(spec, values)) return;
       state.files[spec.name].forEach((file) => form.append(spec.name, file, file.name));
     });
     state.tool.fields.forEach((field) => {
@@ -613,6 +656,10 @@
     return new Uint8Array(output);
   }
 
+  async function engineGet(apiPath) {
+    return JSON.parse(await core.invoke("local_engine_get", { apiPath }));
+  }
+
   async function htmlToPdf(html, page) {
     return new Uint8Array(await core.invoke("html_to_pdf", { html, page }));
   }
@@ -635,6 +682,8 @@
         files: state.files,
         values,
         engine: callEngine,
+        engineGet,
+        form: () => buildForm(values),
         htmlToPdf,
         office,
         note: (text) => { note = text; },
@@ -761,7 +810,7 @@
         label: field.label,
         type: field.type,
         default: field.default,
-        values: field.options ? field.options.map((option) => option.value) : undefined,
+        values: field.options && !field.load ? field.options.map((option) => option.value) : undefined,
       })),
     };
   }
@@ -780,6 +829,9 @@
       const unknown = wanted.filter((item) => !allowed.includes(item));
       if (unknown.length) return `${name}: geçersiz değer (${unknown.join(", ")}). Geçerli: ${allowed.join(", ")}.`;
       input.querySelectorAll("input").forEach((box) => { box.checked = wanted.includes(box.value); });
+    } else if (field.load) {
+      input.replaceChildren(el("option", { value, text: value }));
+      state.loadedOptions.add(field.name);
     } else if (field.type === "select") {
       if (!allowed.includes(value)) return `${name}: geçersiz değer "${value}". Geçerli: ${allowed.join(", ")}.`;
       input.value = value;

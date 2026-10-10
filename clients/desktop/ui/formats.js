@@ -474,5 +474,70 @@ ${paragraphs.join("\n")}
     return { ...page(html, { marginTop: 0.5, marginRight: 0.5, marginBottom: 0.5, marginLeft: 0.5 }), template: "standard" };
   }
 
-  window.SecuriFormats = { zipEntry, zipStore, udfToHtml, linesToUdf, invoiceToHtml, crc32 };
+  // ---- Signature validation report ----
+
+  /** The overall verdict of one /validate-signature result. */
+  function signatureVerdict(result) {
+    if (!result.valid) return { level: "bad", text: "Geçersiz: belge imzalandıktan sonra değiştirilmiş veya imza bozuk" };
+    if (result.coversEntireDocument === false) return { level: "warn", text: "İmza geçerli, ancak imzadan sonra belgeye ekleme yapılmış" };
+    if (result.chainValid === false || result.trustValid === false) return { level: "warn", text: "İmza bütün, ancak sertifika güvenilir bir kök sertifikaya bağlanamadı" };
+    if (result.notExpired === false) return { level: "warn", text: "İmza bütün, ancak sertifikanın süresi dolmuş" };
+    if (/revoked/i.test(result.revocationStatus || "")) return { level: "bad", text: "Sertifika iptal edilmiş" };
+    return { level: "ok", text: "Geçerli" };
+  }
+
+  function signatureReport(results, fileName) {
+    const yesNo = (value) => (value === true ? "Evet" : value === false ? "Hayır" : "—");
+    const row = (label, value) => (value === undefined || value === null || value === "" ? "" :
+      `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`);
+    const items = results.map((result, index) => {
+      const verdict = signatureVerdict(result);
+      return `<section class="${verdict.level}">
+        <h2>İmza ${index + 1}: ${escapeHtml(result.signerName || "Bilinmeyen imzacı")}</h2>
+        <p class="verdict">${escapeHtml(verdict.text)}</p>
+        <table>
+          ${row("İmza tarihi", result.signatureDate)}
+          ${row("Neden", result.reason)}
+          ${row("Yer", result.location)}
+          ${row("İmza bütünlüğü", yesNo(result.valid))}
+          ${row("Tüm belgeyi kapsıyor", yesNo(result.coversEntireDocument))}
+          ${row("Sertifika zinciri", yesNo(result.chainValid))}
+          ${row("Güvenilir kök", yesNo(result.trustValid))}
+          ${row("Zincir hatası", result.chainValidationError)}
+          ${row("Sertifika süresi içinde", yesNo(result.notExpired))}
+          ${row("İptal durumu", result.revocationChecked ? result.revocationStatus : "Denetlenmedi")}
+          ${row("Sertifika sahibi", result.subjectDN)}
+          ${row("Yayıncı", result.issuerDN)}
+          ${row("Seri no", result.serialNumber)}
+          ${row("Geçerlilik", [result.validFrom, result.validUntil].filter(Boolean).join(" – "))}
+          ${row("Anahtar", result.keySize ? result.keySize + " bit" : "")}
+          ${row("Hata", result.errorMessage)}
+        </table>
+      </section>`;
+    }).join("");
+    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
+      body { margin: 0; font: 10pt "Segoe UI", Arial, sans-serif; color: #111; }
+      h1 { font-size: 16pt; margin: 0 0 2pt; }
+      .file { color: #555; margin: 0 0 12pt; }
+      section { border: 0.75pt solid #999; border-left-width: 5pt; padding: 6pt 10pt; margin-bottom: 10pt; break-inside: avoid; }
+      section.ok { border-left-color: #1a7f37; }
+      section.warn { border-left-color: #bf8700; }
+      section.bad { border-left-color: #cf222e; }
+      h2 { font-size: 11.5pt; margin: 0 0 2pt; }
+      .verdict { font-weight: 700; margin: 0 0 6pt; }
+      table { border-collapse: collapse; }
+      th, td { text-align: left; vertical-align: top; padding: 1.5pt 10pt 1.5pt 0; }
+      th { color: #555; font-weight: 600; white-space: nowrap; }
+      td { word-break: break-word; }
+      .source { margin-top: 14pt; font-size: 8pt; color: #666; }
+    </style></head><body>
+      <h1>İmza doğrulama raporu</h1>
+      <p class="file">${escapeHtml(fileName)} · ${escapeHtml(new Date().toLocaleString("tr-TR"))}</p>
+      ${items || "<p>Belgede dijital imza bulunamadı.</p>"}
+      <p class="source">SecuriPDF ile bu bilgisayarda oluşturuldu. Güvenilir kök denetimi Java'nın kök sertifikalarıyla ve varsa seçtiğiniz sertifikayla yapılır.</p>
+    </body></html>`;
+    return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
+  }
+
+  window.SecuriFormats = { zipEntry, zipStore, udfToHtml, linesToUdf, invoiceToHtml, signatureVerdict, signatureReport, crc32 };
 })();
