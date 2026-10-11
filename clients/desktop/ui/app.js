@@ -207,16 +207,27 @@
 
   // Tools with their own `run` work in the UI and only need the engine when they say so.
   function needsEngine(tool) {
-    return Boolean(tool && (!tool.run || tool.usesEngine));
+    return Boolean(tool && !tool.viewer && (!tool.run || tool.usesEngine));
+  }
+
+  function isViewerTool(tool) {
+    return Boolean(tool && tool.viewer);
   }
 
   function updateRunButton() {
     const run = $("run");
     const waiting = needsEngine(state.tool) && state.engine !== "ready";
     const unlicensed = state.license && !state.license.valid;
-    run.disabled = state.busy || waiting || unlicensed;
+    const viewing = isViewerTool(state.tool);
+    run.hidden = viewing;
+    $("openViewer").hidden = !viewing;
+    $("toWord").hidden = !viewing;
+    document.body.classList.toggle("viewing", viewing);
+    run.disabled = viewing || state.busy || waiting || unlicensed;
     run.textContent = state.busy ? "İşleniyor…" : waiting ? "Ön gereksinimler hazırlanıyor…" : "Çalıştır";
-    if (unlicensed) run.textContent = "Lisans gerekli";
+    if (unlicensed && !viewing) run.textContent = "Lisans gerekli";
+    $("openViewer").disabled = viewing && !allFiles()[0];
+    $("toWord").disabled = viewing && !allFiles()[0];
     if (needsEngine(state.tool) && (state.engine === "failed" || state.engine === "missing")) {
       run.textContent = "Hazır değil";
       $("formError").textContent = ($("engine").title || "Ön gereksinimler hazırlanamadı.") +
@@ -277,6 +288,7 @@
     $("toolTitle").textContent = tool.title;
     $("toolDescription").textContent = tool.description;
     $("formError").textContent = "";
+    $("toolForm").hidden = false;
     renderFields();
     renderFiles();
     renderToolList($("search").value);
@@ -307,6 +319,10 @@
     state.files[spec.name] = isMultiple(spec) ? state.files[spec.name].concat(accepted) : [accepted[0]];
     clearResult();
     renderFiles();
+    if (isViewerTool(state.tool) && accepted[0] && /\.pdf$/i.test(accepted[0].name)) {
+      previewFile(accepted[0]);
+      openCurrentViewer(accepted[0]);
+    }
   }
 
   function allFiles() {
@@ -855,8 +871,25 @@
     return { outputs, report: new TextEncoder().encode(report), failed: rows.filter((row) => row[1] === "Hata").length };
   }
 
+  async function openCurrentViewer(file) {
+    const source = file || state.preview.file || allFiles()[0];
+    if (!source || !/\.pdf$/i.test(source.name || "")) return;
+    await previewReady;
+    const values = readValues();
+    const stem = (source.name || "belge").replace(/\.[^.]+$/, "") || "belge";
+    await window.SecuriPreview.openViewer(source, 1, source.name, {
+      password: values.password || undefined,
+      onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
+      onToWord: () => selectTool("pdf-to-word", [source]),
+    });
+  }
+
   async function runTool(event) {
     event.preventDefault();
+    if (isViewerTool(state.tool)) {
+      openCurrentViewer();
+      return;
+    }
     if (state.license && !state.license.valid) {
       openLicense(true);
       return;
@@ -989,13 +1022,22 @@
       }
     }
     if (!files.length) return;
-    if (!acceptsPdf(state.tool.files[0])) selectTool("merge-pdfs");
+    selectTool("open-pdf");
     addFiles(state.tool.files[0], files);
-    previewFile(files[0]);
     hideSplash();
   }
 
   $("toolForm").addEventListener("submit", runTool);
+  $("openViewer").addEventListener("click", () => openCurrentViewer());
+  $("toWord").addEventListener("click", () => {
+    const file = allFiles()[0];
+    selectTool("pdf-to-word", file ? [file] : []);
+  });
+  $("openFile").addEventListener("click", () => {
+    selectTool("open-pdf");
+    const picker = document.querySelector("#fileInputs input[type=file]");
+    if (picker) picker.click();
+  });
   $("splashSkip").addEventListener("click", hideSplash);
   $("save").addEventListener("click", saveResult);
   $("continue").addEventListener("click", continueWithResult);
@@ -1011,7 +1053,14 @@
   $("tabResult").addEventListener("click", () => { if (state.result) setTab("result"); });
   $("search").addEventListener("input", (event) => renderToolList(event.target.value));
   document.addEventListener("dragover", (event) => event.preventDefault());
-  document.addEventListener("drop", (event) => event.preventDefault());
+  document.addEventListener("drop", (event) => {
+    event.preventDefault();
+    if (event.target.closest && event.target.closest(".drop")) return;
+    const files = Array.from(event.dataTransfer.files || []).filter((file) => /\.pdf$/i.test(file.name));
+    if (!files.length) return;
+    selectTool("open-pdf");
+    addFiles(state.tool.files[0], files);
+  });
 
   // ---- Command line (see cli.rs): the window stays hidden and reports back ----
 
@@ -1091,11 +1140,11 @@
   async function runCli(job) {
     try {
       if (job.listTools) {
-        await cliFinish("list", new TextEncoder().encode(JSON.stringify(tools.map(describeTool))));
+        await cliFinish("list", new TextEncoder().encode(JSON.stringify(tools.filter((tool) => !tool.viewer).map(describeTool))));
         return;
       }
       const tool = tools.find((item) => item.id === job.tool);
-      if (!tool) {
+      if (!tool || tool.viewer) {
         await cliFail("UNKNOWN_TOOL", `Bilinmeyen araç: ${job.tool}. Araçların listesi için --list-tools kullanın.`);
         return;
       }
@@ -1251,7 +1300,7 @@
   // Read-only view used by the automated UI tests.
   window.SecuriApp = { lastResult: () => state.result && { name: state.result.name, bytes: state.result.bytes.slice() } };
 
-  selectTool(tools[0].id);
+  selectTool("open-pdf");
   (async () => {
     const job = core ? await core.invoke("cli_job").catch(() => null) : null;
     if (job) {

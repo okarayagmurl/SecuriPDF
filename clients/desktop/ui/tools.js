@@ -125,6 +125,7 @@
   }
 
   window.SECURIPDF_CATEGORIES = [
+    { id: "view", title: "Görüntüle" },
     { id: "edit", title: "Düzenle" },
     { id: "ocr", title: "Metin tanıma" },
     { id: "pages", title: "Sayfalar" },
@@ -135,6 +136,16 @@
   ];
 
   window.SECURIPDF_TOOLS = [
+    {
+      id: "open-pdf",
+      category: "view",
+      title: "Belge aç",
+      description: "PDF'i görüntüleyin, arayın ve sayfalarda gezinin. Metin ekleyebilir, seçili satırı değiştirebilir, vurgu ve çizim kaydedebilirsiniz. PDF satırları Word gibi yeniden akmaz; uzun düzenleme için Word'e dönüştürün.",
+      viewer: true,
+      batch: false,
+      files: [{ name: "fileInput", label: "PDF belgesi", accept: PDF }],
+      fields: [],
+    },
     {
       id: "merge-pdfs",
       category: "edit",

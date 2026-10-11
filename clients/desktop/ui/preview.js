@@ -114,10 +114,10 @@ function button(text, title) {
 }
 
 const MARKS = [
-  { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi ve gezinme" },
+  { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi, gezinme ve satır değiştirme" },
   { mode: pdfjs.AnnotationEditorType.HIGHLIGHT, label: "Vurgula", title: "Metni seçerek vurgulayın", color: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_COLOR, initial: "#ffff98" },
   { mode: pdfjs.AnnotationEditorType.INK, label: "Çiz", title: "Serbest çizim", color: pdfjs.AnnotationEditorParamsType.INK_COLOR, initial: "#e11d48" },
-  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Sayfaya tıklayıp yazın", color: pdfjs.AnnotationEditorParamsType.FREETEXT_COLOR, initial: "#1d4ed8" },
+  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Sayfaya tıklayıp yeni metin yazın", color: pdfjs.AnnotationEditorParamsType.FREETEXT_COLOR, initial: "#1d4ed8" },
 ];
 
 /**
@@ -165,6 +165,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
+  const replace = button("Değiştir", "Seçili metnin üzerine yeni metin yazın. Satırlar Word gibi kaymaz.");
+  const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün") : null;
   const save = button("Kaydet", "İşaretlemeleri PDF'e yazıp kaydedin");
   save.classList.remove("secondary");
   save.disabled = true;
@@ -177,7 +179,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     group(zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
     group(find, findPrev, findNext, findCount),
     marks,
-    group(save, close),
+    group(...[replace, toWord, save, close].filter(Boolean)),
   );
   const body = el("div", "viewer-body");
   const stage = el("div", "viewer-stage");
@@ -197,6 +199,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     linkService,
     findController,
     annotationEditorMode: pdfjs.AnnotationEditorType.NONE,
+    textLayerMode: 1,
     annotationEditorHighlightColors: "yellow=#FFFF98,green=#53FFBC,blue=#80EBFF,pink=#FFCBE6,red=#FF4F5F",
     enableHighlightFloatingButton: true,
     imageResourcesPath: "./vendor/pdfjs/web/images/",
@@ -307,6 +310,105 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   eventBus.on("annotationeditoruimanager", () => setMark(MARKS[0]));
 
+  const pop = el("div", "replace-pop");
+  pop.hidden = true;
+  const popInput = el("input", "replace-input");
+  popInput.type = "text";
+  popInput.setAttribute("aria-label", "Yeni metin");
+  const popOk = button("Uygula");
+  popOk.classList.remove("secondary");
+  const popCancel = button("Vazgeç");
+  pop.append(popInput, popOk, popCancel);
+  root.appendChild(pop);
+  let pendingReplace = null;
+
+  const hideReplace = () => {
+    pop.hidden = true;
+    pendingReplace = null;
+  };
+
+  const selectedText = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !root.contains(sel.anchorNode)) return null;
+    const text = String(sel).replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    const pageEl = node && node.closest && node.closest(".page");
+    if (!pageEl || !root.contains(pageEl)) return null;
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    if (!pageNumber) return null;
+    const range = sel.getRangeAt(0);
+    const rects = Array.from(range.getClientRects()).filter((box) => box.width > 1 && box.height > 1);
+    if (!rects.length) return null;
+    return { text, pageNumber, pageEl, rects };
+  };
+
+  const applyReplace = async () => {
+    if (!pendingReplace) return;
+    const next = popInput.value;
+    if (!next.trim()) {
+      hideReplace();
+      return;
+    }
+    const page = await doc.getPage(pendingReplace.pageNumber);
+    const viewport = page.getViewport({ scale: 1, rotation: pdfViewer.pagesRotation });
+    const canvas = pendingReplace.pageEl.querySelector("canvas") || pendingReplace.pageEl;
+    const box = canvas.getBoundingClientRect();
+    const toPdf = (rect) => {
+      const x = ((rect.left - box.left) / box.width) * viewport.width;
+      const top = ((rect.top - box.top) / box.height) * viewport.height;
+      const w = (rect.width / box.width) * viewport.width;
+      const h = (rect.height / box.height) * viewport.height;
+      return [x, viewport.height - top - h, x + w, viewport.height - top];
+    };
+    const cover = pendingReplace.rects.map(toPdf);
+    const first = cover[0];
+    const fontSize = Math.max(8, Math.min(48, (first[3] - first[1]) * 0.9));
+    cover.forEach((rect, index) => {
+      doc.annotationStorage.setValue(`spf-cover-${Date.now()}-${index}`, {
+        annotationType: pdfjs.AnnotationEditorType.FREETEXT,
+        color: [1, 1, 1],
+        fontSize: Math.max(fontSize * 1.2, 10),
+        value: "██████",
+        pageIndex: pendingReplace.pageNumber - 1,
+        rect: [rect[0] - 1, rect[1] - 1, rect[2] + 1, rect[3] + 1],
+        rotation: 0,
+      });
+    });
+    doc.annotationStorage.setValue(`spf-text-${Date.now()}`, {
+      annotationType: pdfjs.AnnotationEditorType.FREETEXT,
+      color: [0.08, 0.09, 0.16],
+      fontSize,
+      value: next,
+      pageIndex: pendingReplace.pageNumber - 1,
+      rect: [first[0], first[1], first[0] + Math.max(first[2] - first[0], next.length * fontSize * 0.5), first[3]],
+      rotation: 0,
+    });
+    markDirty(true);
+    hideReplace();
+    window.getSelection().removeAllRanges();
+  };
+
+  replace.onclick = () => {
+    setMark(MARKS[0]);
+    const found = selectedText();
+    if (!found) {
+      window.alert("Önce belgede değiştirilecek metni seçin (Seç kipinde). PDF satırları Word gibi kaymaz; uzun düzenleme için Word'e dönüştürün.");
+      return;
+    }
+    pendingReplace = found;
+    popInput.value = found.text;
+    pop.hidden = false;
+    popInput.focus();
+    popInput.select();
+  };
+  popOk.onclick = () => applyReplace();
+  popCancel.onclick = hideReplace;
+  popInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); applyReplace(); }
+    if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
+  });
+
   save.onclick = async () => {
     if (!options.onSave) return;
     save.disabled = true;
@@ -319,6 +421,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
       window.alert("İşaretlemeler kaydedilemedi.");
     }
   };
+  if (toWord) {
+    toWord.onclick = () => {
+      if (!closeViewer(false)) return;
+      options.onToWord();
+    };
+  }
   close.onclick = () => closeViewer(false);
 }
 
@@ -781,5 +889,5 @@ async function textBoxes(data, patterns, password) {
   }
 }
 
-window.SecuriPreview = { show, closeViewer, countPages, textLines, textBoxes };
+window.SecuriPreview = { show, openViewer, closeViewer, countPages, textLines, textBoxes };
 window.dispatchEvent(new Event("securipreview-ready"));

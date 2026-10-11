@@ -34,6 +34,7 @@
   </div>
   <header class="top">
     <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
+    <button type="button" class="open-file" id="openFile">Belge aç</button>
     <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
       <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
     </label>
@@ -55,6 +56,10 @@
           <div id="fields" class="fields"></div>
           <p class="error" id="formError" role="alert"></p>
           <button id="run" type="submit" class="primary">Çalıştır</button>
+          <div class="viewer-actions">
+            <button id="openViewer" type="button" class="primary" hidden>Görüntüleyicide aç</button>
+            <button id="toWord" type="button" class="secondary" hidden>Word'e dönüştür</button>
+          </div>
         </form>
         <div id="result" class="result" hidden>
           <p id="resultText"></p>
