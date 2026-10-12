@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources revision="1.0" schemaVersion="1.0">
+  <displayName>SecuriPDF</displayName>
+  <description>SecuriPDF Windows uygulaması için kurum ilkeleri (GPO / SCCM).</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Windows10">Windows 10 veya üzeri</string>
+      <string id="CatEntera">Entera</string>
+      <string id="CatSecuriPDF">SecuriPDF</string>
+      <string id="CatDesktop">Masaüstü</string>
+      <string id="LicenseFile">Lisans dosyası</string>
+      <string id="LicenseFile_Help">İmzalı .lic dosyasının UNC veya yerel yolunu yazın. Kurum lisansı (scope=organization) tüm bilgisayarlarda geçerlidir. Makine başına lisans için yolda {installation_id} kullanın.</string>
+      <string id="LicenseDirectory">Lisans klasörü</string>
+      <string id="LicenseDirectory_Help">Paylaşılan klasör. Uygulama önce {kurulum kimliği}.lic, yoksa license.lic dosyasını yükler.</string>
+      <string id="DisableDemo">Deneme lisansını kapat</string>
+      <string id="DisableDemo_Help">Açıksa 15 günlük deneme geçersizdir. Ticari .lic gerekir.</string>
+      <string id="EnableShellMenu">Gezgin sağ tık menüsünü zorla</string>
+      <string id="EnableShellMenu_Help">Etkin: menü açılır ve kullanıcı kapatamaz. Devre dışı: menü silinir ve kullanıcı açamaz. Yapılandırılmamış: kullanıcı seçer.</string>
+      <string id="AllowTimestamp">RFC 3161 zaman damgasına izin ver</string>
+      <string id="AllowTimestamp_Help">Kapalıysa zaman damgası aracı çalışmaz (dış ağa özet gitmez).</string>
+      <string id="EnableUpdates">Kurum içi güncellemeyi aç</string>
+      <string id="EnableUpdates_Help">Açıksa uygulama UpdateManifestUrl bildirimini okur. Kapalıysa ağ isteği yok.</string>
+      <string id="UpdateManifestUrl">Güncelleme bildirimi</string>
+      <string id="UpdateManifestUrl_Help">update.json dosyasının UNC veya yerel yolu. HTTPS kullanılmaz.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="LicenseFile">
+        <textBox refId="LicenseFile"><label>Lisans dosyası</label></textBox>
+      </presentation>
+      <presentation id="LicenseDirectory">
+        <textBox refId="LicenseDirectory"><label>Lisans klasörü</label></textBox>
+      </presentation>
+      <presentation id="UpdateManifestUrl">
+        <textBox refId="UpdateManifestUrl"><label>Bildirim yolu</label></textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

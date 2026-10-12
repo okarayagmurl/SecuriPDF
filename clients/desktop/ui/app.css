@@ -46,6 +46,17 @@ body {
 .license-badge[data-state="demo"] { background: #b45309; }
 .license-badge[data-state="commercial"] { background: var(--ok); }
 .license-badge[data-state="expired"] { background: var(--danger); }
+.update-badge {
+  margin-right: 8px;
+  border: 0;
+  font: 13px "Segoe UI", sans-serif;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: #fff;
+  cursor: pointer;
+}
+.shell-menu.is-locked { opacity: 0.7; cursor: default; }
 .open-file {
   border: 0;
   border-radius: 8px;

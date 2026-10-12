@@ -9,6 +9,16 @@
 !macro NSIS_HOOK_PREINSTALL
 !macroend
 !macro NSIS_HOOK_POSTINSTALL
+  ; SCCM / Intune: set SECURIPDF_LICENSE to a .lic before silent /S install.
+  ClearErrors
+  ReadEnvStr $R9 SECURIPDF_LICENSE
+  StrCmp $R9 "" securipdf_skip_license 0
+    CreateDirectory "$LOCALAPPDATA\net.entera.securipdf.desktop\license"
+    CopyFiles /SILENT "$R9" "$LOCALAPPDATA\net.entera.securipdf.desktop\license\deployed.lic"
+    ClearErrors
+    CreateDirectory "$COMMONAPPDATA\Entera\SecuriPDF"
+    CopyFiles /SILENT "$R9" "$COMMONAPPDATA\Entera\SecuriPDF\license.lic"
+  securipdf_skip_license:
 !macroend
 !macro NSIS_HOOK_PREUNINSTALL
 !macroend

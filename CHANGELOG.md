@@ -30,6 +30,9 @@
 - Windows uygulaması açılışta Belge aç ekranıyla PDF görüntüleyici olarak çalışır; birlikte aç, sürükle-bırak ve üst çubuk belgeyi görüntüleyiciye alır
 - Görüntüleyicide seçilen metin üzerine yazılarak değiştirilir; PDF satırları kaymaz, uzun düzenleme Word'e dönüştürülür
 - Görüntüleyicide metin değiştirme seçili satırı yerinde kapatır; yeni metin eski yazının üzerine binmez, damga olarak onun yerine yazılır
+- Windows uygulaması GPO/SCCM ilkelerini okur (lisans dosyası, deneme kapatma, Gezgin menüsü, zaman damgası, kurum içi güncelleme)
+- Windows kurucusu `/S /ALLUSERS` ve `SECURIPDF_LICENSE` ile sessiz kurulur; ADMX ve SCCM betikleri `clients/desktop/policy` ile `deploy` altındadır
+- License Manager kurum lisansı üretir (`scope=organization`); tek `.lic` GPO ile tüm masaüstlerine dağıtılır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

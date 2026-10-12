@@ -18,6 +18,9 @@ fn main() {
             "cli_finish",
             "shell_menu_status",
             "shell_menu_set",
+            "policy_status",
+            "update_status",
+            "update_open",
             "reveal_window",
         ]),
     ))

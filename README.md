@@ -82,7 +82,7 @@ Bkz. [docs/UPDATE.md](docs/UPDATE.md)
 ./scripts/restore.sh backups/YYYYMMDD_HHMMSS
 ```
 
-Bkz. [docs/BACKUP.md](docs/BACKUP.md) · Prod operasyonları: [docs/PROD-OPS.md](docs/PROD-OPS.md)
+Bkz. [docs/BACKUP.md](docs/BACKUP.md) · Prod operasyonları: [docs/PROD-OPS.md](docs/PROD-OPS.md) · Masaüstü GPO/SCCM: [docs/DESKTOP-ENTERPRISE.md](docs/DESKTOP-ENTERPRISE.md)
 
 ## Geri Dönüş (Rollback)
 

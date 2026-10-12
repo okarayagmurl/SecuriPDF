@@ -107,6 +107,12 @@ fn menu_key(ext: &str) -> String {
     format!(r"{ROOT}\{ext}\shell\{MENU_KEY}")
 }
 
+pub fn apply_policy() {
+    if let Some(forced) = crate::policy::load().shell_menu {
+        let _ = shell_menu_set(forced);
+    }
+}
+
 #[tauri::command]
 pub fn shell_menu_status() -> bool {
     key_exists(&menu_key(".pdf"))
@@ -114,6 +120,11 @@ pub fn shell_menu_status() -> bool {
 
 #[tauri::command]
 pub fn shell_menu_set(enabled: bool) -> Result<bool, String> {
+    if let Some(forced) = crate::policy::load().shell_menu {
+        if enabled != forced {
+            return Err("POLICY_SHELL".into());
+        }
+    }
     for ext in extensions() {
         delete_tree(&menu_key(ext));
     }
@@ -161,5 +172,6 @@ mod tests {
         for name in ["NSIS_HOOK_PREINSTALL", "NSIS_HOOK_POSTINSTALL", "NSIS_HOOK_PREUNINSTALL", "NSIS_HOOK_POSTUNINSTALL"] {
             assert!(hooks.contains(&format!("!macro {name}")), "hooks.nsh missing {name}");
         }
+        assert!(hooks.contains("SECURIPDF_LICENSE"), "hooks.nsh must copy a deployed license");
     }
 }

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions revision="1.0" schemaVersion="1.0">
+  <policyNamespaces>
+    <target prefix="entera" namespace="Entera.Policies.SecuriPDF" />
+  </policyNamespaces>
+  <supersededAdm />
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Windows10" displayName="$(string.SUPPORTED_Windows10)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="Entera" displayName="$(string.CatEntera)" />
+    <category name="SecuriPDF" displayName="$(string.CatSecuriPDF)">
+      <parentCategory ref="Entera" />
+    </category>
+    <category name="Desktop" displayName="$(string.CatDesktop)">
+      <parentCategory ref="SecuriPDF" />
+    </category>
+  </categories>
+  <policies>
+    <policy name="LicenseFile" class="Both" displayName="$(string.LicenseFile)" explainText="$(string.LicenseFile_Help)" presentation="$(presentation.LicenseFile)" key="Software\Policies\Entera\SecuriPDF\Desktop">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <text id="LicenseFile" valueName="LicenseFile" required="true" />
+      </elements>
+    </policy>
+    <policy name="LicenseDirectory" class="Both" displayName="$(string.LicenseDirectory)" explainText="$(string.LicenseDirectory_Help)" presentation="$(presentation.LicenseDirectory)" key="Software\Policies\Entera\SecuriPDF\Desktop">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <text id="LicenseDirectory" valueName="LicenseDirectory" required="true" />
+      </elements>
+    </policy>
+    <policy name="DisableDemo" class="Both" displayName="$(string.DisableDemo)" explainText="$(string.DisableDemo_Help)" key="Software\Policies\Entera\SecuriPDF\Desktop" valueName="DisableDemo">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="EnableShellMenu" class="Both" displayName="$(string.EnableShellMenu)" explainText="$(string.EnableShellMenu_Help)" key="Software\Policies\Entera\SecuriPDF\Desktop" valueName="EnableShellMenu">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="AllowTimestamp" class="Both" displayName="$(string.AllowTimestamp)" explainText="$(string.AllowTimestamp_Help)" key="Software\Policies\Entera\SecuriPDF\Desktop" valueName="AllowTimestamp">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="EnableUpdates" class="Both" displayName="$(string.EnableUpdates)" explainText="$(string.EnableUpdates_Help)" key="Software\Policies\Entera\SecuriPDF\Desktop" valueName="EnableUpdates">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="UpdateManifestUrl" class="Both" displayName="$(string.UpdateManifestUrl)" explainText="$(string.UpdateManifestUrl_Help)" presentation="$(presentation.UpdateManifestUrl)" key="Software\Policies\Entera\SecuriPDF\Desktop">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <text id="UpdateManifestUrl" valueName="UpdateManifestUrl" required="true" />
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

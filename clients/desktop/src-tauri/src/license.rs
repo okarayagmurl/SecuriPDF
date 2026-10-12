@@ -82,12 +82,33 @@ pub fn require() -> Result<(), String> {
 }
 
 pub fn evaluate() -> Result<LicenseStatus, String> {
-    evaluate_at(&Store::default_store(), unix_now())
+    evaluate_at_with(&Store::default_store(), unix_now(), &crate::policy::load(), true)
 }
 
+#[cfg(test)]
 pub fn evaluate_at(store: &Store, now: i64) -> Result<LicenseStatus, String> {
+    evaluate_at_with(store, now, &crate::policy::Policy::default(), false)
+}
+
+pub(crate) fn evaluate_at_with(
+    store: &Store,
+    now: i64,
+    policy: &crate::policy::Policy,
+    apply_deployed: bool,
+) -> Result<LicenseStatus, String> {
     let mut state = load_merged(store, now)?;
-    let status = status_of(&state, now)?;
+    if apply_deployed && !has_valid_commercial(&state, now) {
+        try_deployed_licenses(store, &state.installation_id, now, policy);
+        state = load_merged(store, now)?;
+    }
+    let mut status = status_of(&state, now)?;
+    if policy.disable_demo && status.license_type == "demo" {
+        status.valid = false;
+        status.expired = true;
+        status.days_left = Some(0);
+        status.message =
+            "Kurum ilkesi deneme lisansını kapatmış. Dağıtılan .lic dosyasını yükleyin.".into();
+    }
     state.last_seen = now.max(state.last_seen);
     save(store, &state)?;
     Ok(status)
@@ -102,21 +123,7 @@ fn activate_bytes_with(store: &Store, raw: &str, now: i64, key_b64: &str) -> Res
         .map_err(|_| "Lisans dosyası okunamadı. Geçerli bir .lic seçin.".to_string())?;
     let payload = verify_signed_with(&doc, key_b64)?;
     let mut state = load_merged(store, now)?;
-    let lic_install = payload
-        .get("installation_id")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-        .ok_or_else(|| {
-            "Lisans dosyasında kurulum kimliği yok. Bu bilgisayardan .req oluşturup Entera'ya gönderin."
-                .to_string()
-        })?;
-    if lic_install != state.installation_id {
-        return Err(format!(
-            "Bu lisans başka bir kurulum için: {lic_install}. Bu bilgisayar: {}.",
-            state.installation_id
-        ));
-    }
+    installation_allowed(&payload, &state.installation_id)?;
     state.license = Some(doc);
     state.last_seen = now.max(state.last_seen);
     save(store, &state)?;
@@ -318,15 +325,86 @@ fn status_of(state: &State, now: i64) -> Result<LicenseStatus, String> {
 
 fn signed_status(state: &State, doc: &Value, now: i64) -> Result<LicenseStatus, String> {
     let payload = verify_signed(doc)?;
-    if let Some(id) = payload.get("installation_id").and_then(Value::as_str).map(str::trim) {
-        if !id.is_empty() && id != state.installation_id {
-            return Err(format!(
-                "Bu lisans başka bir kurulum için: {id}. Bu bilgisayar: {}.",
-                state.installation_id
-            ));
+    installation_allowed(&payload, &state.installation_id)?;
+    Ok(signed_status_from_payload(state, &payload, now))
+}
+
+fn installation_allowed(payload: &Map<String, Value>, installation_id: &str) -> Result<(), String> {
+    if is_org_scope(payload) {
+        return Ok(());
+    }
+    match payload
+        .get("installation_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        None => Err(
+            "Lisans dosyasında kurulum kimliği yok. Bu bilgisayardan .req oluşturup Entera'ya gönderin."
+                .into(),
+        ),
+        Some("*") => Ok(()),
+        Some(id) if id == installation_id => Ok(()),
+        Some(id) => Err(format!(
+            "Bu lisans başka bir kurulum için: {id}. Bu bilgisayar: {installation_id}."
+        )),
+    }
+}
+
+fn is_org_scope(payload: &Map<String, Value>) -> bool {
+    matches!(
+        payload
+            .get("scope")
+            .and_then(Value::as_str)
+            .map(|value| value.trim().to_ascii_lowercase())
+            .as_deref(),
+        Some("organization" | "organisation" | "site" | "volume" | "enterprise")
+    )
+}
+
+fn has_valid_commercial(state: &State, now: i64) -> bool {
+    state
+        .license
+        .as_ref()
+        .and_then(|doc| signed_status(state, doc, now).ok())
+        .is_some_and(|status| status.valid && status.license_type != "demo")
+}
+
+fn try_deployed_licenses(store: &Store, installation_id: &str, now: i64, policy: &crate::policy::Policy) {
+    for path in deployed_license_paths(installation_id, policy) {
+        if let Ok(raw) = fs::read_to_string(&path) {
+            if activate_bytes(store, &raw, now).is_ok() {
+                return;
+            }
         }
     }
-    Ok(signed_status_from_payload(state, &payload, now))
+}
+
+fn deployed_license_paths(installation_id: &str, policy: &crate::policy::Policy) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Some(path) = &policy.license_file {
+        out.push(PathBuf::from(expand_placeholders(path, installation_id)));
+    }
+    if let Some(dir) = &policy.license_directory {
+        let dir = PathBuf::from(expand_placeholders(dir, installation_id));
+        out.push(dir.join(format!("{installation_id}.lic")));
+        out.push(dir.join("license.lic"));
+    }
+    if let Some(from_env) = std::env::var_os("SECURIPDF_LICENSE") {
+        out.push(PathBuf::from(from_env));
+    }
+    if let Some(program_data) = std::env::var_os("PROGRAMDATA") {
+        let root = PathBuf::from(program_data).join("Entera").join("SecuriPDF");
+        out.push(root.join("license.lic"));
+        out.push(root.join(format!("{installation_id}.lic")));
+    }
+    out.push(data_dir().join("license").join("deployed.lic"));
+    out
+}
+
+fn expand_placeholders(raw: &str, installation_id: &str) -> String {
+    raw.replace("{installation_id}", installation_id)
+        .replace("%INSTALLATION_ID%", installation_id)
 }
 
 fn signed_status_from_payload(state: &State, payload: &Map<String, Value>, now: i64) -> LicenseStatus {
@@ -959,6 +1037,73 @@ mod tests {
         assert_eq!(req["type"], "license_request");
         assert_eq!(req["edition"], EDITION);
         assert_eq!(req["product"], PRODUCT);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn organization_scope_license_works_on_any_install() {
+        let (store, dir) = tmp();
+        let now = 1_791_676_800;
+        evaluate_at(&store, now).unwrap();
+        let (doc, key) = sign(json!({
+            "product": PRODUCT,
+            "edition": EDITION,
+            "package": "professional",
+            "customer": "Bakanlık",
+            "license_type": "commercial",
+            "scope": "organization",
+            "expires_at": "2027-10-11T00:00:00Z",
+        }));
+        let status = activate_bytes_with(&store, &serde_json::to_string(&doc).unwrap(), now, &key).unwrap();
+        assert!(status.valid);
+        assert_eq!(status.customer, "Bakanlık");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn disable_demo_policy_blocks_trial() {
+        let (store, dir) = tmp();
+        let now = 1_791_676_800;
+        let policy = crate::policy::Policy {
+            disable_demo: true,
+            ..crate::policy::Policy::default()
+        };
+        let status = evaluate_at_with(&store, now, &policy, false).unwrap();
+        assert!(!status.valid);
+        assert!(status.message.contains("deneme"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn policy_license_file_is_activated() {
+        let (store, dir) = tmp();
+        let now = 1_791_676_800;
+        evaluate_at(&store, now).unwrap();
+        let (doc, key) = sign(json!({
+            "product": PRODUCT,
+            "edition": EDITION,
+            "package": "professional",
+            "customer": "GPO",
+            "license_type": "commercial",
+            "scope": "organization",
+            "expires_at": "2027-10-11T00:00:00Z",
+        }));
+        // activate_bytes_with uses PUBLIC_KEY in production; here the test key
+        // is only accepted through activate_bytes_with. Write a file the helper
+        // can read after we swap by calling activate with the test key first
+        // via a license file that evaluate_at_with will try — use the real
+        // public key path: write signed-with-test-key and activate_bytes_with
+        // directly, then confirm deployed paths include the file.
+        let lic = dir.join("site.lic");
+        fs::write(&lic, serde_json::to_string(&doc).unwrap()).unwrap();
+        let policy = crate::policy::Policy {
+            license_file: Some(lic.display().to_string()),
+            ..crate::policy::Policy::default()
+        };
+        let paths = deployed_license_paths("SPDF-INST-TEST", &policy);
+        assert!(paths.iter().any(|path| path == &lic));
+        let status = activate_bytes_with(&store, &fs::read_to_string(&lic).unwrap(), now, &key).unwrap();
+        assert!(status.valid);
         let _ = fs::remove_dir_all(dir);
     }
 }

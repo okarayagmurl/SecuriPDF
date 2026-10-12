@@ -3,10 +3,12 @@ mod defender;
 mod engine;
 mod license;
 mod office;
+mod policy;
 mod print;
 mod qpdf;
 mod qr;
 mod shell_menu;
+mod update;
 
 use engine::{is_local_api_path, Engine, EngineFiles, EngineStatus};
 use serde::Serialize;
@@ -115,6 +117,7 @@ pub fn run() {
                 })
                 .build()?;
             if !is_cli {
+                shell_menu::apply_policy();
                 start_engine(app.handle(), "engine");
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {
@@ -143,6 +146,9 @@ pub fn run() {
             license::license_status,
             license::license_save_request,
             license::license_open_and_activate,
+            policy::policy_status,
+            update::update_status,
+            update::update_open,
             reveal_window,
             cli::cli_job,
             cli::cli_start_engine,
@@ -199,6 +205,23 @@ fn command_line(args: &[String]) -> cli::Cli {
             }
             Err(message) => fail(cli::EXIT_LICENSE, "LICENSE", message),
         }
+    }
+    if options.policy_status {
+        let policy = policy::load();
+        let report = serde_json::to_value(&policy).unwrap_or_default();
+        let text = if policy.source == "none" {
+            "Kurum ilkesi yok.".to_string()
+        } else {
+            format!("Kurum ilkesi ({})", policy.source)
+        };
+        cli::print(options.json, 0, &report, &text);
+        std::process::exit(0);
+    }
+    if options.update_status {
+        let status = update::status();
+        let report = serde_json::to_value(&status).unwrap_or_default();
+        cli::print(options.json, 0, &report, &status.message);
+        std::process::exit(0);
     }
     if !options.list_tools {
         if let Err(message) = license::require() {
@@ -286,6 +309,9 @@ async fn run_local_tool(
     let api_path = header(&request, HEADER_API_PATH).ok_or("LOCAL_BAD_REQUEST")?;
     let content_type = header(&request, HEADER_CONTENT_TYPE).ok_or("LOCAL_BAD_REQUEST")?;
     license::require()?;
+    if api_path.contains("timestamp") && !policy::load().allow_timestamp {
+        return Err("POLICY_TIMESTAMP".into());
+    }
     if !is_local_api_path(&api_path) || !content_type.starts_with("multipart/form-data; boundary=")
     {
         return Err("LOCAL_BAD_REQUEST".into());

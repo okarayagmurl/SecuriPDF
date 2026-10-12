@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources revision="1.0" schemaVersion="1.0">
+  <displayName>SecuriPDF</displayName>
+  <description>Group Policy settings for the SecuriPDF Windows desktop app.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Windows10">Windows 10 or later</string>
+      <string id="CatEntera">Entera</string>
+      <string id="CatSecuriPDF">SecuriPDF</string>
+      <string id="CatDesktop">Desktop</string>
+      <string id="LicenseFile">License file</string>
+      <string id="LicenseFile_Help">UNC or local path to a signed .lic. An organization-scoped license works on every PC. For per-machine files use {installation_id} in the path.</string>
+      <string id="LicenseDirectory">License directory</string>
+      <string id="LicenseDirectory_Help">Shared folder. The app loads {installation_id}.lic, then license.lic.</string>
+      <string id="DisableDemo">Turn off the trial license</string>
+      <string id="DisableDemo_Help">When enabled the 15-day trial is invalid. A commercial .lic is required.</string>
+      <string id="EnableShellMenu">Force the Explorer context menu</string>
+      <string id="EnableShellMenu_Help">Enabled: the menu is on and the user cannot turn it off. Disabled: the menu is removed. Not configured: the user chooses.</string>
+      <string id="AllowTimestamp">Allow RFC 3161 timestamps</string>
+      <string id="AllowTimestamp_Help">When disabled the timestamp tool does not run.</string>
+      <string id="EnableUpdates">Enable the internal update feed</string>
+      <string id="EnableUpdates_Help">When enabled the app reads UpdateManifestUrl. No network call otherwise.</string>
+      <string id="UpdateManifestUrl">Update manifest</string>
+      <string id="UpdateManifestUrl_Help">UNC or local path to update.json. HTTPS is not used.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="LicenseFile">
+        <textBox refId="LicenseFile"><label>License file</label></textBox>
+      </presentation>
+      <presentation id="LicenseDirectory">
+        <textBox refId="LicenseDirectory"><label>License directory</label></textBox>
+      </presentation>
+      <presentation id="UpdateManifestUrl">
+        <textBox refId="UpdateManifestUrl"><label>Manifest path</label></textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

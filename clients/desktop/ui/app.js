@@ -14,6 +14,7 @@
     batch: false,
     preview: { tab: "source", file: null, handle: null, token: 0 },
     license: null,
+    policy: null,
   };
 
   const previewReady = window.SecuriPreview
@@ -47,6 +48,8 @@
     OFFICE_SCRIPT_FAILED: "Office dönüştürücüsü başlatılamadı (PowerShell bulunamadı veya engellendi).",
     LICENSE_EXPIRED: "Lisans süresi doldu. Üst çubuktaki Lisans düğmesinden .lic yükleyin.",
     LICENSE_REQUIRED: "Çalıştırmak için geçerli bir lisans veya deneme süresi gerekir.",
+    POLICY_TIMESTAMP: "Kurum ilkesi zaman damgasını kapatmış.",
+    POLICY_SHELL: "Gezgin menüsü kurum ilkesiyle kilitli.",
   };
 
   function errorText(err) {
@@ -894,6 +897,10 @@
       openLicense(true);
       return;
     }
+    if (state.tool && state.tool.id === "timestamp-pdf" && state.policy && state.policy.allowTimestamp === false) {
+      $("formError").textContent = ERRORS.POLICY_TIMESTAMP;
+      return;
+    }
     if (state.busy || (needsEngine(state.tool) && state.engine !== "ready")) return;
     const values = readValues();
     await countSourcePages(values);
@@ -1222,6 +1229,15 @@
     $("licenseInstall").textContent = status.installationId || "—";
     $("licenseCustomer").textContent = status.customer || "—";
     $("licenseExpiry").textContent = formatLicenseDate(status.expiresAt);
+    const policyNote = state.policy && (state.policy.licenseFile || state.policy.licenseDirectory || state.policy.disableDemo);
+    $("licensePolicyRow").hidden = !policyNote;
+    $("licensePolicy").textContent = !policyNote
+      ? ""
+      : [
+          state.policy.licenseFile ? `LicenseFile: ${state.policy.licenseFile}` : "",
+          state.policy.licenseDirectory ? `LicenseDirectory: ${state.policy.licenseDirectory}` : "",
+          state.policy.disableDemo ? "Deneme kapalı" : "",
+        ].filter(Boolean).join(" · ");
     banner.hidden = status.valid;
     banner.textContent = status.valid ? "" : status.message;
     updateRunButton();
@@ -1283,7 +1299,18 @@
 
   async function initShellMenu() {
     const box = $("shellMenu");
+    const label = box.closest(".shell-menu");
     box.checked = await core.invoke("shell_menu_status").catch(() => false);
+    const locked = state.policy && state.policy.shellMenu != null;
+    if (locked) {
+      box.checked = !!state.policy.shellMenu;
+      box.disabled = true;
+      if (label) {
+        label.classList.add("is-locked");
+        label.title = "Gezgin menüsü kurum ilkesiyle kilitli.";
+      }
+      return;
+    }
     box.addEventListener("change", async () => {
       box.disabled = true;
       try {
@@ -1293,6 +1320,34 @@
         $("formError").textContent = errorText(err);
       } finally {
         box.disabled = false;
+      }
+    });
+  }
+
+  async function initPolicy() {
+    try {
+      state.policy = await core.invoke("policy_status");
+    } catch (_err) {
+      state.policy = null;
+    }
+  }
+
+  async function initUpdate() {
+    const btn = $("updateBtn");
+    if (!btn) return;
+    try {
+      const status = await core.invoke("update_status");
+      btn.hidden = !status.available;
+      btn.title = status.message || "Güncelleme";
+      btn.textContent = status.latest ? `Güncelle · ${status.latest}` : "Güncelleme";
+    } catch (_err) {
+      btn.hidden = true;
+    }
+    btn.addEventListener("click", async () => {
+      try {
+        await core.invoke("update_open");
+      } catch (err) {
+        $("formError").textContent = errorText(err);
       }
     });
   }
@@ -1310,8 +1365,10 @@
     pollEngine();
     loadOpenedFiles();
     if (core) {
+      await initPolicy();
       initShellMenu();
       initLicense();
+      initUpdate();
     }
     if (tauri && tauri.event) tauri.event.listen("securipdf-opened", loadOpenedFiles);
   })();

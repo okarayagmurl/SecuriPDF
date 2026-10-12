@@ -174,6 +174,7 @@ def cmd_issue(args: argparse.Namespace) -> int:
         customer_id=cust["id"],
         license_type="commercial",
         edition=str(req.get("edition") or ""),
+        scope=(args.scope or "").strip(),
     )
     priv = load_private_key(Path(args.key) if args.key else None)
     doc = sign_license(payload, priv)
@@ -220,6 +221,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
         notes=args.notes or "",
         installation_id=args.installation_id or "",
         license_type="commercial",
+        edition=args.edition or "",
+        scope=(args.scope or "").strip(),
     )
     priv = load_private_key(Path(args.key) if args.key else None)
     doc = sign_license(payload, priv)
@@ -338,6 +341,7 @@ def build_parser() -> argparse.ArgumentParser:
     si.add_argument("--key", default="")
     si.add_argument("--packages", default=str(DEFAULT_PACKAGES))
     si.add_argument("--force", action="store_true")
+    si.add_argument("--scope", default="", help="organization: GPO/SCCM tek .lic, tum kurulumlar")
     si.set_defaults(func=cmd_issue)
 
     sg = sub.add_parser("generate", help="(Eski) Elle .lic uret")
@@ -353,6 +357,8 @@ def build_parser() -> argparse.ArgumentParser:
     sg.add_argument("--key", default="")
     sg.add_argument("--packages", default=str(DEFAULT_PACKAGES))
     sg.add_argument("--force", action="store_true")
+    sg.add_argument("--edition", default="")
+    sg.add_argument("--scope", default="", help="organization: GPO/SCCM tek .lic")
     sg.set_defaults(func=cmd_generate)
 
     sv = sub.add_parser("verify", help="Imza dogrula")

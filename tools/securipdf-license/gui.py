@@ -167,6 +167,8 @@ class LicenseApp(tk.Tk):
         self.ent_exp.pack(side="left", padx=4)
         self.var_auto = tk.BooleanVar(value=True)
         ttk.Checkbutton(row, text="Müşteri yoksa oluştur", variable=self.var_auto).pack(side="left", padx=8)
+        self.var_org = tk.BooleanVar(value=False)
+        ttk.Checkbutton(row, text="Kurum lisansı (GPO / SCCM)", variable=self.var_org).pack(side="left", padx=8)
         ttk.Button(row, text="Lisans üret (.lic)", command=self.issue_license).pack(side="right")
         self.lbl_req_facts = ttk.Label(issue, text="Şirket, kurulum ve talep burada görünür.", wraplength=1100)
         self.lbl_req_facts.pack(anchor="w", padx=8, pady=(0, 8))
@@ -388,6 +390,7 @@ class LicenseApp(tk.Tk):
             customer_id=cust["id"],
             license_type="commercial",
             edition=str(self.req_data.get("edition") or ""),
+            scope="organization" if self.var_org.get() else "",
         )
         out = filedialog.asksaveasfilename(
             defaultextension=".lic",

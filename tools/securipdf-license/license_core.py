@@ -72,6 +72,7 @@ def build_payload(
     customer_id: str = "",
     license_type: str = "commercial",
     edition: str = "",
+    scope: str = "",
 ) -> dict[str, Any]:
     issued = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     limits: dict[str, int] = {}
@@ -101,6 +102,8 @@ def build_payload(
         payload["enabled_tools"] = list(enabled_tools)
     if edition.strip():
         payload["edition"] = edition.strip()
+    if scope.strip():
+        payload["scope"] = scope.strip()
     return payload
 
 

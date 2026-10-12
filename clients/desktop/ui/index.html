@@ -54,6 +54,7 @@
     <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
       <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
     </label>
+    <button type="button" class="update-badge" id="updateBtn" hidden>Güncelleme</button>
     <button type="button" class="license-badge" id="licenseBtn" data-state="unknown" title="Lisans">Lisans</button>
     <span class="engine" id="engine" data-state="starting">Ön gereksinimler hazırlanıyor…</span>
   </header>
@@ -108,6 +109,7 @@
         <div><dt>Kurulum</dt><dd id="licenseInstall"></dd></div>
         <div><dt>Müşteri</dt><dd id="licenseCustomer"></dd></div>
         <div><dt>Bitiş</dt><dd id="licenseExpiry"></dd></div>
+        <div id="licensePolicyRow" hidden><dt>İlke</dt><dd id="licensePolicy"></dd></div>
       </dl>
       <form id="licenseRequest">
         <label>Kurum / müşteri <input id="licenseCompany" required minlength="2" autocomplete="organization"></label>

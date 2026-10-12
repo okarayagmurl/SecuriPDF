@@ -25,6 +25,9 @@
     "allow-cli-start-engine",
     "allow-cli-finish",
     "allow-shell-menu-status",
-    "allow-shell-menu-set"
+    "allow-shell-menu-set",
+    "allow-policy-status",
+    "allow-update-status",
+    "allow-update-open"
   ]
 }

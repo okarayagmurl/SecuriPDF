@@ -9,6 +9,7 @@ Entera tarafı: **müşteri kaydı** + müşteri web’den gelen **`.req` talebi
 3. Müşteri Admin → **Lisans dosyası** ile `.lic` yükle (kurulum kimliği eşleşmeli)
 4. Demo: müşteri Admin’de **30 günlük demo başlat** (imza yok, süre bitince ticari `.lic`)
 5. Windows uygulaması kendi kurulum kimliğiyle `.req` üretir (`edition: desktop`); ilk açılışta **15 günlük yerel demo** vardır, ticari `.lic` aynı imza ile yüklenir
+6. GPO/SCCM için **kurum lisansı** (`scope=organization`): tek `.lic` tüm kurulumlarda geçerlidir (`issue --scope organization` veya GUI kutusu)
 
 ## GUI (önerilen)
 
@@ -24,6 +25,7 @@ python gui.py
 python cli.py customer-add -n "ACME A.S." --email satis@acme.com
 python cli.py customer-list
 python cli.py issue -r musteri.req --auto-create -e 2027-12-31 -o acme.lic
+python cli.py issue -r masaustu.req --scope organization -e 2027-12-31 -o kurum.lic
 python cli.py verify acme.lic
 ```
 

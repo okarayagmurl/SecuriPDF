@@ -32,6 +32,8 @@ Kullanım:
   securipdf-desktop.exe --list-tools [--json]
   securipdf-desktop.exe --license-status [--json]
   securipdf-desktop.exe --license-activate <dosya.lic>
+  securipdf-desktop.exe --policy-status [--json]
+  securipdf-desktop.exe --update-status [--json]
 
 Seçenekler:
   --tool <araç>       Çalıştırılacak araç (liste için --list-tools)
@@ -42,6 +44,8 @@ Seçenekler:
   --silent            Hata olsa da pencere gösterme
   --license-status    Lisans / 15 günlük deneme durumunu yaz
   --license-activate  İmzalı .lic dosyasını bu kuruluma yükle
+  --policy-status     GPO/SCCM ilkelerini yaz
+  --update-status     Kurum içi güncelleme bildirimini yaz
 
 Çıkış kodları:
   0 başarılı, 1 araç hatası, 2 kullanım hatası, 3 PDF motoru açılamadı,
@@ -63,6 +67,8 @@ pub struct Options {
     pub silent: bool,
     pub license_status: bool,
     pub license_activate: Option<PathBuf>,
+    pub policy_status: bool,
+    pub update_status: bool,
 }
 
 /// Command-line mode starts only for these switches, so "Open with" and
@@ -71,7 +77,15 @@ pub fn requested(args: &[String]) -> bool {
     args.iter().skip(1).any(|arg| {
         matches!(
             arg.as_str(),
-            "--tool" | "--list-tools" | "--help" | "-h" | "/?" | "--license-status" | "--license-activate"
+            "--tool"
+                | "--list-tools"
+                | "--help"
+                | "-h"
+                | "/?"
+                | "--license-status"
+                | "--license-activate"
+                | "--policy-status"
+                | "--update-status"
         )
     })
 }
@@ -100,12 +114,20 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             "--list-tools" => options.list_tools = true,
             "--license-status" => options.license_status = true,
             "--license-activate" => options.license_activate = Some(PathBuf::from(value("--license-activate")?)),
+            "--policy-status" => options.policy_status = true,
+            "--update-status" => options.update_status = true,
             "--help" | "-h" | "/?" => options.help = true,
             other if other.starts_with("--") => return Err(format!("Bilinmeyen seçenek: {other}")),
             other => options.inputs.push(PathBuf::from(other)),
         }
     }
-    if !options.help && !options.list_tools && !options.license_status && options.license_activate.is_none() {
+    if !options.help
+        && !options.list_tools
+        && !options.license_status
+        && !options.policy_status
+        && !options.update_status
+        && options.license_activate.is_none()
+    {
         if options.tool.is_none() {
             return Err("--tool gerekli.".into());
         }
@@ -359,6 +381,8 @@ mod tests {
         assert!(requested(&args(&["--list-tools"])));
         assert!(requested(&args(&["--license-status"])));
         assert!(requested(&args(&["--license-activate", "a.lic"])));
+        assert!(requested(&args(&["--policy-status"])));
+        assert!(requested(&args(&["--update-status"])));
         assert!(!requested(&args(&[r"C:\belgeler\sözleşme.pdf"])));
         assert!(!requested(&args(&[])));
     }
@@ -388,6 +412,8 @@ mod tests {
         assert!(parse(&args(&["--list-tools"])).is_ok());
         assert!(parse(&args(&["--license-status"])).is_ok());
         assert!(parse(&args(&["--license-activate", "firma.lic"])).is_ok());
+        assert!(parse(&args(&["--policy-status", "--json"])).is_ok());
+        assert!(parse(&args(&["--update-status"])).is_ok());
     }
 
     #[test]
