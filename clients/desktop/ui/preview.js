@@ -310,6 +310,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   eventBus.on("annotationeditoruimanager", () => setMark(MARKS[0]));
 
+  // Toolbar clicks would clear the text selection; keep it so "Değiştir" can read it.
+  bar.addEventListener("mousedown", (event) => {
+    if (event.target.closest("input, textarea, [contenteditable=true]")) return;
+    event.preventDefault();
+  });
+
   const pop = el("div", "replace-pop");
   pop.hidden = true;
   const popInput = el("input", "replace-input");
@@ -327,7 +333,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
     pendingReplace = null;
   };
 
-  const selectedText = () => {
+  const unionPdf = (rects) => [
+    Math.min(...rects.map((box) => box[0])),
+    Math.min(...rects.map((box) => box[1])),
+    Math.max(...rects.map((box) => box[2])),
+    Math.max(...rects.map((box) => box[3])),
+  ];
+
+  const captureSelection = async () => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !root.contains(sel.anchorNode)) return null;
     const text = String(sel).replace(/\s+/g, " ").trim();
@@ -338,9 +351,55 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const pageNumber = Number(pageEl.dataset.pageNumber);
     if (!pageNumber) return null;
     const range = sel.getRangeAt(0);
-    const rects = Array.from(range.getClientRects()).filter((box) => box.width > 1 && box.height > 1);
-    if (!rects.length) return null;
-    return { text, pageNumber, pageEl, rects };
+    const screen = Array.from(range.getClientRects()).filter((box) => box.width > 1 && box.height > 1);
+    if (!screen.length) return null;
+    const page = await doc.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1, rotation: pdfViewer.pagesRotation });
+    const canvas = pageEl.querySelector("canvas") || pageEl;
+    const box = canvas.getBoundingClientRect();
+    const rects = screen.map((rect) => {
+      const x = ((rect.left - box.left) / box.width) * viewport.width;
+      const top = ((rect.top - box.top) / box.height) * viewport.height;
+      const w = (rect.width / box.width) * viewport.width;
+      const h = (rect.height / box.height) * viewport.height;
+      return [x, viewport.height - top - h, x + w, viewport.height - top];
+    });
+    return { text, pageNumber, screen, rects };
+  };
+
+  const placePop = (screen) => {
+    const rootBox = root.getBoundingClientRect();
+    const last = screen[screen.length - 1];
+    pop.style.top = Math.max(52, last.bottom - rootBox.top + 8) + "px";
+    pop.style.left = Math.max(12, Math.min(last.left - rootBox.left, rootBox.width - 360)) + "px";
+    pop.style.right = "auto";
+  };
+
+  const showReplace = (found) => {
+    pendingReplace = found;
+    popInput.value = found.text;
+    placePop(found.screen);
+    pop.hidden = false;
+    popInput.focus();
+    popInput.select();
+  };
+
+  const stampLayer = async (pageIndex) => {
+    try {
+      pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.STAMP };
+    } catch {
+      /* already in stamp mode */
+    }
+    for (let i = 0; i < 40; i++) {
+      const view = pdfViewer.getPageView(pageIndex);
+      const builder = view && view.annotationEditorLayer;
+      if (builder && !builder.annotationEditorLayer && view.viewport) {
+        await builder.render({ viewport: view.viewport });
+      }
+      if (builder && builder.annotationEditorLayer) return builder.annotationEditorLayer;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return null;
   };
 
   const applyReplace = async () => {
@@ -350,58 +409,65 @@ async function openViewer(source, pageNumber, title, options = {}) {
       hideReplace();
       return;
     }
-    const page = await doc.getPage(pendingReplace.pageNumber);
-    const viewport = page.getViewport({ scale: 1, rotation: pdfViewer.pagesRotation });
-    const canvas = pendingReplace.pageEl.querySelector("canvas") || pendingReplace.pageEl;
-    const box = canvas.getBoundingClientRect();
-    const toPdf = (rect) => {
-      const x = ((rect.left - box.left) / box.width) * viewport.width;
-      const top = ((rect.top - box.top) / box.height) * viewport.height;
-      const w = (rect.width / box.width) * viewport.width;
-      const h = (rect.height / box.height) * viewport.height;
-      return [x, viewport.height - top - h, x + w, viewport.height - top];
-    };
-    const cover = pendingReplace.rects.map(toPdf);
-    const first = cover[0];
-    const fontSize = Math.max(8, Math.min(48, (first[3] - first[1]) * 0.9));
-    cover.forEach((rect, index) => {
-      doc.annotationStorage.setValue(`spf-cover-${Date.now()}-${index}`, {
-        annotationType: pdfjs.AnnotationEditorType.FREETEXT,
-        color: [1, 1, 1],
-        fontSize: Math.max(fontSize * 1.2, 10),
-        value: "██████",
-        pageIndex: pendingReplace.pageNumber - 1,
-        rect: [rect[0] - 1, rect[1] - 1, rect[2] + 1, rect[3] + 1],
-        rotation: 0,
-      });
-    });
-    doc.annotationStorage.setValue(`spf-text-${Date.now()}`, {
-      annotationType: pdfjs.AnnotationEditorType.FREETEXT,
-      color: [0.08, 0.09, 0.16],
-      fontSize,
-      value: next,
-      pageIndex: pendingReplace.pageNumber - 1,
-      rect: [first[0], first[1], first[0] + Math.max(first[2] - first[0], next.length * fontSize * 0.5), first[3]],
+    const pageIndex = pendingReplace.pageNumber - 1;
+    const box = unionPdf(pendingReplace.rects);
+    const height = Math.max(8, box[3] - box[1]);
+    const fontSize = Math.max(8, Math.min(48, height * 0.78));
+    const scale = 3;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.font = `500 ${fontSize * scale}px "Segoe UI", sans-serif`;
+    const textWidth = ctx.measureText(next).width / scale + 4;
+    const width = Math.max(box[2] - box[0], textWidth);
+    canvas.width = Math.max(2, Math.ceil(width * scale));
+    canvas.height = Math.max(2, Math.ceil(height * scale));
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `500 ${fontSize * scale}px "Segoe UI", sans-serif`;
+    ctx.textBaseline = "middle";
+    ctx.fillText(next, 2 * scale, canvas.height / 2);
+    const layer = await stampLayer(pageIndex);
+    if (!layer || !layer.deserialize) {
+      hideReplace();
+      window.alert("Metin bu belgede değiştirilemedi. Uzun düzenleme için Word'e dönüştürün.");
+      return;
+    }
+    const editor = await layer.deserialize({
+      annotationType: pdfjs.AnnotationEditorType.STAMP,
+      bitmapUrl: canvas.toDataURL("image/png"),
+      pageIndex,
+      rect: [box[0] - 1, box[1] - 1, box[0] + width + 1, box[3] + 1],
       rotation: 0,
+      isSvg: false,
     });
+    if (!editor) {
+      hideReplace();
+      window.alert("Metin bu belgede değiştirilemedi. Uzun düzenleme için Word'e dönüştürün.");
+      return;
+    }
+    layer.addOrRebuild(editor);
     markDirty(true);
     hideReplace();
     window.getSelection().removeAllRanges();
+    setTimeout(() => setMark(MARKS[0]), 400);
   };
 
-  replace.onclick = () => {
-    setMark(MARKS[0]);
-    const found = selectedText();
+  const openReplace = async () => {
+    const found = await captureSelection() || (pendingReplace && pendingReplace.rects ? pendingReplace : null);
     if (!found) {
       window.alert("Önce belgede değiştirilecek metni seçin (Seç kipinde). PDF satırları Word gibi kaymaz; uzun düzenleme için Word'e dönüştürün.");
       return;
     }
-    pendingReplace = found;
-    popInput.value = found.text;
-    pop.hidden = false;
-    popInput.focus();
-    popInput.select();
+    showReplace(found);
   };
+
+  stage.addEventListener("mouseup", () => {
+    captureSelection().then((found) => {
+      if (found) pendingReplace = found;
+    });
+  });
+  replace.onclick = () => openReplace();
   popOk.onclick = () => applyReplace();
   popCancel.onclick = hideReplace;
   popInput.addEventListener("keydown", (event) => {

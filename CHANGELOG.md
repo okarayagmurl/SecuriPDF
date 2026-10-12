@@ -29,6 +29,7 @@
 - Windows uygulaması ilk açılışta 15 günlük deneme lisansı başlatır; süre bitince araçlar kilitlenir, imzalı .lic ile açılır
 - Windows uygulaması açılışta Belge aç ekranıyla PDF görüntüleyici olarak çalışır; birlikte aç, sürükle-bırak ve üst çubuk belgeyi görüntüleyiciye alır
 - Görüntüleyicide seçilen metin üzerine yazılarak değiştirilir; PDF satırları kaymaz, uzun düzenleme Word'e dönüştürülür
+- Görüntüleyicide metin değiştirme seçimi korur ve yeni metni eski satırın üstünü kapatan bir damga olarak yazar
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

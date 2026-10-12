@@ -404,7 +404,7 @@ button:disabled { opacity: 0.55; cursor: default; }
 .replace-pop {
   position: absolute;
   top: 56px;
-  right: 16px;
+  left: 16px;
   z-index: 2;
   display: flex;
   align-items: center;
