@@ -21,6 +21,7 @@ pub const EXIT_INPUT: i32 = 4;
 pub const EXIT_OUTPUT: i32 = 5;
 pub const EXIT_TIMEOUT: i32 = 6;
 pub const EXIT_LICENSE: i32 = 7;
+pub const EXIT_POLICY: i32 = 8;
 const JOB_LIMIT: Duration = Duration::from_secs(30 * 60);
 const HEADER_STATUS: &str = "x-securipdf-cli-status";
 const HEADER_NOTE: &str = "x-securipdf-cli-note";
@@ -49,7 +50,7 @@ Seçenekler:
 
 Çıkış kodları:
   0 başarılı, 1 araç hatası, 2 kullanım hatası, 3 PDF motoru açılamadı,
-  4 girdi okunamadı, 5 çıktı yazılamadı, 6 zaman aşımı, 7 lisans yok veya süresi doldu
+  4 girdi okunamadı, 5 çıktı yazılamadı, 6 zaman aşımı, 7 lisans yok veya süresi doldu, 8 kurum ilkesi reddetti
 
 Komut isteminde bitmesini beklemek için: start \"\" /wait securipdf-desktop.exe ...
 PowerShell'de: Start-Process securipdf-desktop.exe -ArgumentList ... -Wait -PassThru
@@ -273,6 +274,7 @@ fn exit_code_for(kind: &str) -> i32 {
         "ENGINE" => EXIT_ENGINE,
         "INPUT" => EXIT_INPUT,
         "LICENSE" | "LICENSE_EXPIRED" | "LICENSE_REQUIRED" => EXIT_LICENSE,
+        "POLICY_GROUP" | "POLICY_TOOL" => EXIT_POLICY,
         _ => EXIT_TOOL_FAILED,
     }
 }
@@ -368,7 +370,9 @@ fn attach_console() {}
 
 #[cfg(test)]
 mod tests {
-    use super::{exit_code_for, output_path, parse, requested, unused_path, EXIT_ENGINE, EXIT_LICENSE, EXIT_USAGE};
+    use super::{
+        exit_code_for, output_path, parse, requested, unused_path, EXIT_ENGINE, EXIT_LICENSE, EXIT_POLICY, EXIT_USAGE,
+    };
     use std::path::{Path, PathBuf};
 
     fn args(list: &[&str]) -> Vec<String> {
@@ -421,6 +425,7 @@ mod tests {
         assert_eq!(exit_code_for("UNKNOWN_TOOL"), EXIT_USAGE);
         assert_eq!(exit_code_for("ENGINE"), EXIT_ENGINE);
         assert_eq!(exit_code_for("LICENSE_EXPIRED"), EXIT_LICENSE);
+        assert_eq!(exit_code_for("POLICY_TOOL"), EXIT_POLICY);
         assert_eq!(exit_code_for("LOCAL_HTTP_500"), 1);
     }
 

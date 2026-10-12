@@ -22,6 +22,10 @@
       <string id="EnableUpdates_Help">When enabled the app reads UpdateManifestUrl. No network call otherwise.</string>
       <string id="UpdateManifestUrl">Update manifest</string>
       <string id="UpdateManifestUrl_Help">UNC or local path to update.json. HTTPS is not used.</string>
+      <string id="BlockedTools">Blocked tools</string>
+      <string id="BlockedTools_Help">Comma or semicolon separated tool ids (for example timestamp-pdf; compress-pdf). Those tools do not run in the UI or CLI.</string>
+      <string id="AllowedADGroups">Allowed AD groups</string>
+      <string id="AllowedADGroups_Help">Users outside these groups cannot run tools. Example: SecuriPDF-Users; DOMAIN\PDF-Editors</string>
     </stringTable>
     <presentationTable>
       <presentation id="LicenseFile">
@@ -32,6 +36,12 @@
       </presentation>
       <presentation id="UpdateManifestUrl">
         <textBox refId="UpdateManifestUrl"><label>Manifest path</label></textBox>
+      </presentation>
+      <presentation id="BlockedTools">
+        <textBox refId="BlockedTools"><label>Tool ids</label></textBox>
+      </presentation>
+      <presentation id="AllowedADGroups">
+        <textBox refId="AllowedADGroups"><label>AD groups</label></textBox>
       </presentation>
     </presentationTable>
   </resources>

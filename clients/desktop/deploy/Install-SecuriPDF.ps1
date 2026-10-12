@@ -24,12 +24,20 @@ if ($LicenseFile) {
     $env:SECURIPDF_LICENSE = (Resolve-Path -LiteralPath $LicenseFile).Path
 }
 
-$arguments = @('/S')
-if ($PerMachine) {
-    $arguments += '/ALLUSERS'
+$isMsi = [System.IO.Path]::GetExtension($Installer) -eq '.msi'
+if ($isMsi) {
+    $arguments = @('/i', (Resolve-Path -LiteralPath $Installer).Path, '/qn')
+    if ($PerMachine) {
+        $arguments += 'ALLUSERS=1'
+    }
+    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
+} else {
+    $arguments = @('/S')
+    if ($PerMachine) {
+        $arguments += '/ALLUSERS'
+    }
+    $process = Start-Process -FilePath $Installer -ArgumentList $arguments -Wait -PassThru
 }
-
-$process = Start-Process -FilePath $Installer -ArgumentList $arguments -Wait -PassThru
 if ($process.ExitCode -ne 0) {
     throw "Kurulum cikti kodu $($process.ExitCode)"
 }

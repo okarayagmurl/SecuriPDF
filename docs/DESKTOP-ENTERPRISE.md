@@ -15,6 +15,8 @@ Kayıt yolu (bilgisayar ilkesi makineyi, kullanıcı ilkesi kullanıcıyı ezer)
 | `AllowTimestamp` | REG_DWORD | `0`: RFC 3161 zaman damgası çalışmaz. |
 | `EnableUpdates` | REG_DWORD | `1`: kurum içi `update.json` okunur. |
 | `UpdateManifestUrl` | REG_SZ | `update.json` UNC veya yerel yolu. HTTPS yok. |
+| `BlockedTools` | REG_SZ | Kapatılacak araç kimlikleri (`timestamp-pdf; compress-pdf`). |
+| `AllowedADGroups` | REG_SZ | Yalnızca bu AD gruplarındaki kullanıcılar araç çalıştırır. |
 
 Uygulama ayrıca şunları dener: `%PROGRAMDATA%\Entera\SecuriPDF\license.lic`, aynı klasörde `{kurulum}.lic`, `%LOCALAPPDATA%\net.entera.securipdf.desktop\license\deployed.lic`, ortam değişkeni `SECURIPDF_LICENSE`.
 
@@ -29,7 +31,7 @@ Kurum lisansı (`scope=organization`) tek `.lic` ile tüm bilgisayarlarda geçer
 
 ## SCCM / Intune
 
-Kurulum paketi: `SecuriPDF_*_x64-setup.exe`. Sessiz: `/S`. Tüm kullanıcılar: `/S /ALLUSERS`.
+Kurulum paketi: `SecuriPDF_*_x64-setup.exe` (NSIS) veya `SecuriPDF_*_x64_en-US.msi`. NSIS sessiz: `/S`. Tüm kullanıcılar: `/S /ALLUSERS`. MSI: `msiexec /i paket.msi /qn ALLUSERS=1`. `Install-SecuriPDF.ps1` her iki türü de kurar.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File clients\desktop\deploy\Install-SecuriPDF.ps1 `

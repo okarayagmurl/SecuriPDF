@@ -9,6 +9,8 @@ param(
     [switch]$BlockTimestamp,
     [switch]$EnableUpdates,
     [string]$UpdateManifestUrl,
+    [string]$BlockedTools,
+    [string]$AllowedADGroups,
     [switch]$Clear
 )
 
@@ -44,4 +46,10 @@ if ($EnableUpdates) {
 }
 if ($UpdateManifestUrl) {
     Set-ItemProperty -Path $key -Name UpdateManifestUrl -Value $UpdateManifestUrl
+}
+if ($BlockedTools) {
+    Set-ItemProperty -Path $key -Name BlockedTools -Value $BlockedTools
+}
+if ($AllowedADGroups) {
+    Set-ItemProperty -Path $key -Name AllowedADGroups -Value $AllowedADGroups
 }

@@ -33,6 +33,7 @@
 - Windows uygulaması GPO/SCCM ilkelerini okur (lisans dosyası, deneme kapatma, Gezgin menüsü, zaman damgası, kurum içi güncelleme)
 - Windows kurucusu `/S /ALLUSERS` ve `SECURIPDF_LICENSE` ile sessiz kurulur; ADMX ve SCCM betikleri `clients/desktop/policy` ile `deploy` altındadır
 - License Manager kurum lisansı üretir (`scope=organization`); tek `.lic` GPO ile tüm masaüstlerine dağıtılır
+- Windows kurucusu MSI de üretir; GPO ile araç kapatılır (`BlockedTools`) ve AD grubu dışındaki kullanıcılar kilitlenir (`AllowedADGroups`)
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

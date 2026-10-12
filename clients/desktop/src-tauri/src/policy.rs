@@ -17,6 +17,8 @@ pub struct Policy {
     pub update_manifest_url: Option<String>,
     /// `None` = user may toggle the Explorer menu; `Some` = GPO/SCCM forces it.
     pub shell_menu: Option<bool>,
+    pub blocked_tools: Vec<String>,
+    pub allowed_ad_groups: Vec<String>,
     pub source: String,
 }
 
@@ -30,8 +32,93 @@ impl Default for Policy {
             enable_updates: false,
             update_manifest_url: None,
             shell_menu: None,
+            blocked_tools: Vec::new(),
+            allowed_ad_groups: Vec::new(),
             source: "none".into(),
         }
+    }
+}
+
+impl Policy {
+    pub fn tool_allowed(&self, id: &str) -> bool {
+        let id = id.trim();
+        if id.is_empty() {
+            return true;
+        }
+        !self
+            .blocked_tools
+            .iter()
+            .any(|blocked| blocked.eq_ignore_ascii_case(id))
+    }
+
+    pub fn user_allowed(&self) -> bool {
+        if self.allowed_ad_groups.is_empty() {
+            return true;
+        }
+        let groups = current_groups();
+        self.allowed_ad_groups.iter().any(|wanted| group_matches(&groups, wanted))
+    }
+}
+
+pub fn require_user() -> Result<(), String> {
+    if load().user_allowed() {
+        Ok(())
+    } else {
+        Err("POLICY_GROUP".into())
+    }
+}
+
+pub fn require_tool(id: &str) -> Result<(), String> {
+    if load().tool_allowed(id) {
+        Ok(())
+    } else {
+        Err("POLICY_TOOL".into())
+    }
+}
+
+fn split_list(raw: &str) -> Vec<String> {
+    raw.split(|ch| ch == ';' || ch == ',' || ch == '\n')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn group_matches(groups: &[String], wanted: &str) -> bool {
+    let wanted = wanted.trim();
+    groups.iter().any(|have| {
+        have.eq_ignore_ascii_case(wanted)
+            || have
+                .rsplit(['\\', '/'])
+                .next()
+                .is_some_and(|tail| tail.eq_ignore_ascii_case(wanted))
+    })
+}
+
+fn current_groups() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        let mut command = std::process::Command::new("whoami");
+        command.args(["/groups", "/fo", "list"]);
+        crate::engine::hide_console(&mut command);
+        let Ok(out) = command.output() else {
+            return Vec::new();
+        };
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                line.strip_prefix("Group Name:")
+                    .or_else(|| line.strip_prefix("Grup adı:"))
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_string)
+            })
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
     }
 }
 
@@ -55,6 +142,12 @@ pub fn from_maps(machine: &HashMap<String, String>, user: &HashMap<String, Strin
         enable_updates: bool_of(&merged, "EnableUpdates").unwrap_or(false),
         update_manifest_url: nonempty(&merged, "UpdateManifestUrl"),
         shell_menu: bool_of(&merged, "EnableShellMenu"),
+        blocked_tools: nonempty(&merged, "BlockedTools")
+            .map(|raw| split_list(&raw))
+            .unwrap_or_default(),
+        allowed_ad_groups: nonempty(&merged, "AllowedADGroups")
+            .map(|raw| split_list(&raw))
+            .unwrap_or_default(),
         source: if machine.is_empty() { "user" } else { "machine" }.into(),
     }
 }
@@ -176,7 +269,7 @@ pub fn policy_status() -> Policy {
 
 #[cfg(test)]
 mod tests {
-    use super::{from_maps, Policy};
+    use super::{from_maps, group_matches, Policy};
     use std::collections::HashMap;
 
     fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
@@ -220,6 +313,26 @@ mod tests {
         assert!(admx.contains("DisableDemo"));
         assert!(admx.contains("EnableShellMenu"));
         assert!(admx.contains("UpdateManifestUrl"));
+        assert!(admx.contains("BlockedTools"));
+        assert!(admx.contains("AllowedADGroups"));
+    }
+
+    #[test]
+    fn blocked_tools_and_groups_parse() {
+        let policy = from_maps(
+            &map(&[
+                ("BlockedTools", "timestamp-pdf; compress-pdf"),
+                ("AllowedADGroups", "SecuriPDF-Users, DOMAIN\\PDF-Editors"),
+            ]),
+            &HashMap::new(),
+        );
+        assert!(!policy.tool_allowed("timestamp-pdf"));
+        assert!(policy.tool_allowed("ocr-pdf"));
+        assert_eq!(policy.allowed_ad_groups, vec!["SecuriPDF-Users", r"DOMAIN\PDF-Editors"]);
+        assert!(group_matches(
+            &[r"CONTOSO\SecuriPDF-Users".into()],
+            "SecuriPDF-Users"
+        ));
     }
 
     #[test]

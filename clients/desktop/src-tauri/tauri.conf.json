@@ -14,7 +14,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": ["nsis", "msi"],
     "resources": {
       "engine/": "engine/"
     },

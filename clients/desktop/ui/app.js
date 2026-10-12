@@ -50,6 +50,8 @@
     LICENSE_REQUIRED: "Çalıştırmak için geçerli bir lisans veya deneme süresi gerekir.",
     POLICY_TIMESTAMP: "Kurum ilkesi zaman damgasını kapatmış.",
     POLICY_SHELL: "Gezgin menüsü kurum ilkesiyle kilitli.",
+    POLICY_TOOL: "Kurum ilkesi bu aracı kapatmış.",
+    POLICY_GROUP: "Kurum ilkesi bu kullanıcıya SecuriPDF izni vermiyor.",
   };
 
   function errorText(err) {
@@ -240,12 +242,17 @@
 
   // ---- Tool list ----
 
+  function allowedTools() {
+    const blocked = ((state.policy && state.policy.blockedTools) || []).map((id) => String(id).toLowerCase());
+    return tools.filter((tool) => !blocked.includes(String(tool.id).toLowerCase()));
+  }
+
   function renderToolList(filter) {
     const query = (filter || "").trim().toLocaleLowerCase("tr");
     const list = $("toolList");
     list.replaceChildren();
     categories.forEach((category) => {
-      const items = tools.filter((tool) => tool.category === category.id &&
+      const items = allowedTools().filter((tool) => tool.category === category.id &&
         (!query || (tool.title + " " + tool.description).toLocaleLowerCase("tr").includes(query)));
       if (!items.length) return;
       list.appendChild(el("h2", { text: category.title }));
@@ -897,6 +904,11 @@
       openLicense(true);
       return;
     }
+    if (state.tool && state.policy && state.policy.blockedTools &&
+        state.policy.blockedTools.some((id) => String(id).toLowerCase() === String(state.tool.id).toLowerCase())) {
+      $("formError").textContent = ERRORS.POLICY_TOOL;
+      return;
+    }
     if (state.tool && state.tool.id === "timestamp-pdf" && state.policy && state.policy.allowTimestamp === false) {
       $("formError").textContent = ERRORS.POLICY_TIMESTAMP;
       return;
@@ -1366,6 +1378,7 @@
     loadOpenedFiles();
     if (core) {
       await initPolicy();
+      renderToolList($("search") && $("search").value);
       initShellMenu();
       initLicense();
       initUpdate();

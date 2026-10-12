@@ -225,7 +225,17 @@ fn command_line(args: &[String]) -> cli::Cli {
     }
     if !options.list_tools {
         if let Err(message) = license::require() {
-            fail(cli::EXIT_LICENSE, &message, license_fail_text(&message));
+            let code = if message.starts_with("POLICY_") {
+                cli::EXIT_POLICY
+            } else {
+                cli::EXIT_LICENSE
+            };
+            fail(code, &message, license_fail_text(&message));
+        }
+        if let Some(tool) = &options.tool {
+            if let Err(message) = policy::require_tool(tool) {
+                fail(cli::EXIT_POLICY, &message, license_fail_text(&message));
+            }
         }
     }
     if let Err(message) = cli::resolve_inputs(&options.inputs) {
@@ -240,6 +250,8 @@ fn license_fail_text(code: &str) -> String {
         "LICENSE_EXPIRED" => {
             "Lisans süresi doldu. --license-activate ile .lic yükleyin veya uygulamadan talep oluşturun.".into()
         }
+        "POLICY_GROUP" => "Kurum ilkesi bu kullanıcıya SecuriPDF izni vermiyor (AllowedADGroups).".into(),
+        "POLICY_TOOL" => "Kurum ilkesi bu aracı kapatmış (BlockedTools).".into(),
         _ => "Geçerli lisans yok. --license-status ile durumu görün.".into(),
     }
 }

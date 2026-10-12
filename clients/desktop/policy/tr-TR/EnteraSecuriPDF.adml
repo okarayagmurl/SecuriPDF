@@ -22,6 +22,10 @@
       <string id="EnableUpdates_Help">Açıksa uygulama UpdateManifestUrl bildirimini okur. Kapalıysa ağ isteği yok.</string>
       <string id="UpdateManifestUrl">Güncelleme bildirimi</string>
       <string id="UpdateManifestUrl_Help">update.json dosyasının UNC veya yerel yolu. HTTPS kullanılmaz.</string>
+      <string id="BlockedTools">Kapatılacak araçlar</string>
+      <string id="BlockedTools_Help">Virgül veya noktalı virgülle ayrılmış araç kimlikleri (ör. timestamp-pdf; compress-pdf). Bu araçlar arayüzde ve komut satırında çalışmaz.</string>
+      <string id="AllowedADGroups">İzin verilen AD grupları</string>
+      <string id="AllowedADGroups_Help">Kullanıcı bu gruplardan birinde değilse araçlar kilitlenir. Örnek: SecuriPDF-Users; DOMAIN\PDF-Editors</string>
     </stringTable>
     <presentationTable>
       <presentation id="LicenseFile">
@@ -32,6 +36,12 @@
       </presentation>
       <presentation id="UpdateManifestUrl">
         <textBox refId="UpdateManifestUrl"><label>Bildirim yolu</label></textBox>
+      </presentation>
+      <presentation id="BlockedTools">
+        <textBox refId="BlockedTools"><label>Araç kimlikleri</label></textBox>
+      </presentation>
+      <presentation id="AllowedADGroups">
+        <textBox refId="AllowedADGroups"><label>AD grupları</label></textBox>
       </presentation>
     </presentationTable>
   </resources>

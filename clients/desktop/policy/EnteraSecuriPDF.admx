@@ -65,5 +65,19 @@
         <text id="UpdateManifestUrl" valueName="UpdateManifestUrl" required="true" />
       </elements>
     </policy>
+    <policy name="BlockedTools" class="Both" displayName="$(string.BlockedTools)" explainText="$(string.BlockedTools_Help)" presentation="$(presentation.BlockedTools)" key="Software\Policies\Entera\SecuriPDF\Desktop">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <text id="BlockedTools" valueName="BlockedTools" required="true" />
+      </elements>
+    </policy>
+    <policy name="AllowedADGroups" class="Both" displayName="$(string.AllowedADGroups)" explainText="$(string.AllowedADGroups_Help)" presentation="$(presentation.AllowedADGroups)" key="Software\Policies\Entera\SecuriPDF\Desktop">
+      <parentCategory ref="Desktop" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <text id="AllowedADGroups" valueName="AllowedADGroups" required="true" />
+      </elements>
+    </policy>
   </policies>
 </policyDefinitions>

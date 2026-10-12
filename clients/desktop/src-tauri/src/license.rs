@@ -72,13 +72,14 @@ impl Store {
 
 pub fn require() -> Result<(), String> {
     let status = evaluate()?;
-    if status.valid {
-        Ok(())
-    } else if status.expired {
-        Err("LICENSE_EXPIRED".into())
-    } else {
-        Err("LICENSE_REQUIRED".into())
+    if !status.valid {
+        return if status.expired {
+            Err("LICENSE_EXPIRED".into())
+        } else {
+            Err("LICENSE_REQUIRED".into())
+        };
     }
+    crate::policy::require_user()
 }
 
 pub fn evaluate() -> Result<LicenseStatus, String> {
