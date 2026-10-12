@@ -15,7 +15,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::ipc::{InvokeBody, Request, Response};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::webview::PageLoadEvent;
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 const HEADER_API_PATH: &str = "x-securipdf-api-path";
@@ -92,13 +93,18 @@ pub fn run() {
                 }
             }
             window
-                .visible(!is_cli)
+                .visible(false)
                 .title("SecuriPDF")
                 .inner_size(1180.0, 780.0)
                 .min_inner_size(820.0, 560.0)
                 .background_color(tauri::window::Color(0xf8, 0xfa, 0xfc, 255))
                 .disable_drag_drop_handler()
                 .on_navigation(|url| is_app_url(url.scheme(), url.host_str()))
+                .on_page_load(move |window, payload| {
+                    if !is_cli && payload.event() == PageLoadEvent::Finished {
+                        reveal_main(&window);
+                    }
+                })
                 .on_web_resource_request(|request, response| {
                     if let Some(mime) = asset_mime(request.uri().path()) {
                         response.headers_mut().insert(
@@ -110,6 +116,13 @@ pub fn run() {
                 .build()?;
             if !is_cli {
                 start_engine(app.handle(), "engine");
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(2500));
+                    if let Some(window) = handle.get_webview_window("main") {
+                        reveal_main(&window);
+                    }
+                });
             }
             Ok(())
         })
@@ -130,6 +143,7 @@ pub fn run() {
             license::license_status,
             license::license_save_request,
             license::license_open_and_activate,
+            reveal_window,
             cli::cli_job,
             cli::cli_start_engine,
             cli::cli_finish,
@@ -521,6 +535,16 @@ fn start_engine(app: &AppHandle, work_dir_name: &str) {
         }
         Err(detail) => engine.fail(&detail),
     }
+}
+
+fn reveal_main(window: &WebviewWindow) {
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[tauri::command]
+fn reveal_window(window: WebviewWindow) {
+    reveal_main(&window);
 }
 
 fn focus_main(app: &AppHandle) {

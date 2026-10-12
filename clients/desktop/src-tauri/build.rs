@@ -18,6 +18,7 @@ fn main() {
             "cli_finish",
             "shell_menu_status",
             "shell_menu_set",
+            "reveal_window",
         ]),
     ))
     .expect("tauri build failed");

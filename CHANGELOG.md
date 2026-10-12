@@ -21,7 +21,7 @@
 - Windows uygulamasının OCR dillerine Arapça, Almanca, Fransızca, İspanyolca ve İtalyanca eklendi (`fetch-engine.ps1` yeniden çalıştırılmalı)
 - Windows uygulaması dosyayı Windows Defender ile tarar; dosya karantinaya alınmaz, sonuç PDF rapor olur
 - Windows uygulamasının virüs taraması `*/*` kabulünü yanlış uyguladığı için PDF'i reddediyordu; düzeltildi
-- Windows uygulamasının açılışında "motor" yerine "ön gereksinimler hazırlanıyor" yazılır; ilerleme çubuğu ilk karede görünür, kısa beyaz ekran kapanır
+- Windows uygulamasının açılışında "motor" yerine "ön gereksinimler hazırlanıyor" yazılır; pencere splash boyanıncaya kadar gizli kalır, WebView2 beyaz ekranı görünmez
 - Windows uygulamasında kırpma önizlemede sürüklenerek seçilir; damga ve sayfa numarası konumu 3×3 ızgaradan, saydamlık ve açı kaydırıcıdan ayarlanır
 - Windows uygulamasının filigran aracına QR kod eklendi; kod belgede tekrarlanır, internet gerekmez
 - Windows uygulamasında karartma kutuları kelime kenarında boşluk bırakmayacak şekilde birleştirilir; görüntüleyicide vurgu rengi ve metin seçimi açılır

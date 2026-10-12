@@ -32,6 +32,22 @@
       <p class="splash-note">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
     </div>
   </div>
+  <script>
+    (function () {
+      var tries = 0;
+      function show() {
+        try {
+          var api = window.__TAURI__;
+          if (api && api.core && api.core.invoke) {
+            api.core.invoke("reveal_window");
+            return;
+          }
+        } catch (err) {}
+        if (++tries < 80) setTimeout(show, 25);
+      }
+      requestAnimationFrame(function () { requestAnimationFrame(show); });
+    })();
+  </script>
   <header class="top">
     <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
     <button type="button" class="open-file" id="openFile">Belge aç</button>
