@@ -140,7 +140,7 @@
       id: "open-pdf",
       category: "view",
       title: "Belge aç",
-      description: "PDF'i görüntüleyin, arayın ve sayfalarda gezinin. Metin ekleyebilir, seçili satırı değiştirebilir, vurgu ve çizim kaydedebilirsiniz. PDF satırları Word gibi yeniden akmaz; uzun düzenleme için Word'e dönüştürün.",
+      description: "PDF'i görüntüleyin, arayın ve sayfalarda gezinin. Metin ekleyebilir, seçili satırı yerinde kapatıp değiştirebilir, vurgu ve çizim kaydedebilirsiniz. PDF satırları Word gibi yeniden akmaz; uzun düzenleme için Word'e dönüştürün.",
       viewer: true,
       batch: false,
       files: [{ name: "fileInput", label: "PDF belgesi", accept: PDF }],

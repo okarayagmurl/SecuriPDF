@@ -401,21 +401,33 @@ button:disabled { opacity: 0.55; cursor: default; }
 .viewer-body { position: relative; flex: 1; }
 .viewer-stage { position: absolute; inset: 0; overflow: auto; }
 .viewer-stage .pdfViewer .page { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); }
-.replace-pop {
+.replace-cover {
   position: absolute;
-  top: 56px;
-  left: 16px;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
 }
-.replace-pop[hidden] { display: none; }
-.replace-input { min-width: 240px; }
+.replace-field {
+  position: absolute;
+  z-index: 3;
+  margin: 0;
+  border: 1px solid #2563eb;
+  border-radius: 2px;
+  background: #fff;
+  color: #0f172a;
+  padding: 0 3px;
+  font-family: "Segoe UI", sans-serif;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: 0 0 0 2px #fff;
+}
+.replace-field[hidden], .replace-actions[hidden] { display: none; }
+.replace-actions {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+}
 
 .license-banner { margin-top: 16px; color: var(--danger); font-size: 13px; }
 .dialog {
