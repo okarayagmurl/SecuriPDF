@@ -18,7 +18,7 @@ const HEADER_FORMAT: &str = "x-securipdf-office-format";
 const TIMEOUT: Duration = Duration::from_secs(180);
 const EXTENSIONS: &[&str] = &[
     "doc", "docx", "docm", "dot", "dotx", "rtf", "odt", "txt", "pdf", "xls", "xlsx", "xlsm",
-    "xlsb", "ods", "csv", "ppt", "pptx", "pptm", "pps", "ppsx", "odp",
+    "xlsb", "ods", "csv", "ppt", "pptx", "pptm", "pps", "ppsx", "odp", "zip",
 ];
 
 static JOBS: AtomicU64 = AtomicU64::new(0);
@@ -72,6 +72,7 @@ fn plan(name: &str, format: &str) -> Result<Job, String> {
         "pdf" if !is_pdf => ("pdf", "pdf"),
         "pdfa" if !is_pdf => ("pdfa", "pdf"),
         "docx" if is_pdf => ("docx", "docx"),
+        "pptx" if is_pdf || input_ext == "zip" => ("pptx", "pptx"),
         _ => return Err("OFFICE_BAD_INPUT".into()),
     };
     Ok(Job { input_ext, format, output_ext })
@@ -167,6 +168,8 @@ mod tests {
         );
         assert_eq!(plan("tablo.xlsx", "pdf").map(|job| job.output_ext), Ok("pdf"));
         assert_eq!(plan("rapor.pdf", "docx").map(|job| job.output_ext), Ok("docx"));
+        assert_eq!(plan("sayfalar.zip", "pptx").map(|job| job.output_ext), Ok("pptx"));
+        assert_eq!(plan("rapor.pdf", "pptx").map(|job| job.output_ext), Ok("pptx"));
         assert!(plan("rapor.pdf", "pdf").is_err());
         assert!(plan("rapor.docx", "docx").is_err());
         assert!(plan("makro.exe", "pdf").is_err());

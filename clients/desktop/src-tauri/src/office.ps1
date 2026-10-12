@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)][string]$Source,
     [Parameter(Mandatory)][string]$Target,
     [Parameter(Mandatory)][string]$PidFile,
-    [ValidateSet("pdf", "pdfa", "docx")][string]$Format = "pdf"
+    [ValidateSet("pdf", "pdfa", "docx", "pptx")][string]$Format = "pdf"
 )
 $ErrorActionPreference = "Stop"
 
@@ -92,6 +92,39 @@ function Convert-Excel {
     }
 }
 
+function Convert-ToPpt {
+    $wasRunning = [bool](Get-Process POWERPNT -ErrorAction SilentlyContinue)
+    $app = Open-App "PowerPoint.Application" "POWERPNT"
+    $show = $null
+    $extract = $null
+    try {
+        $app.AutomationSecurity = $forceDisableMacros
+        if ($extension -eq "zip") {
+            $extract = Join-Path ([System.IO.Path]::GetDirectoryName($Source)) "slides"
+            New-Item -ItemType Directory -Path $extract -Force | Out-Null
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($Source, $extract)
+            $images = @(Get-ChildItem -LiteralPath $extract -File | Where-Object { $_.Extension -match '\.(png|jpe?g)$' } | Sort-Object Name)
+            if (-not $images.Count) { Fail "OFFICE_BAD_INPUT" }
+            $show = $app.Presentations.Add()
+            $show.PageSetup.SlideWidth = 960
+            $show.PageSetup.SlideHeight = 540
+            foreach ($img in $images) {
+                $slide = $show.Slides.Add($show.Slides.Count + 1, 12)
+                [void]$slide.Shapes.AddPicture($img.FullName, $false, $true, 0, 0, $show.PageSetup.SlideWidth, $show.PageSetup.SlideHeight)
+            }
+        } elseif ($extension -eq "pdf") {
+            try { $show = $app.Presentations.Open($Source, -1, 0, 0) } catch { Fail "OFFICE_OPEN_FAILED" }
+        } else { Fail "OFFICE_BAD_INPUT" }
+        try { $show.SaveAs($Target, 24) } catch { Fail "OFFICE_EXPORT_FAILED" }
+    } finally {
+        if ($show) { try { $show.Close() } catch {}; Release $show }
+        if (-not $wasRunning) { try { $app.Quit() } catch {} }
+        Release $app
+        if ($extract) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
 function Convert-PowerPoint {
     # PowerPoint runs as a single instance; leave it open if the user already had it.
     $wasRunning = [bool](Get-Process POWERPNT -ErrorAction SilentlyContinue)
@@ -117,8 +150,9 @@ function Convert-PowerPoint {
 }
 
 try {
-    if ($Format -eq "docx" -and $extension -ne "pdf") { Fail "OFFICE_BAD_INPUT" }
-    if ($wordTypes -contains $extension) { Convert-Word }
+    if ($Format -eq "pptx") { Convert-ToPpt }
+    elseif ($Format -eq "docx" -and $extension -ne "pdf") { Fail "OFFICE_BAD_INPUT" }
+    elseif ($wordTypes -contains $extension) { Convert-Word }
     elseif ($excelTypes -contains $extension) { Convert-Excel }
     elseif ($powerPointTypes -contains $extension) { Convert-PowerPoint }
     else { Fail "OFFICE_BAD_INPUT" }

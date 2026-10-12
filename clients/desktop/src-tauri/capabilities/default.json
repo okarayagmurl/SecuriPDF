@@ -12,6 +12,8 @@
     "allow-save-into-folder",
     "allow-take-opened-files",
     "allow-read-opened-file",
+    "allow-lock-opened-file",
+    "allow-unlock-opened-file",
     "allow-html-to-pdf",
     "allow-office-convert",
     "allow-repair-pdf",

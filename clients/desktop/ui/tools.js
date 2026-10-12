@@ -124,6 +124,77 @@
     return detail ? `İmzalanamadı: ${detail}` : null;
   }
 
+  function pdfFile(bytes, name) {
+    return new File([bytes], name, { type: "application/pdf" });
+  }
+
+  function pageInches(pt) {
+    return Math.min(50, Math.max(1, Number(pt) / 72 || 8.27));
+  }
+
+  async function extractPages(engine, file, pageNumbers) {
+    const form = new FormData();
+    form.append("fileInput", file, file.name || "belge.pdf");
+    form.append("pageNumbers", String(pageNumbers));
+    form.append("customMode", "CUSTOM");
+    return engine("/api/v1/general/rearrange-pages", form);
+  }
+
+  async function mergePdfs(engine, files) {
+    const form = new FormData();
+    files.forEach((file, index) => form.append("fileInput", file, file.name || `parca-${index + 1}.pdf`));
+    form.append("sortType", "orderProvided");
+    form.append("removeCertSign", "true");
+    return engine("/api/v1/general/merge-pdfs", form);
+  }
+
+  async function overlayPdfs(engine, base, overlay, behind) {
+    const form = new FormData();
+    form.append("fileInput", pdfFile(base, "ana.pdf"), "ana.pdf");
+    form.append("overlayFiles", pdfFile(overlay, "bindir.pdf"), "bindir.pdf");
+    form.append("overlayMode", "SequentialOverlay");
+    form.append("overlayPosition", behind ? "1" : "0");
+    return engine("/api/v1/general/overlay-pdfs", form);
+  }
+
+  async function numberStamp(engine, file, text, position, fontSize, fontColor) {
+    const form = new FormData();
+    form.append("fileInput", file, file.name || "belge.pdf");
+    form.append("customText", text);
+    form.append("position", String(position));
+    form.append("startingNumber", "1");
+    form.append("pagesToNumber", "all");
+    form.append("pageNumbers", "all");
+    form.append("fontSize", String(fontSize || 12));
+    form.append("fontType", "helvetica");
+    form.append("fontColor", fontColor || "#000000");
+    form.append("customMargin", "medium");
+    return engine("/api/v1/misc/add-page-numbers", form);
+  }
+
+  async function fileDataUrl(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    bytes.forEach((value) => { binary += String.fromCharCode(value); });
+    const mime = file.type || (/\.png$/i.test(file.name) ? "image/png" : "image/jpeg");
+    return `data:${mime};base64,${btoa(binary)}`;
+  }
+
+  async function readJson(engine, path, file) {
+    const form = new FormData();
+    form.append("fileInput", file, file.name || "belge.pdf");
+    const bytes = await engine(path, form);
+    return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+  }
+
+  async function pdfInfo(engine, file) {
+    try {
+      return await readJson(engine, "/api/v1/security/get-info-on-pdf", file);
+    } catch {
+      return readJson(engine, "/api/v1/misc/get-info-on-pdf", file);
+    }
+  }
+
   window.SECURIPDF_CATEGORIES = [
     { id: "view", title: "Görüntüle" },
     { id: "edit", title: "Düzenle" },
@@ -140,11 +211,14 @@
       id: "open-pdf",
       category: "view",
       title: "Belge aç",
-      description: "PDF'i görüntüleyin, arayın ve sayfalarda gezinin. Metin ekleyebilir, seçili satırı yerinde kapatıp değiştirebilir, vurgu ve çizim kaydedebilirsiniz. PDF satırları Word gibi yeniden akmaz; uzun düzenleme için Word'e dönüştürün.",
+      description: "PDF'i görüntüleyin, yazdırın, arayın ve sayfalarda gezinin. Form doldurabilir, görsel ekleyip taşıyabilir, vurgu / çizim / metin notu kaydedebilir, seçili satırı yerinde kapatıp değiştirebilirsiniz. PDF satırları Word gibi yeniden akmaz; uzun düzenleme için Word'e dönüştürün.",
       viewer: true,
       batch: false,
       files: [{ name: "fileInput", label: "PDF belgesi", accept: PDF }],
-      fields: [],
+      fields: [
+        { name: "protectedView", label: "Korumalı aç (JavaScript, ek ve bağlantıları kaldır)", type: "checkbox", default: false, local: true,
+          hint: "Adobe korumalı görünümünün karşılığı: belge önce temizlenir, sonra görüntülenir." },
+      ],
     },
     {
       id: "merge-pdfs",
@@ -255,7 +329,7 @@
       id: "flatten",
       category: "edit",
       title: "Düzleştir",
-      description: "Form alanlarını ve etkileşimli öğeleri sabit sayfa içeriğine dönüştürün.",
+      description: "Form alanlarını ve etkileşimli öğeleri sabit sayfa içeriğine dönüştürün. Form Doldur ile yazdığınız değerleri belgede kalıcı hale getirmek için kullanın.",
       apiPath: "/api/v1/misc/flatten",
       suffix: "duzlestirilmis",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
@@ -599,7 +673,7 @@
       id: "cert-sign",
       category: "sign",
       title: "Dijital İmza",
-      description: "PDF'i sertifikanızla imzalayın: Windows sertifika deposu (e-imza kartları dahil), PKCS#11 akıllı kart, PFX/P12 veya PEM dosyası. İmza, belgenin imzadan sonra değişmediğini kanıtlar.",
+      description: "PDF'i sertifikanızla imzalayın: Windows sertifika deposu (e-imza kartları dahil), PKCS#11 akıllı kart, PFX/P12 veya PEM dosyası. İmza, belgenin imzadan sonra değişmediğini kanıtlar. CMS/PKCS#7 imzasıdır; PAdES profili iddia edilmez.",
       apiPath: "/api/v1/security/cert-sign",
       suffix: "imzali",
       files: [
@@ -826,7 +900,7 @@
       id: "pdf-to-excel",
       category: "convert",
       title: "PDF → Excel",
-      description: "PDF'teki tabloları Excel çalışma kitabına (.xlsx) aktarın.",
+      description: "PDF'teki tabloları Excel çalışma kitabına (.xlsx) aktarın. Karmaşık veya taranmış tablolarda hücre birleşmesi bozulabilir; gerekirse sayfa aralığını küçültün.",
       apiPath: "/api/v1/convert/pdf/xlsx",
       suffix: "",
       outputExt: "xlsx",
@@ -859,16 +933,17 @@
     {
       id: "pdf-to-pdfa",
       category: "convert",
-      title: "PDF → PDF/A",
-      description: "PDF'i arşiv biçimine (PDF/A) dönüştürün.",
+      title: "PDF → PDF/A / PDF/X",
+      description: "PDF'i arşiv (PDF/A) veya baskı (PDF/X) biçimine dönüştürün.",
       apiPath: "/api/v1/convert/pdf/pdfa",
-      suffix: "pdfa",
+      suffix: "arsiv",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [
         { name: "outputFormat", label: "Biçim", type: "select", default: "pdfa-2b", options: [
           { value: "pdfa-1", label: "PDF/A-1b" },
           { value: "pdfa-2b", label: "PDF/A-2b" },
           { value: "pdfa-3b", label: "PDF/A-3b" },
+          { value: "pdfx", label: "PDF/X" },
         ] },
       ],
       constants: { strict: "false" },
@@ -999,6 +1074,329 @@
         { name: "addBorder", label: "Kesim çizgisi ekle", type: "checkbox", default: false },
       ],
       constants: { pagesPerSheet: "2", duplexPass: "BOTH", flipOnShortEdge: "false" },
+    },
+    {
+      id: "insert-pages",
+      category: "pages",
+      title: "Sayfa Ekle",
+      description: "Belirttiğiniz sayfadan önce boş sayfa veya başka bir PDF ekleyin.",
+      suffix: "sayfa-eklendi",
+      usesEngine: true,
+      files: [
+        { name: "fileInput", label: "Hedef PDF", accept: PDF },
+        { name: "insertPdf", label: "Eklenecek PDF", accept: PDF, showIf: { source: "pdf" } },
+      ],
+      fields: [
+        { name: "source", label: "Eklenecek", type: "select", local: true, default: "blank", options: [
+          { value: "blank", label: "Boş sayfa" },
+          { value: "pdf", label: "Başka bir PDF" },
+        ] },
+        { name: "atPage", label: "Şu sayfadan önce ekle", type: "number", default: 1, min: 1,
+          hint: "1 belgenin başına ekler. Son sayfadan büyük bir değer sona ekler." },
+        { name: "blankCount", label: "Boş sayfa sayısı", type: "number", default: 1, min: 1, max: 50, showIf: { source: "blank" } },
+      ],
+      async run({ files, values, engine, htmlToPdf }) {
+        const dest = files.fileInput[0];
+        const pages = await window.SecuriPreview.countPages(dest);
+        const at = Math.max(1, Math.min((pages || 1) + 1, Number(values.atPage) || 1));
+        let insert = files.insertPdf && files.insertPdf[0];
+        if (values.source === "blank") {
+          const info = await window.SecuriPreview.pageInfo(dest);
+          const first = info[0] || { width: 595, height: 842 };
+          const setup = {
+            width: pageInches(first.width),
+            height: pageInches(first.height),
+            marginTop: 0,
+            marginRight: 0,
+            marginBottom: 0,
+            marginLeft: 0,
+            landscape: false,
+          };
+          const count = Math.max(1, Math.min(50, Number(values.blankCount) || 1));
+          const blanks = [];
+          for (let i = 0; i < count; i++) {
+            blanks.push(pdfFile(await htmlToPdf("<!doctype html><html><body></body></html>", setup), `bos-${i + 1}.pdf`));
+          }
+          insert = blanks.length === 1 ? blanks[0] : pdfFile(await mergePdfs(engine, blanks), "bos.pdf");
+        }
+        if (!insert) throw new Error("Eklenecek PDF seçin.");
+        const parts = [];
+        if (at > 1) parts.push(pdfFile(await extractPages(engine, dest, `1-${at - 1}`), "once.pdf"));
+        parts.push(insert);
+        if (at <= pages) parts.push(pdfFile(await extractPages(engine, dest, `${at}-${pages}`), "sonra.pdf"));
+        return parts.length === 1 ? new Uint8Array(await parts[0].arrayBuffer()) : mergePdfs(engine, parts);
+      },
+    },
+    {
+      id: "add-header-footer",
+      category: "pages",
+      title: "Üst / Alt Bilgi",
+      description: "Sayfaların üstüne ve altına metin veya sayfa numarası ekleyin. {n} sayfa, {total} toplam sayfadır.",
+      suffix: "ust-alt",
+      usesEngine: true,
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "header", label: "Üst bilgi", type: "text", default: "", placeholder: "Kurum adı" },
+        { name: "headerPos", label: "Üst konum", type: "select", default: "2", options: [
+          { value: "1", label: "Sol" }, { value: "2", label: "Orta" }, { value: "3", label: "Sağ" },
+        ] },
+        { name: "footer", label: "Alt bilgi", type: "text", default: "Sayfa {n} / {total}" },
+        { name: "footerPos", label: "Alt konum", type: "select", default: "8", options: [
+          { value: "7", label: "Sol" }, { value: "8", label: "Orta" }, { value: "9", label: "Sağ" },
+        ] },
+        { name: "fontSize", label: "Yazı boyutu", type: "number", default: 10, min: 4, max: 72 },
+        { name: "fontColor", label: "Renk", type: "color", default: "#334155" },
+      ],
+      validate: (v) => (v.header.trim() || v.footer.trim() ? null : "Üst veya alt bilgi yazın."),
+      async run({ files, values, engine }) {
+        let bytes = new Uint8Array(await files.fileInput[0].arrayBuffer());
+        if (values.header.trim()) {
+          bytes = await numberStamp(engine, pdfFile(bytes, "belge.pdf"), values.header.trim(), values.headerPos, values.fontSize, values.fontColor);
+        }
+        if (values.footer.trim()) {
+          bytes = await numberStamp(engine, pdfFile(bytes, "belge.pdf"), values.footer.trim(), values.footerPos, values.fontSize, values.fontColor);
+        }
+        return bytes;
+      },
+    },
+    {
+      id: "add-background",
+      category: "pages",
+      title: "Arka Plan",
+      description: "Tüm sayfaların arkasına düz renk veya görsel yerleştirin.",
+      suffix: "arkaplan",
+      usesEngine: true,
+      files: [
+        { name: "fileInput", label: "PDF dosyası", accept: PDF },
+        { name: "bgImage", label: "Arka plan görseli", accept: IMAGES, showIf: { kind: "image" } },
+      ],
+      fields: [
+        { name: "kind", label: "Tür", type: "select", local: true, default: "color", options: [
+          { value: "color", label: "Renk" },
+          { value: "image", label: "Görsel" },
+        ] },
+        { name: "color", label: "Renk", type: "color", default: "#f8fafc", showIf: { kind: "color" } },
+      ],
+      async run({ files, values, engine, htmlToPdf }) {
+        const dest = files.fileInput[0];
+        const info = await window.SecuriPreview.pageInfo(dest);
+        if (!info.length) throw new Error("PDF sayfaları okunamadı.");
+        const layers = [];
+        for (const page of info) {
+          const setup = {
+            width: pageInches(page.width),
+            height: pageInches(page.height),
+            marginTop: 0,
+            marginRight: 0,
+            marginBottom: 0,
+            marginLeft: 0,
+            landscape: false,
+          };
+          let html;
+          if (values.kind === "image") {
+            const image = files.bgImage && files.bgImage[0];
+            if (!image) throw new Error("Arka plan görseli seçin.");
+            const url = await fileDataUrl(image);
+            html = `<!doctype html><html><head><style>html,body,img{margin:0;padding:0;width:100%;height:100%;}img{object-fit:cover;display:block;}</style></head><body><img src="${url}" alt=""></body></html>`;
+          } else {
+            const color = /^#[0-9a-fA-F]{6}$/.test(values.color) ? values.color : "#f8fafc";
+            html = `<!doctype html><html><head><style>html,body{margin:0;background:${color};width:100%;height:100%;}</style></head><body></body></html>`;
+          }
+          layers.push(pdfFile(await htmlToPdf(html, setup), `zemin-${page.number}.pdf`));
+        }
+        const background = layers.length === 1 ? await layers[0].arrayBuffer() : await mergePdfs(engine, layers);
+        return overlayPdfs(engine, new Uint8Array(await dest.arrayBuffer()), new Uint8Array(background), true);
+      },
+    },
+    {
+      id: "add-image",
+      category: "edit",
+      title: "Görsel Ekle",
+      description: "Seçilen sayfaya veya tüm sayfalara görsel yerleştirin. Görüntüleyicide Görsel aracıyla da ekleyip sürükleyerek taşıyabilirsiniz.",
+      suffix: "gorsel-eklendi",
+      usesEngine: true,
+      files: [
+        { name: "fileInput", label: "PDF dosyası", accept: PDF },
+        { name: "imageFile", label: "Görsel", accept: IMAGES },
+      ],
+      fields: [
+        { name: "pageNumber", label: "Sayfa", type: "number", default: 1, min: 1 },
+        { name: "everyPage", label: "Tüm sayfalara ekle", type: "checkbox", default: false, local: true },
+        { name: "x", label: "X (punto)", type: "number", default: 40, min: 0 },
+        { name: "y", label: "Y (punto, üstten)", type: "number", default: 40, min: 0 },
+        { name: "imageScalePercent", label: "Genişlik (sayfanın %)", type: "range", default: 30, min: 5, max: 100, unit: "%" },
+      ],
+      async run({ files, values, engine, htmlToPdf }) {
+        const dest = files.fileInput[0];
+        const image = files.imageFile[0];
+        const info = await window.SecuriPreview.pageInfo(dest);
+        if (!info.length) throw new Error("PDF sayfaları okunamadı.");
+        const target = Math.max(1, Math.min(info.length, Number(values.pageNumber) || 1));
+        const url = await fileDataUrl(image);
+        const scale = Math.max(5, Number(values.imageScalePercent) || 30) / 100;
+        const x = Math.max(0, Number(values.x) || 0);
+        const y = Math.max(0, Number(values.y) || 0);
+        const pages = values.everyPage ? info : [info[target - 1]];
+        const overlays = [];
+        for (const page of pages) {
+          const width = Math.max(20, page.width * scale);
+          const setup = {
+            width: pageInches(page.width),
+            height: pageInches(page.height),
+            marginTop: 0,
+            marginRight: 0,
+            marginBottom: 0,
+            marginLeft: 0,
+            landscape: false,
+          };
+          const html = `<!doctype html><html><head><style>
+            html,body{margin:0;width:${page.width}pt;height:${page.height}pt;}
+            img{position:absolute;left:${x}pt;top:${y}pt;width:${width}pt;height:auto;}
+          </style></head><body><img src="${url}" alt=""></body></html>`;
+          overlays.push(pdfFile(await htmlToPdf(html, setup), `gorsel-${page.number}.pdf`));
+        }
+        if (values.everyPage) {
+          const layer = overlays.length === 1 ? await overlays[0].arrayBuffer() : await mergePdfs(engine, overlays);
+          return overlayPdfs(engine, new Uint8Array(await dest.arrayBuffer()), new Uint8Array(layer), false);
+        }
+        const pageBytes = await extractPages(engine, dest, String(target));
+        const stamped = await overlayPdfs(engine, pageBytes, new Uint8Array(await overlays[0].arrayBuffer()), false);
+        const parts = [];
+        if (target > 1) parts.push(pdfFile(await extractPages(engine, dest, `1-${target - 1}`), "once.pdf"));
+        parts.push(pdfFile(stamped, "orta.pdf"));
+        if (target < info.length) parts.push(pdfFile(await extractPages(engine, dest, `${target + 1}-${info.length}`), "sonra.pdf"));
+        return parts.length === 1 ? new Uint8Array(await parts[0].arrayBuffer()) : mergePdfs(engine, parts);
+      },
+    },
+    {
+      id: "remove-image-pdf",
+      category: "optimize",
+      title: "Görselleri Kaldır",
+      description: "PDF'e gömülü görselleri silin. Metin kalır; dosya küçülür.",
+      apiPath: "/api/v1/general/remove-image-pdf",
+      suffix: "gorselsiz",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+    },
+    {
+      id: "compare-pdfs",
+      category: "edit",
+      title: "PDF Karşılaştır",
+      description: "İki PDF'in metin katmanını sayfa sayfa karşılaştırır. Silinen kelimeler kırmızı, eklenenler yeşil işaretlenir. Sonuç PDF rapordur.",
+      suffix: "karsilastirma",
+      batch: false,
+      files: [
+        { name: "fileInput", label: "İlk PDF", accept: PDF },
+        { name: "fileInput2", label: "İkinci PDF", accept: PDF },
+      ],
+      fields: [],
+      async run({ files, htmlToPdf }) {
+        const left = files.fileInput[0];
+        const right = files.fileInput2[0];
+        const [leftLines, rightLines] = await Promise.all([
+          window.SecuriPreview.textLines(left),
+          window.SecuriPreview.textLines(right),
+        ]);
+        const { html, page } = window.SecuriFormats.compareReport(left.name, right.name, leftLines, rightLines);
+        return htmlToPdf(html, page);
+      },
+    },
+    {
+      id: "fill-forms",
+      category: "edit",
+      title: "Form Doldur",
+      description: "Mevcut PDF form alanlarını görüntüleyicide doldurun ve Kaydet ile yazın. Yeni form alanı tasarlanmaz; kilitli formlar için önce Form Kilidini Aç kullanın.",
+      viewer: true,
+      batch: false,
+      files: [{ name: "fileInput", label: "PDF formu", accept: PDF }],
+      fields: [],
+    },
+    {
+      id: "unlock-pdf-forms",
+      category: "edit",
+      title: "Form Kilidini Aç",
+      description: "PDF form alanlarının düzenleme kısıtlamasını kaldırır; alanlar tekrar doldurulabilir olur.",
+      apiPath: "/api/v1/misc/unlock-pdf-forms",
+      suffix: "form-acik",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+    },
+    {
+      id: "pdf-to-ppt",
+      category: "convert",
+      title: "PDF → PowerPoint",
+      description: "PDF sayfalarını PowerPoint sunumuna (.pptx) dönüştürün. Metin slayt üretilemezse sayfalar görsel slayt olur.",
+      suffix: "",
+      outputExt: "pptx",
+      usesEngine: true,
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint, pagePicker: true },
+        { name: "dpi", label: "Görsel slayt çözünürlüğü (DPI)", type: "number", default: 120, min: 72, max: 300 },
+      ],
+      async run({ files, values, engine, office, note }) {
+        const file = files.fileInput[0];
+        try {
+          const form = new FormData();
+          form.append("fileInput", file, file.name);
+          form.append("outputFormat", "pptx");
+          return await engine("/api/v1/convert/pdf/presentation", form);
+        } catch {
+          /* LibreOffice yoksa görsel slayt */
+        }
+        const form = new FormData();
+        form.append("fileInput", file, file.name);
+        form.append("imageFormat", "png");
+        form.append("singleOrMultiple", "multiple");
+        form.append("colorType", "color");
+        form.append("dpi", String(values.dpi || 120));
+        form.append("pageNumbers", values.pageNumbers || "all");
+        const zip = await engine("/api/v1/convert/pdf/img", form);
+        try {
+          const pptx = await office(new File([zip], "sayfalar.zip", { type: "application/zip" }), "pptx");
+          note("Sayfalar görsel slayt olarak aktarıldı (PowerPoint).");
+          return pptx;
+        } catch {
+          note("Sayfalar görsel slayt olarak aktarıldı.");
+          return window.SecuriFormats.imagesToPptx(await window.SecuriFormats.zipEntries(zip));
+        }
+      },
+    },
+    {
+      id: "get-info-on-pdf",
+      category: "optimize",
+      title: "PDF Bilgisi",
+      description: "Sayfa sayısı, şifreleme, form, üstveri ve gömülü dosya özetini PDF rapor olarak üretir.",
+      suffix: "bilgi",
+      usesEngine: true,
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+      async run({ files, engine, htmlToPdf }) {
+        const file = files.fileInput[0];
+        const info = await pdfInfo(engine, file);
+        const { html, page } = window.SecuriFormats.infoReport(file.name, info);
+        return htmlToPdf(html, page);
+      },
+    },
+    {
+      id: "accessibility-report",
+      category: "optimize",
+      title: "Erişilebilirlik Raporu",
+      description: "Metin katmanı, başlık, dil ve etiketli PDF işaretini denetler. PDF/UA belgesi üretmez; yapısal etiket eklemez.",
+      suffix: "erisilebilirlik",
+      usesEngine: true,
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+      async run({ files, engine, htmlToPdf, note }) {
+        const file = files.fileInput[0];
+        let info = {};
+        try { info = await pdfInfo(engine, file); } catch { /* rapor metin katmanıyla da üretilir */ }
+        const lines = await window.SecuriPreview.textLines(file);
+        const words = lines.map((line) => line.text).join(" ").trim();
+        note(words ? `${lines.length} satır metin` : "Metin katmanı yok");
+        const { html, page } = window.SecuriFormats.accessibilityReport(file.name, info, lines);
+        return htmlToPdf(html, page);
+      },
     },
   ];
 })();

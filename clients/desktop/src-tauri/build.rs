@@ -9,6 +9,8 @@ fn main() {
             "save_into_folder",
             "take_opened_files",
             "read_opened_file",
+            "lock_opened_file",
+            "unlock_opened_file",
             "html_to_pdf",
             "office_convert",
             "repair_pdf",

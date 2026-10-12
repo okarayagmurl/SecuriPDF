@@ -592,5 +592,255 @@ ${paragraphs.join("\n")}
     return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
   }
 
-  window.SecuriFormats = { zipEntry, zipEntries, zipStore, udfToHtml, linesToUdf, invoiceToHtml, signatureVerdict, signatureReport, scanReport, crc32 };
+  function wordDiff(left, right) {
+    const a = String(left || "").split(/\s+/).filter(Boolean);
+    const b = String(right || "").split(/\s+/).filter(Boolean);
+    if (a.length + b.length > 3500) {
+      return escapeHtml(b.join(" ") || left);
+    }
+    const dp = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    let html = "";
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) {
+        html += `${escapeHtml(a[i])} `;
+        i += 1;
+        j += 1;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        html += `<del>${escapeHtml(a[i])}</del> `;
+        i += 1;
+      } else {
+        html += `<ins>${escapeHtml(b[j])}</ins> `;
+        j += 1;
+      }
+    }
+    while (i < a.length) html += `<del>${escapeHtml(a[i++])}</del> `;
+    while (j < b.length) html += `<ins>${escapeHtml(b[j++])}</ins> `;
+    return html.trim();
+  }
+
+  function groupPageText(lines) {
+    const pages = new Map();
+    (lines || []).forEach((line) => {
+      const number = line.page || 1;
+      pages.set(number, `${pages.get(number) || ""} ${line.text || ""}`.trim());
+    });
+    return pages;
+  }
+
+  function compareReport(leftName, rightName, leftLines, rightLines) {
+    const left = groupPageText(leftLines);
+    const right = groupPageText(rightLines);
+    const pages = Array.from(new Set([...left.keys(), ...right.keys()])).sort((a, b) => a - b);
+    const items = pages.map((number) => {
+      const a = left.get(number) || "";
+      const b = right.get(number) || "";
+      const same = a === b;
+      return `<section class="${same ? "ok" : "warn"}">
+        <h2>Sayfa ${number}${same ? "" : " — fark var"}</h2>
+        <p>${wordDiff(a, b) || "<em>Bu sayfada metin yok.</em>"}</p>
+      </section>`;
+    }).join("");
+    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
+      body { margin: 0; font: 10pt "Segoe UI", Arial, sans-serif; color: #111; }
+      h1 { font-size: 16pt; margin: 0 0 2pt; }
+      .file { color: #555; margin: 0 0 12pt; }
+      section { border: 0.75pt solid #999; border-left-width: 5pt; padding: 6pt 10pt; margin-bottom: 10pt; }
+      section.ok { border-left-color: #1a7f37; }
+      section.warn { border-left-color: #bf8700; }
+      h2 { font-size: 11.5pt; margin: 0 0 6pt; }
+      del { background: #ffe1e1; text-decoration: line-through; }
+      ins { background: #d1f0d6; text-decoration: none; }
+    </style></head><body>
+      <h1>PDF karşılaştırma</h1>
+      <p class="file">${escapeHtml(leftName)} → ${escapeHtml(rightName)} · ${escapeHtml(new Date().toLocaleString("tr-TR"))}</p>
+      <p class="file">Metin katmanı kelime kelime karşılaştırılır. Taranmış sayfalar için önce OCR uygulayın. Görsel yerleşim birebir denetlenmez.</p>
+      ${items || "<p>Karşılaştırılacak metin bulunamadı.</p>"}
+    </body></html>`;
+    return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6, landscape: true, width: 11.69, height: 8.27 });
+  }
+
+  function infoReport(fileName, info) {
+    const data = info && typeof info === "object" ? info : { raw: info };
+    const row = (label, value) => (value === undefined || value === null || value === "" ? "" :
+      `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</td></tr>`);
+    const keys = Object.keys(data);
+    const rows = keys.map((key) => row(key, data[key])).join("");
+    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
+      body { margin: 0; font: 10pt "Segoe UI", Arial, sans-serif; color: #111; }
+      h1 { font-size: 16pt; margin: 0 0 2pt; }
+      .file { color: #555; margin: 0 0 12pt; }
+      table { border-collapse: collapse; }
+      th, td { text-align: left; vertical-align: top; padding: 2pt 10pt 2pt 0; }
+      th { color: #555; font-weight: 600; white-space: nowrap; }
+      td { word-break: break-word; }
+    </style></head><body>
+      <h1>PDF bilgisi</h1>
+      <p class="file">${escapeHtml(fileName)} · ${escapeHtml(new Date().toLocaleString("tr-TR"))}</p>
+      <table>${rows || "<tr><td>Bilgi alınamadı.</td></tr>"}</table>
+    </body></html>`;
+    return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
+  }
+
+  function accessibilityReport(fileName, info, lines) {
+    const pages = groupPageText(lines);
+    const empty = [...pages.entries()].filter(([, text]) => !text).map(([n]) => n);
+    const words = [...pages.values()].join(" ").trim();
+    const tagged = dataFlag(info, ["tagged", "isTagged", "MarkInfo", "marked", "hasOutline"]);
+    const title = firstValue(info, ["Title", "title", "metadataTitle"]);
+    const language = firstValue(info, ["Language", "language", "lang"]);
+    const encrypted = dataFlag(info, ["encrypted", "isEncrypted", "passwordProtected"]);
+    const form = dataFlag(info, ["form", "hasForm", "acroForm"]);
+    const issues = [];
+    if (!words) issues.push("Metin katmanı yok veya boş; taranmış belgeyse OCR uygulayın.");
+    if (empty.length) issues.push(`Metinsiz sayfalar: ${empty.slice(0, 20).join(", ")}${empty.length > 20 ? "…" : ""}`);
+    if (!title) issues.push("Belge başlığı (Title) boş.");
+    if (!language) issues.push("Belge dili (Language) belirtilmemiş.");
+    if (tagged === false) issues.push("Etiketli (tagged) PDF işareti yok; PDF/UA üretimi yapılmaz.");
+    if (encrypted) issues.push("Belge şifreli; yardımcı teknolojiler içeriği okuyamayabilir.");
+    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
+      body { margin: 0; font: 10pt "Segoe UI", Arial, sans-serif; color: #111; }
+      h1 { font-size: 16pt; margin: 0 0 2pt; }
+      .file { color: #555; margin: 0 0 12pt; }
+      section { border: 0.75pt solid #999; border-left-width: 5pt; padding: 6pt 10pt; }
+      section.ok { border-left-color: #1a7f37; }
+      section.warn { border-left-color: #bf8700; }
+      ul { margin: 0; padding-left: 16pt; }
+    </style></head><body>
+      <h1>Erişilebilirlik raporu</h1>
+      <p class="file">${escapeHtml(fileName)} · ${escapeHtml(new Date().toLocaleString("tr-TR"))}</p>
+      <section class="${issues.length ? "warn" : "ok"}">
+        <p>${issues.length ? `${issues.length} bulgu` : "Temel metin ve üstveri denetiminde sorun yok"}</p>
+        <ul>
+          <li>Sayfa: ${pages.size || 0}</li>
+          <li>Metin sözcükleri: ${words ? words.split(/\s+/).length : 0}</li>
+          <li>Başlık: ${escapeHtml(title || "—")}</li>
+          <li>Dil: ${escapeHtml(language || "—")}</li>
+          <li>Etiketli PDF: ${tagged === true ? "Evet" : tagged === false ? "Hayır" : "Bilinmiyor"}</li>
+          <li>Form: ${form === true ? "Var" : form === false ? "Yok" : "Bilinmiyor"}</li>
+        </ul>
+        ${issues.length ? `<ul>${issues.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+        <p>Bu rapor PDF/UA belgesi üretmez; yapısal etiket eklemez. Tam PDF/UA doğrulaması için ayrı bir denetleyici gerekir.</p>
+      </section>
+    </body></html>`;
+    return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
+  }
+
+  function dataFlag(info, keys) {
+    if (!info || typeof info !== "object") return undefined;
+    for (const key of keys) {
+      if (info[key] === true || info[key] === false) return info[key];
+      if (info[key] && typeof info[key] === "object") {
+        const nested = dataFlag(info[key], keys);
+        if (nested !== undefined) return nested;
+      }
+    }
+    return undefined;
+  }
+
+  function firstValue(info, keys) {
+    if (!info || typeof info !== "object") return "";
+    for (const key of keys) {
+      const value = info[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (value && typeof value === "object") {
+        const nested = firstValue(value, keys);
+        if (nested) return nested;
+      }
+    }
+    return "";
+  }
+
+  function imagesToPptx(entries) {
+    const images = (entries || []).filter((entry) => /\.(png|jpe?g)$/i.test(entry.name) && entry.data && entry.data.length);
+    if (!images.length) throw new Error("Sunuma dönüştürülecek görsel bulunamadı.");
+    const cx = 12192000;
+    const cy = 6858000;
+    const files = [];
+    const slideIds = [];
+    images.forEach((image, index) => {
+      const n = index + 1;
+      const ext = /\.jpe?g$/i.test(image.name) ? "jpeg" : "png";
+      files.push({ name: `ppt/media/image${n}.${ext}`, data: image.data });
+      files.push({
+        name: `ppt/slides/slide${n}.xml`,
+        data: strBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="2" name="Picture ${n}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+      <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+    </p:pic>
+  </p:spTree></p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`),
+      });
+      files.push({
+        name: `ppt/slides/_rels/slide${n}.xml.rels`,
+        data: strBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${n}.${ext}"/>
+</Relationships>`),
+      });
+      slideIds.push(`<p:sldId id="${255 + n}" r:id="rId${n}"/>`);
+    });
+    const overrides = images.map((_, index) =>
+      `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join("");
+    files.push({
+      name: "[Content_Types].xml",
+      data: strBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  ${overrides}
+</Types>`),
+    });
+    files.push({
+      name: "_rels/.rels",
+      data: strBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`),
+    });
+    files.push({
+      name: "ppt/presentation.xml",
+      data: strBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldIdLst>${slideIds.join("")}</p:sldIdLst>
+  <p:sldSz cx="${cx}" cy="${cy}"/>
+  <p:notesSz cx="${cy}" cy="${cx}"/>
+</p:presentation>`),
+    });
+    files.push({
+      name: "ppt/_rels/presentation.xml.rels",
+      data: strBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${images.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${index + 1}.xml"/>`).join("")}
+</Relationships>`),
+    });
+    return zipStore(files);
+  }
+
+  function strBytes(text) {
+    return new TextEncoder().encode(text);
+  }
+
+  window.SecuriFormats = {
+    zipEntry, zipEntries, zipStore, udfToHtml, linesToUdf, invoiceToHtml,
+    signatureVerdict, signatureReport, scanReport, compareReport, infoReport,
+    accessibilityReport, imagesToPptx, crc32,
+  };
 })();

@@ -34,6 +34,10 @@
 - Windows kurucusu `/S /ALLUSERS` ve `SECURIPDF_LICENSE` ile sessiz kurulur; ADMX ve SCCM betikleri `clients/desktop/policy` ile `deploy` altındadır
 - License Manager kurum lisansı üretir (`scope=organization`); tek `.lic` GPO ile tüm masaüstlerine dağıtılır
 - Windows kurucusu MSI de üretir; GPO ile araç kapatılır (`BlockedTools`) ve AD grubu dışındaki kullanıcılar kilitlenir (`AllowedADGroups`)
+- Windows görüntüleyicisinde yazdırma (Ctrl+P), form doldurma, görsel ekleyip taşıma ve metin değiştirmede yazı rengi / boyutu
+- Windows uygulamasına sayfa ekleme, üst/alt bilgi, tam sayfa arka plan, görsel ekleme/kaldırma, PDF karşılaştırma, PDF→PowerPoint, PDF/X, PDF bilgisi ve erişilebilirlik raporu eklendi
+- Birlikte açılan UNC dosyası görüntülenirken yazmaya kilitlenir; korumalı aç JavaScript ve ekleri kaldırır
+- Dijital imza PAdES iddia etmez; erişilebilirlik raporu PDF/UA üretmez
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

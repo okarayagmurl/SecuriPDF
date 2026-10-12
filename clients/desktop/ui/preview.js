@@ -99,10 +99,12 @@ async function loadViewerLib() {
 function closeViewer(force = true) {
   if (!viewer) return true;
   if (!force && viewer.isDirty() && !window.confirm("Kaydedilmemiş işaretlemeler var. Görüntüleyici kapatılsın mı?")) return false;
+  const closing = viewer;
   viewer.root.remove();
   document.removeEventListener("keydown", viewer.onKey, true);
   viewer.task.destroy();
   viewer = null;
+  if (typeof closing.onClose === "function") closing.onClose();
   return true;
 }
 
@@ -114,10 +116,11 @@ function button(text, title) {
 }
 
 const MARKS = [
-  { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi, gezinme ve satır değiştirme" },
-  { mode: pdfjs.AnnotationEditorType.HIGHLIGHT, label: "Vurgula", title: "Metni seçerek vurgulayın", color: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_COLOR, initial: "#ffff98" },
+  { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi, gezinme, form doldurma ve satır değiştirme" },
+  { mode: pdfjs.AnnotationEditorType.HIGHLIGHT, label: "Vurgula", title: "Metni seçerek vurgulayın veya yorum bırakın", color: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_COLOR, initial: "#ffff98" },
   { mode: pdfjs.AnnotationEditorType.INK, label: "Çiz", title: "Serbest çizim", color: pdfjs.AnnotationEditorParamsType.INK_COLOR, initial: "#e11d48" },
   { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Sayfaya tıklayıp yeni metin yazın", color: pdfjs.AnnotationEditorParamsType.FREETEXT_COLOR, initial: "#1d4ed8" },
+  { mode: pdfjs.AnnotationEditorType.STAMP, label: "Görsel", title: "Sayfaya görsel ekleyin; sürükleyerek taşıyın" },
 ];
 
 /**
@@ -166,8 +169,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.hidden = true;
   marks.appendChild(color);
   const replace = button("Değiştir", "Seçili metnin üzerine yeni metin yazın. Satırlar Word gibi kaymaz.");
+  const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)");
   const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün") : null;
-  const save = button("Kaydet", "İşaretlemeleri PDF'e yazıp kaydedin");
+  const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazıp kaydedin");
   save.classList.remove("secondary");
   save.disabled = true;
   const close = button("Kapat");
@@ -179,7 +183,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     group(zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
     group(find, findPrev, findNext, findCount),
     marks,
-    group(...[replace, toWord, save, close].filter(Boolean)),
+    group(...[replace, printBtn, toWord, save, close].filter(Boolean)),
   );
   const body = el("div", "viewer-body");
   const stage = el("div", "viewer-stage");
@@ -207,6 +211,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   linkService.setViewer(pdfViewer);
 
   let dirty = false;
+  let printDocument = () => {};
   const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(source), password: options.password || undefined });
   const onKey = (event) => {
     const typing = event.target.closest && event.target.closest("input, textarea, [contenteditable=true], .freeTextEditor");
@@ -214,12 +219,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
       event.preventDefault();
       find.focus();
       find.select();
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+      event.preventDefault();
+      printDocument();
     } else if (event.key === "Escape" && !typing) {
       closeViewer(false);
     }
   };
   document.addEventListener("keydown", onKey, true);
-  const current = { root, onKey, task, isDirty: () => dirty };
+  const current = { root, onKey, task, isDirty: () => dirty, onClose: options.onClose };
   viewer = current;
 
   let doc;
@@ -230,7 +238,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     return;
   }
   if (viewer !== current) return;
-  const markDirty = (value) => { dirty = value; save.disabled = !value; };
+  const markDirty = (value) => { dirty = value; save.disabled = false; };
+  save.disabled = false;
   doc.annotationStorage.onSetModified = () => markDirty(true);
   doc.annotationStorage.onResetModified = () => markDirty(false);
   pdfViewer.setDocument(doc);
@@ -261,6 +270,35 @@ async function openViewer(source, pageNumber, title, options = {}) {
   fitWidth.onclick = () => { pdfViewer.currentScaleValue = "page-width"; };
   fitPage.onclick = () => { pdfViewer.currentScaleValue = "page-fit"; };
   rotate.onclick = () => { pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360; };
+
+  printDocument = async () => {
+    printBtn.disabled = true;
+    const host = el("div", "print-sheet");
+    document.body.appendChild(host);
+    try {
+      const limit = Math.min(doc.numPages, 200);
+      for (let number = 1; number <= limit; number++) {
+        const page = await doc.getPage(number);
+        const viewport = page.getViewport({ scale: 1.5, rotation: pdfViewer.pagesRotation });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        const img = el("img");
+        img.src = canvas.toDataURL("image/png");
+        img.alt = `Sayfa ${number}`;
+        host.appendChild(img);
+        page.cleanup();
+      }
+      window.print();
+    } catch {
+      window.alert("Yazdırma başlatılamadı.");
+    } finally {
+      host.remove();
+      printBtn.disabled = false;
+    }
+  };
+  printBtn.onclick = () => printDocument();
 
   const search = (type, findPrevious = false) => {
     eventBus.dispatch("find", {
@@ -326,10 +364,19 @@ async function openViewer(source, pageNumber, title, options = {}) {
   field.setAttribute("aria-label", "Yeni metin");
   const actions = el("div", "replace-actions");
   actions.hidden = true;
+  const fontColor = el("input", "replace-color");
+  fontColor.type = "color";
+  fontColor.value = "#0f172a";
+  fontColor.title = "Yazı rengi";
+  const fontSizeInput = el("input", "replace-size");
+  fontSizeInput.type = "number";
+  fontSizeInput.min = "8";
+  fontSizeInput.max = "96";
+  fontSizeInput.title = "Yazı boyutu (punto)";
   const applyBtn = button("Uygula");
   applyBtn.classList.remove("secondary");
   const cancelBtn = button("Vazgeç");
-  actions.append(applyBtn, cancelBtn);
+  actions.append(fontColor, fontSizeInput, applyBtn, cancelBtn);
   root.append(field, actions);
   let pendingReplace = null;
   const covers = [];
@@ -400,6 +447,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.height = first.height + "px";
     field.style.fontSize = Math.max(10, first.height * 0.72) + "px";
     field.value = found.text;
+    fontSizeInput.value = String(Math.round(Math.max(8, first.height * 0.72)));
     field.hidden = false;
     found.pageEl.appendChild(field);
     const last = found.boxes[found.boxes.length - 1];
@@ -440,7 +488,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const { pageNumber, boxes, pdfRects, view } = pendingReplace;
     const pageIndex = pageNumber - 1;
     const first = boxes[0];
-    const fontSize = Math.max(8, first.height * 0.72);
+    const fontSize = Math.max(8, Number(fontSizeInput.value) || first.height * 0.72);
+    const ink = fontColor.value || "#0f172a";
     const scale = 3;
     const measure = document.createElement("canvas").getContext("2d");
     measure.font = `500 ${fontSize * scale}px "Segoe UI", sans-serif`;
@@ -467,7 +516,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const box = boxes[index];
       ctx.fillRect((box.left - union.left) * scale, (box.top - union.top) * scale, box.width * scale, box.height * scale);
     });
-    ctx.fillStyle = "#0f172a";
+    ctx.fillStyle = ink;
     ctx.font = `500 ${fontSize * scale}px "Segoe UI", sans-serif`;
     ctx.textBaseline = "middle";
     ctx.fillText(next, (first.left - union.left) * scale + 2, (first.top - union.top + first.height / 2) * scale);
@@ -825,6 +874,26 @@ async function countPages(data, password) {
   }
 }
 
+/** [{ number, width, height }] in PDF points. */
+async function pageInfo(data, password) {
+  const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(data), password: password || undefined });
+  try {
+    const doc = await task.promise;
+    const pages = [];
+    for (let number = 1; number <= doc.numPages; number++) {
+      const page = await doc.getPage(number);
+      const viewport = page.getViewport({ scale: 1 });
+      pages.push({ number, width: viewport.width, height: viewport.height });
+      page.cleanup();
+    }
+    return pages;
+  } catch {
+    return [];
+  } finally {
+    task.destroy();
+  }
+}
+
 /** Text lines of every page: [{ text, size, pageBreakBefore }]. */
 async function textLines(data, password) {
   const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(data), password: password || undefined });
@@ -1002,5 +1071,5 @@ async function textBoxes(data, patterns, password) {
   }
 }
 
-window.SecuriPreview = { show, openViewer, closeViewer, countPages, textLines, textBoxes };
+window.SecuriPreview = { show, openViewer, closeViewer, countPages, pageInfo, textLines, textBoxes };
 window.dispatchEvent(new Event("securipreview-ready"));

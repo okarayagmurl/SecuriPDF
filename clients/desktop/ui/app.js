@@ -882,15 +882,38 @@
   }
 
   async function openCurrentViewer(file) {
-    const source = file || state.preview.file || allFiles()[0];
+    let source = file || state.preview.file || allFiles()[0];
     if (!source || !/\.pdf$/i.test(source.name || "")) return;
     await previewReady;
     const values = readValues();
+    if (values.protectedView) {
+      if (state.engine !== "ready") {
+        $("formError").textContent = "Korumalı açmak için ön gereksinimlerin hazır olması gerekir.";
+        return;
+      }
+      const form = new FormData();
+      form.append("fileInput", source, source.name);
+      form.append("removeJavaScript", "true");
+      form.append("removeEmbeddedFiles", "true");
+      form.append("removeLinks", "true");
+      form.append("removeMetadata", "false");
+      form.append("removeXMPMetadata", "false");
+      form.append("removeFonts", "false");
+      const cleaned = await callEngine("/api/v1/security/sanitize-pdf", form);
+      source = new File([cleaned], source.name, { type: "application/pdf" });
+    }
     const stem = (source.name || "belge").replace(/\.[^.]+$/, "") || "belge";
+    const lockPath = source.securipdfPath || source.path;
+    if (lockPath && core) {
+      await core.invoke("lock_opened_file", { path: lockPath }).catch(() => {});
+    }
     await window.SecuriPreview.openViewer(source, 1, source.name, {
       password: values.password || undefined,
       onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
       onToWord: () => selectTool("pdf-to-word", [source]),
+      onClose: () => {
+        if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
+      },
     });
   }
 
@@ -1035,7 +1058,9 @@
     for (const item of opened) {
       try {
         const data = await core.invoke("read_opened_file", { path: item.path });
-        files.push(new File([data], item.name, { type: "application/pdf" }));
+        const opened = new File([data], item.name, { type: "application/pdf" });
+        opened.securipdfPath = item.path;
+        files.push(opened);
       } catch (err) {
         $("formError").textContent = errorText(err);
       }

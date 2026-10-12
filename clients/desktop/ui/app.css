@@ -438,6 +438,15 @@ button:disabled { opacity: 0.55; cursor: default; }
   z-index: 3;
   display: flex;
   gap: 6px;
+  align-items: center;
+}
+.replace-color { width: 32px; height: 28px; padding: 0; border: 0; background: none; }
+.replace-size { width: 56px; padding: 4px 6px; }
+
+@media print {
+  body > *:not(.print-sheet) { display: none !important; }
+  .print-sheet { display: block; background: #fff; }
+  .print-sheet img { display: block; width: 100%; page-break-after: always; }
 }
 
 .license-banner { margin-top: 16px; color: var(--danger); font-size: 13px; }

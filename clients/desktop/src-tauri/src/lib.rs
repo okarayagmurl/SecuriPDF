@@ -1,6 +1,7 @@
 mod cli;
 mod defender;
 mod engine;
+mod file_lock;
 mod license;
 mod office;
 mod policy;
@@ -65,7 +66,8 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .manage(Engine::new())
         .manage(Opened::default())
-        .manage(OutputFolder::default());
+        .manage(OutputFolder::default())
+        .manage(file_lock::FileLocks::default());
     builder = match cli {
         Some(cli) => builder.manage(cli),
         None => builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -138,6 +140,8 @@ pub fn run() {
             save_into_folder,
             take_opened_files,
             read_opened_file,
+            lock_opened_file,
+            unlock_opened_file,
             print::html_to_pdf,
             office::office_convert,
             qpdf::repair_pdf,
@@ -160,6 +164,7 @@ pub fn run() {
         .expect("SecuriPDF başlatılamadı")
         .run(move |app, event| {
             if let RunEvent::Exit = event {
+                file_lock::unlock_all(&app.state::<file_lock::FileLocks>());
                 app.state::<Engine>().stop();
                 if is_cli {
                     remove_cli_engine_dir(app);
@@ -488,6 +493,25 @@ fn read_opened_file(path: String, opened: tauri::State<'_, Opened>) -> Result<Re
     std::fs::read(&path)
         .map(Response::new)
         .map_err(|err| format!("Dosya okunamadı: {err}"))
+}
+
+#[tauri::command]
+fn lock_opened_file(path: String, opened: tauri::State<'_, Opened>, locks: tauri::State<'_, file_lock::FileLocks>) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    let allowed = opened
+        .0
+        .lock()
+        .map(|files| files.readable.contains(&path))
+        .unwrap_or(false);
+    if !allowed {
+        return Err("Bu dosya kilitlenemez.".into());
+    }
+    file_lock::lock(&locks, &path)
+}
+
+#[tauri::command]
+fn unlock_opened_file(path: String, locks: tauri::State<'_, file_lock::FileLocks>) {
+    file_lock::unlock(&locks, Path::new(&path));
 }
 
 /// Header values must be ASCII, so the page sends the file name URI-encoded.
