@@ -725,22 +725,35 @@
       id: "timestamp-pdf",
       category: "sign",
       title: "Zaman Damgası",
-      description: "Belgeye RFC 3161 zaman damgası ekleyerek o anda bu içerikle var olduğunu kanıtlayın. Sunucuya yalnızca belgenin SHA-256 özeti gönderilir; internet bağlantısı gerekir.",
-      apiPath: "/api/v1/security/timestamp-pdf",
+      description: "Belgeye RFC 3161 zaman damgası ekleyerek o anda bu içerikle var olduğunu kanıtlayın. Sunucuya yalnızca belgenin SHA-256 özeti gider. Hazır TSA veya kurum içi adres yazılabilir; GPO ile kapatılabilir.",
+      usesEngine: true,
       suffix: "zaman-damgali",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [
-        { name: "tsaUrl", label: "Zaman damgası sunucusu", type: "select", default: "http://timestamp.digicert.com", options: [
+        { name: "tsaUrl", label: "Zaman damgası sunucusu", type: "select", local: true, default: "http://timestamp.digicert.com", options: [
           { value: "http://timestamp.digicert.com", label: "DigiCert" },
           { value: "http://timestamp.sectigo.com", label: "Sectigo" },
           { value: "http://ts.ssl.com", label: "SSL.com" },
           { value: "https://freetsa.org/tsr", label: "FreeTSA" },
           { value: "http://tsa.mesign.com", label: "MeSign" },
+          { value: "custom", label: "Kurum / özel adres" },
         ] },
+        { name: "tsaCustom", label: "TSA adresi", type: "text", local: true, default: "",
+          placeholder: "http://tsa.kurum.local/tsr", showIf: { tsaUrl: "custom" },
+          hint: "Kurum içi TSA için internet gerekmez; genel TSA için ağ çıkışı gerekir." },
       ],
       httpError: (status, detail) => (/TSA|timestamp|connect|timed out|UnknownHost/i.test(detail)
-        ? "Zaman damgası sunucusundan yanıt alınamadı. İnternet bağlantısını kontrol edin veya başka bir sunucu seçin."
+        ? "Zaman damgası sunucusundan yanıt alınamadı. Adresi, ağı veya GPO AllowTimestamp ilkesini kontrol edin."
         : null),
+      async run({ files, values, engine }) {
+        const url = values.tsaUrl === "custom" ? String(values.tsaCustom || "").trim() : values.tsaUrl;
+        if (!url) throw new Error("Zaman damgası sunucusu adresini yazın.");
+        if (!/^https?:\/\//i.test(url)) throw new Error("TSA adresi http:// veya https:// ile başlamalı.");
+        const form = new FormData();
+        form.append("fileInput", files.fileInput[0], files.fileInput[0].name);
+        form.append("tsaUrl", url);
+        return engine("/api/v1/security/timestamp-pdf", form);
+      },
     },
     {
       id: "validate-signature",
@@ -874,16 +887,46 @@
       id: "office-to-pdf",
       category: "convert",
       title: "Office → PDF",
-      description: "Word, Excel veya PowerPoint belgesini bilgisayardaki Microsoft Office ile PDF'e dönüştürün. Makrolar çalıştırılmaz.",
+      description: "Word, Excel veya PowerPoint belgesini PDF'e dönüştürün. Önce kurulu Microsoft Office dener; yoksa LibreOffice kullanılır. Makrolar çalıştırılmaz.",
       suffix: "",
       files: [{ name: "fileInput", label: "Office belgesi", accept: OFFICE }],
       fields: [
         { name: "format", label: "Çıktı", type: "select", local: true, default: "pdf", options: [
           { value: "pdf", label: "PDF" },
-          { value: "pdfa", label: "PDF/A (arşiv; Word ve PowerPoint)" },
+          { value: "pdfa", label: "PDF/A (arşiv)" },
         ] },
       ],
-      run: ({ files, values, office }) => office(files.fileInput[0], values.format),
+      async run({ files, values, office, engine, note }) {
+        const file = files.fileInput[0];
+        try {
+          return await office(file, values.format);
+        } catch (err) {
+          const code = String(err && err.message || err);
+          if (!/OFFICE_MISSING|OFFICE_SCRIPT_FAILED/.test(code)) throw err;
+          try {
+            const form = new FormData();
+            form.append("fileInput", file, file.name);
+            let pdf = await engine("/api/v1/convert/file/pdf", form);
+            if (values.format === "pdfa") {
+              const archive = new FormData();
+              archive.append("fileInput", new File([pdf], "belge.pdf", { type: "application/pdf" }));
+              archive.append("outputFormat", "pdfa-2b");
+              archive.append("strict", "false");
+              pdf = await engine("/api/v1/convert/pdf/pdfa", archive);
+              note("Microsoft Office yok; LibreOffice ile PDF/A üretildi. Sayfa düzeni Word kadar sadık olmayabilir.");
+            } else {
+              note("Microsoft Office yok; LibreOffice ile PDF üretildi. Sayfa düzeni Word kadar sadık olmayabilir.");
+            }
+            return pdf;
+          } catch (fallback) {
+            const detail = String(fallback && fallback.message || fallback);
+            if (/LOCAL_ENGINE_NOT_READY/.test(detail)) {
+              throw new Error("Microsoft Office yok. LibreOffice ile denemek için ön gereksinimlerin hazır olmasını bekleyin.");
+            }
+            throw new Error("Microsoft Office yok ve LibreOffice ile de dönüştürülemedi. Word, Excel, PowerPoint veya LibreOffice kurun.");
+          }
+        }
+      },
     },
     {
       id: "pdf-to-word",

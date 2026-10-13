@@ -513,9 +513,31 @@ async function openViewer(source, pageNumber, title, options = {}) {
   fontSizeInput.min = "8";
   fontSizeInput.max = "96";
   fontSizeInput.title = "Yazı boyutu (punto)";
+  const fontFamily = el("select", "replace-font");
+  fontFamily.title = "Yazı tipi";
+  [
+    ["Segoe UI, sans-serif", "Segoe UI"],
+    ["Arial, Helvetica, sans-serif", "Arial"],
+    ["Calibri, sans-serif", "Calibri"],
+    ['"Times New Roman", Times, serif', "Times New Roman"],
+    ["Georgia, serif", "Georgia"],
+    ['"Courier New", Courier, monospace', "Courier New"],
+  ].forEach(([value, label]) => {
+    const option = el("option", null, label);
+    option.value = value;
+    fontFamily.appendChild(option);
+  });
   const applyBtn = button("Uygula", "Değişikliği yaz", "primary");
   const cancelBtn = button("Vazgeç");
-  actions.append(fontColor, fontSizeInput, applyBtn, cancelBtn);
+  actions.append(fontFamily, fontColor, fontSizeInput, applyBtn, cancelBtn);
+  const syncFieldFace = () => {
+    field.style.fontFamily = fontFamily.value;
+    field.style.color = fontColor.value || "#0f172a";
+    field.style.fontSize = Math.max(8, Number(fontSizeInput.value) || 12) + "px";
+  };
+  fontFamily.onchange = syncFieldFace;
+  fontColor.oninput = syncFieldFace;
+  fontSizeInput.oninput = syncFieldFace;
   root.append(field, actions);
   let pendingReplace = null;
   const covers = [];
@@ -584,9 +606,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.top = (first.top - pageBox.top) + "px";
     field.style.width = Math.max(first.width, 160) + "px";
     field.style.height = first.height + "px";
-    field.style.fontSize = Math.max(10, first.height * 0.72) + "px";
     field.value = found.text;
     fontSizeInput.value = String(Math.round(Math.max(8, first.height * 0.72)));
+    field.style.fontSize = fontSizeInput.value + "px";
+    field.style.fontFamily = fontFamily.value;
+    field.style.color = fontColor.value || "#0f172a";
     field.hidden = false;
     found.pageEl.appendChild(field);
     const last = found.boxes[found.boxes.length - 1];
@@ -629,9 +653,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const first = boxes[0];
     const fontSize = Math.max(8, Number(fontSizeInput.value) || first.height * 0.72);
     const ink = fontColor.value || "#0f172a";
+    const face = fontFamily.value || "Segoe UI, sans-serif";
     const scale = 3;
     const measure = document.createElement("canvas").getContext("2d");
-    measure.font = `500 ${fontSize * scale}px "Segoe UI", sans-serif`;
+    measure.font = `500 ${fontSize * scale}px ${face}`;
     const extra = Math.max(0, measure.measureText(next).width / scale + 6 - first.width);
     const union = {
       left: Math.min(...boxes.map((box) => box.left)),
@@ -656,7 +681,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       ctx.fillRect((box.left - union.left) * scale, (box.top - union.top) * scale, box.width * scale, box.height * scale);
     });
     ctx.fillStyle = ink;
-    ctx.font = `500 ${fontSize * scale}px "Segoe UI", sans-serif`;
+    ctx.font = `500 ${fontSize * scale}px ${face}`;
     ctx.textBaseline = "middle";
     ctx.fillText(next, (first.left - union.left) * scale + 2, (first.top - union.top + first.height / 2) * scale);
     const layer = await stampLayer(pageIndex);
@@ -693,7 +718,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const found = captureSelection() || pendingReplace;
     if (!found || !found.boxes) {
       statusMode.textContent = "Önce Seç kipinde değiştirilecek metni işaretleyin. Satırlar kaymaz; uzun düzenleme için Word kullanın.";
-      return;
       return;
     }
     showReplace(found);
