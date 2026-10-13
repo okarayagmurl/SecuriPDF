@@ -390,28 +390,187 @@ button:disabled { opacity: 0.55; cursor: default; }
   z-index: 60;
   display: flex;
   flex-direction: column;
-  background: rgba(15, 23, 42, 0.92);
+  background: #1e293b;
+  color: #e2e8f0;
 }
-.viewer-bar {
+.viewer-chrome {
+  flex-shrink: 0;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.viewer-top, .viewer-ribbon {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
-  padding: 8px 14px;
+  gap: 10px;
+  padding: 8px 12px;
+}
+.viewer-top { padding-top: 10px; }
+.viewer-ribbon {
+  padding-top: 0;
+  padding-bottom: 10px;
+  gap: 12px;
+  overflow-x: auto;
+}
+.viewer-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.viewer-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+  font-size: 14px;
   color: #fff;
 }
-.viewer-bar button { padding: 5px 10px; }
-.viewer-title { flex: 1 1 120px; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.viewer-group, .viewer-marks { display: flex; align-items: center; gap: 4px; }
-.viewer-page { width: 56px; padding: 4px 6px; text-align: center; }
-.viewer-pos, .viewer-zoom { min-width: 36px; text-align: center; font-size: 13px; }
-.viewer-find { width: 170px; padding: 4px 8px; }
-.viewer-count { min-width: 64px; font-size: 13px; }
-.viewer-marks button.active { background: #2563eb; border-color: #2563eb; color: #fff; }
-.viewer-color { width: 32px; height: 28px; padding: 0; border: 0; background: none; }
-.viewer-body { position: relative; flex: 1; }
+.viewer-dirty {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #b45309;
+  color: #fff;
+}
+.viewer-dirty[hidden] { display: none; }
+.viewer-cluster {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #1e293b;
+  flex-shrink: 0;
+}
+.viewer-cluster-label {
+  padding: 0 8px 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.viewer-btn {
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font: 13px/1.2 "Segoe UI", sans-serif;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.viewer-btn:hover { background: #334155; color: #fff; }
+.viewer-btn.active, .viewer-marks .viewer-btn.active {
+  background: #2563eb;
+  color: #fff;
+}
+.viewer-btn-primary { background: #2563eb; color: #fff; }
+.viewer-btn-primary:hover { background: #1d4ed8; }
+.viewer-btn-ghost { color: #cbd5e1; }
+.viewer-page, .viewer-find, .viewer-size {
+  border: 0;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #fff;
+  font: 13px "Segoe UI", sans-serif;
+}
+.viewer-page { width: 52px; padding: 5px 4px; text-align: center; }
+.viewer-find {
+  width: 220px;
+  padding: 6px 10px;
+  background: #1e293b;
+}
+.viewer-find::placeholder { color: #94a3b8; }
+.viewer-pos, .viewer-zoom, .viewer-count {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+.viewer-color {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.viewer-hint {
+  padding: 6px 16px 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  border-top: 1px solid #1e293b;
+}
+.viewer-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.viewer-thumbs {
+  width: 128px;
+  flex-shrink: 0;
+  overflow: auto;
+  padding: 12px 10px 24px;
+  background: #0f172a;
+  border-right: 1px solid #1e293b;
+}
+.viewer-thumbs[hidden] { display: none; }
+@media (max-width: 880px) {
+  .viewer-thumbs { display: none; }
+}
+.viewer-thumb {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.viewer-thumb canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.viewer-thumb span { display: block; margin-top: 4px; font-size: 11px; }
+.viewer-thumb:hover { background: #1e293b; }
+.viewer-thumb.current { border-color: #3b82f6; background: #1e3a5f; color: #fff; }
+.viewer-body { position: relative; flex: 1; min-width: 0; background: #334155; }
 .viewer-stage { position: absolute; inset: 0; overflow: auto; }
-.viewer-stage .pdfViewer .page { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); }
+.viewer-stage .pdfViewer {
+  --page-margin: 0 auto 28px;
+  --page-border: 0;
+  padding: 28px 36px 56px;
+}
+.viewer-stage .pdfViewer .page {
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  font-size: 14px;
+  pointer-events: none;
+}
 .replace-cover {
   position: absolute;
   z-index: 2;
@@ -422,15 +581,15 @@ button:disabled { opacity: 0.55; cursor: default; }
   position: absolute;
   z-index: 3;
   margin: 0;
-  border: 1px solid #2563eb;
-  border-radius: 2px;
+  border: 2px solid #2563eb;
+  border-radius: 4px;
   background: #fff;
   color: #0f172a;
-  padding: 0 3px;
+  padding: 0 6px;
   font-family: "Segoe UI", sans-serif;
   font-weight: 500;
   line-height: 1;
-  box-shadow: 0 0 0 2px #fff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }
 .replace-field[hidden], .replace-actions[hidden] { display: none; }
 .replace-actions {
@@ -439,9 +598,13 @@ button:disabled { opacity: 0.55; cursor: default; }
   display: flex;
   gap: 6px;
   align-items: center;
+  padding: 6px;
+  border-radius: 10px;
+  background: #0f172a;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
-.replace-color { width: 32px; height: 28px; padding: 0; border: 0; background: none; }
-.replace-size { width: 56px; padding: 4px 6px; }
+.replace-color { width: 28px; height: 28px; padding: 0; border: 0; background: none; }
+.replace-size { width: 56px; padding: 4px 6px; background: #1e293b; color: #fff; border: 0; border-radius: 6px; }
 
 @media print {
   body > *:not(.print-sheet) { display: none !important; }

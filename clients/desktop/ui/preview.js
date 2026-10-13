@@ -100,6 +100,7 @@ function closeViewer(force = true) {
   if (!viewer) return true;
   if (!force && viewer.isDirty() && !window.confirm("Kaydedilmemiş işaretlemeler var. Görüntüleyici kapatılsın mı?")) return false;
   const closing = viewer;
+  if (closing.thumbsObserver) closing.thumbsObserver.disconnect();
   viewer.root.remove();
   document.removeEventListener("keydown", viewer.onKey, true);
   viewer.task.destroy();
@@ -108,10 +109,17 @@ function closeViewer(force = true) {
   return true;
 }
 
-function button(text, title) {
-  const node = el("button", "secondary", text);
+function button(text, title, kind) {
+  const node = el("button", kind === "primary" ? "viewer-btn viewer-btn-primary" : kind === "ghost" ? "viewer-btn viewer-btn-ghost" : "viewer-btn", text);
   node.type = "button";
   if (title) node.title = title;
+  return node;
+}
+
+function cluster(label, ...items) {
+  const node = el("div", "viewer-cluster");
+  if (label) node.appendChild(el("span", "viewer-cluster-label", label));
+  node.append(...items.filter(Boolean));
   return node;
 }
 
@@ -131,8 +139,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
   if (!closeViewer(false)) return;
   const lib = await loadViewerLib();
   const root = el("div", "viewer");
-  const bar = el("div", "viewer-bar");
-  const name = el("span", "viewer-title", title || "");
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-label", title ? `Belge: ${title}` : "PDF görüntüleyici");
+  const chrome = el("div", "viewer-chrome");
+  const top = el("div", "viewer-top");
+  const ribbon = el("div", "viewer-ribbon");
+  const hint = el("div", "viewer-hint", MARKS[0].title);
+  const name = el("span", "viewer-title", title || "Belge");
+  const dirtyBadge = el("span", "viewer-dirty", "Kaydedilmedi");
+  dirtyBadge.hidden = true;
+  const titleWrap = el("div", "viewer-title-wrap");
+  titleWrap.append(name, dirtyBadge);
 
   const prev = button("‹", "Önceki sayfa");
   const pageInput = el("input", "viewer-page");
@@ -143,20 +160,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const next = button("›", "Sonraki sayfa");
 
   const zoomOut = button("−", "Uzaklaştır");
-  const zoomLabel = el("span", "viewer-zoom");
+  const zoomLabel = el("span", "viewer-zoom", "—");
   const zoomIn = button("+", "Yakınlaştır");
   const fitWidth = button("Genişlik", "Sayfa genişliğine sığdır");
   const fitPage = button("Sayfa", "Tüm sayfayı göster");
-  const rotate = button("↻", "Sayfaları döndür");
+  const rotate = button("90°", "Sayfaları 90° döndür");
 
   const find = el("input", "viewer-find");
   find.type = "search";
-  find.placeholder = "Belgede ara (Ctrl+F)";
-  const findPrev = button("▲", "Önceki eşleşme");
-  const findNext = button("▼", "Sonraki eşleşme");
+  find.placeholder = "Belgede ara  Ctrl+F";
+  const findPrev = button("‹", "Önceki eşleşme");
+  const findNext = button("›", "Sonraki eşleşme");
   const findCount = el("span", "viewer-count");
 
-  const marks = el("div", "viewer-marks");
+  const marks = el("div", "viewer-cluster viewer-marks");
+  marks.appendChild(el("span", "viewer-cluster-label", "Düzenle"));
   const markButtons = MARKS.map((mark) => {
     const node = button(mark.label, mark.title);
     node.dataset.mode = String(mark.mode);
@@ -168,29 +186,36 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
-  const replace = button("Değiştir", "Seçili metnin üzerine yeni metin yazın. Satırlar Word gibi kaymaz.");
-  const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)");
-  const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün") : null;
-  const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazıp kaydedin");
-  save.classList.remove("secondary");
+  const replace = button("Metni değiştir", "Seçili satırı kapatıp yerine yazın. Satırlar kaymaz.");
+  const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost");
+  const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost") : null;
+  const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary");
   save.disabled = true;
-  const close = button("Kapat");
+  const close = button("Kapat", "Görüntüleyiciyi kapat (Esc)", "ghost");
 
-  const group = (...items) => { const node = el("div", "viewer-group"); node.append(...items); return node; };
-  bar.append(
-    name,
-    group(prev, pageInput, pageTotal, next),
-    group(zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
-    group(find, findPrev, findNext, findCount),
-    marks,
-    group(...[replace, printBtn, toWord, save, close].filter(Boolean)),
+  top.append(
+    titleWrap,
+    cluster(null, find, findPrev, findNext, findCount),
+    cluster(null, ...[printBtn, toWord, save, close].filter(Boolean)),
   );
+  ribbon.append(
+    cluster("Sayfa", prev, pageInput, pageTotal, next),
+    cluster("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
+    marks,
+    cluster(null, replace),
+  );
+  chrome.append(top, ribbon, hint);
+  const workspace = el("div", "viewer-workspace");
+  const thumbs = el("div", "viewer-thumbs");
+  thumbs.hidden = true;
   const body = el("div", "viewer-body");
   const stage = el("div", "viewer-stage");
   const pages = el("div", "pdfViewer");
+  const loading = el("p", "viewer-loading", "Belge açılıyor…");
   stage.appendChild(pages);
-  body.appendChild(stage);
-  root.append(bar, body);
+  body.append(stage, loading);
+  workspace.append(thumbs, body);
+  root.append(chrome, workspace);
   document.body.appendChild(root);
 
   const eventBus = new lib.EventBus();
@@ -222,6 +247,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
       event.preventDefault();
       printDocument();
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      save.click();
+    } else if (!typing && event.key === "PageDown") {
+      event.preventDefault();
+      pdfViewer.nextPage();
+    } else if (!typing && event.key === "PageUp") {
+      event.preventDefault();
+      pdfViewer.previousPage();
     } else if (event.key === "Escape" && !typing) {
       closeViewer(false);
     }
@@ -234,11 +268,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
   try {
     doc = await task.promise;
   } catch {
-    if (viewer === current) pages.replaceChildren(el("p", "preview-note", "PDF açılamadı."));
+    if (viewer === current) {
+      loading.textContent = "PDF açılamadı.";
+      thumbs.hidden = true;
+    }
     return;
   }
   if (viewer !== current) return;
-  const markDirty = (value) => { dirty = value; save.disabled = false; };
+  const markDirty = (value) => {
+    dirty = value;
+    save.disabled = false;
+    dirtyBadge.hidden = !value;
+  };
   save.disabled = false;
   doc.annotationStorage.onSetModified = () => markDirty(true);
   doc.annotationStorage.onResetModified = () => markDirty(false);
@@ -247,7 +288,37 @@ async function openViewer(source, pageNumber, title, options = {}) {
   pageTotal.textContent = `/ ${doc.numPages}`;
   pageInput.max = String(doc.numPages);
 
+  const thumbWidth = 96;
+  if (doc.numPages > 1) {
+    thumbs.hidden = false;
+    const observer = new IntersectionObserver((items) => {
+      items.forEach((item) => {
+        if (!item.isIntersecting) return;
+        observer.unobserve(item.target);
+        const number = Number(item.target.dataset.page);
+        doc.getPage(number)
+          .then((page) => renderPage(page, item.target.querySelector("canvas"), thumbWidth))
+          .catch(() => {});
+      });
+    }, { root: thumbs, rootMargin: "200px" });
+    current.thumbsObserver = observer;
+    for (let number = 1; number <= doc.numPages; number++) {
+      const cell = el("button", "viewer-thumb");
+      cell.type = "button";
+      cell.dataset.page = String(number);
+      cell.title = `Sayfa ${number}`;
+      const canvas = el("canvas");
+      canvas.style.width = thumbWidth + "px";
+      canvas.style.height = Math.round(thumbWidth * 1.41) + "px";
+      cell.append(canvas, el("span", null, String(number)));
+      cell.onclick = () => { pdfViewer.currentPageNumber = number; };
+      thumbs.appendChild(cell);
+      observer.observe(cell);
+    }
+  }
+
   eventBus.on("pagesinit", () => {
+    loading.remove();
     pdfViewer.currentScaleValue = "page-fit";
     pdfViewer.currentPageNumber = Math.min(doc.numPages, Math.max(1, pageNumber));
   });
@@ -255,6 +326,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     pageInput.value = String(number);
     prev.disabled = number <= 1;
     next.disabled = number >= doc.numPages;
+    thumbs.querySelectorAll(".viewer-thumb").forEach((node) => {
+      const currentPage = node.dataset.page === String(number);
+      node.classList.toggle("current", currentPage);
+      if (currentPage) node.scrollIntoView({ block: "nearest" });
+    });
   });
   eventBus.on("scalechanging", ({ scale }) => { zoomLabel.textContent = Math.round(scale * 100) + "%"; });
 
@@ -327,6 +403,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return;
     }
     markButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === String(mark.mode)));
+    hint.textContent = mark.title;
     color.hidden = !mark.color;
     if (mark.mode === pdfjs.AnnotationEditorType.HIGHLIGHT) {
       eventBus.dispatch("switchannotationeditorparams", {
@@ -352,8 +429,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     setMark(MARKS[0]);
   });
 
-  // Toolbar clicks would clear the text selection; keep it so "Değiştir" can read it.
-  bar.addEventListener("mousedown", (event) => {
+  // Toolbar clicks would clear the text selection; keep it so "Metni değiştir" can read it.
+  chrome.addEventListener("mousedown", (event) => {
     if (event.target.closest("input, textarea, [contenteditable=true]")) return;
     event.preventDefault();
   });
@@ -373,8 +450,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   fontSizeInput.min = "8";
   fontSizeInput.max = "96";
   fontSizeInput.title = "Yazı boyutu (punto)";
-  const applyBtn = button("Uygula");
-  applyBtn.classList.remove("secondary");
+  const applyBtn = button("Uygula", "Değişikliği yaz", "primary");
   const cancelBtn = button("Vazgeç");
   actions.append(fontColor, fontSizeInput, applyBtn, cancelBtn);
   root.append(field, actions);
@@ -553,7 +629,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const openReplace = () => {
     const found = captureSelection() || pendingReplace;
     if (!found || !found.boxes) {
-      window.alert("Önce belgede değiştirilecek metni seçin (Seç kipinde). Eski satır kapanır, yeni metin onun yerine yazılır. Satırlar kaymaz; uzun düzenleme için Word'e dönüştürün.");
+      hint.textContent = "Önce Seç kipinde değiştirilecek metni işaretleyin. Satırlar kaymaz; uzun düzenleme için Word kullanın.";
+      return;
       return;
     }
     showReplace(found);

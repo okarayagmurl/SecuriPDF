@@ -38,6 +38,7 @@
 - Windows uygulamasına sayfa ekleme, üst/alt bilgi, tam sayfa arka plan, görsel ekleme/kaldırma, PDF karşılaştırma, PDF→PowerPoint, PDF/X, PDF bilgisi ve erişilebilirlik raporu eklendi
 - Birlikte açılan UNC dosyası görüntülenirken yazmaya kilitlenir; korumalı aç JavaScript ve ekleri kaldırır
 - Dijital imza PAdES iddia etmez; erişilebilirlik raporu PDF/UA üretmez
+- PDF görüntüleyici iki sıra araç çubuğu, sayfa küçük resimleri, kaydedilmedi işareti ve bağlamsal ipucu ile düzenlendi; Ctrl+S kaydeder
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 
