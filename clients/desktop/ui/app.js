@@ -52,6 +52,7 @@
     POLICY_SHELL: "Gezgin menüsü kurum ilkesiyle kilitli.",
     POLICY_TOOL: "Kurum ilkesi bu aracı kapatmış.",
     POLICY_GROUP: "Kurum ilkesi bu kullanıcıya SecuriPDF izni vermiyor.",
+    GHOSTSCRIPT_MISSING: "PDF/A ve PDF/X dönüşümü Ghostscript ister. Yeni SecuriPDF kurucusunu yükleyin.",
   };
 
   function errorText(err) {
@@ -59,8 +60,10 @@
     if (ERRORS[code]) return ERRORS[code];
     const prefixed = Object.keys(ERRORS).find((key) => code.startsWith(key + ":"));
     if (prefixed) return ERRORS[prefixed];
+    if (/ghostscript/i.test(code)) return ERRORS.GHOSTSCRIPT_MISSING;
     const http = /^LOCAL_HTTP_(\d+)(?::([\s\S]*))?$/.exec(code);
     if (http) {
+      if (/ghostscript/i.test(http[2] || "")) return ERRORS.GHOSTSCRIPT_MISSING;
       const specific = state.tool && state.tool.httpError && state.tool.httpError(Number(http[1]), http[2] || "");
       if (specific) return specific;
       return Number(http[1]) >= 500
@@ -240,6 +243,57 @@
       if (!allowed.has(id)) return;
       chips.appendChild(el("button", { type: "button", text: label, onclick: () => selectTool(id) }));
     });
+  }
+
+  let workTimer = null;
+
+  function startWork(label) {
+    state.busy = true;
+    const box = $("workProgress");
+    const bar = $("workBar");
+    const text = $("workLabel");
+    if (box) box.hidden = false;
+    if (bar) {
+      bar.classList.add("indeterminate");
+      bar.style.width = "";
+    }
+    const started = Date.now();
+    const title = label || "İşleniyor…";
+    if (text) text.textContent = title;
+    if (workTimer) clearInterval(workTimer);
+    workTimer = setInterval(() => {
+      if (!text) return;
+      const seconds = Math.floor((Date.now() - started) / 1000);
+      text.textContent = seconds ? `${title} ${seconds} sn` : title;
+    }, 250);
+    updateRunButton();
+  }
+
+  function setWorkFraction(done, total) {
+    const bar = $("workBar");
+    const text = $("workLabel");
+    if (bar) {
+      bar.classList.remove("indeterminate");
+      bar.style.width = Math.max(6, Math.round((done / Math.max(total, 1)) * 100)) + "%";
+    }
+    if (text) text.textContent = `İşleniyor… ${done}/${total}`;
+    $("run").textContent = `İşleniyor… ${done}/${total}`;
+  }
+
+  function stopWork() {
+    state.busy = false;
+    if (workTimer) {
+      clearInterval(workTimer);
+      workTimer = null;
+    }
+    const box = $("workProgress");
+    const bar = $("workBar");
+    if (box) box.hidden = true;
+    if (bar) {
+      bar.classList.add("indeterminate");
+      bar.style.width = "";
+    }
+    updateRunButton();
   }
 
   function updateRunButton() {
@@ -986,10 +1040,9 @@
     if (problem) return;
 
     const tool = state.tool;
-    state.busy = true;
     clearResult();
     refreshPreview();
-    updateRunButton();
+    startWork("İşleniyor…");
     const started = Date.now();
     try {
       if (state.batch && state.files[tool.files[0].name].length > 1) {
@@ -1009,8 +1062,7 @@
     } catch (err) {
       $("formError").textContent = errorText(err);
     } finally {
-      state.busy = false;
-      updateRunButton();
+      stopWork();
     }
   }
 
@@ -1018,7 +1070,7 @@
 
   async function runBatch(tool, values, started) {
     const { outputs, report, failed } = await executeBatch(tool, values, (n, total) => {
-      $("run").textContent = `İşleniyor… ${n}/${total}`;
+      setWorkFraction(n, total);
     });
     if (state.tool !== tool) return;
     const total = outputs.length + failed;

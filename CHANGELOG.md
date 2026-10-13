@@ -43,6 +43,7 @@
 - Görüntüleyicide seçilen paragraf yerinde kapatılıp blok içinde satır kaydırılarak yazılır; alttaki paragraflar ve sayfa düzeni kaymaz
 - Görüntüleyicide Form ile sayfada sürükleyerek metin, onay kutusu veya liste (AcroForm) alanı eklenir; hesaplama ve JavaScript yazılmaz
 - Masaüstü açılış, araç listesi ve lisans penceresi görüntüleyiciyle aynı açık temaya çekildi; Belge aç ekranı büyük bırakma alanı ve sık kullanılan kısayollar gösterir
+- PDF/A ve PDF/X dönüşümü Ghostscript ile çalışır; Çalıştır sırasında ilerleme çubuğu görünür
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

@@ -106,6 +106,18 @@ body {
   transition: width 0.6s ease;
 }
 .progress.failed .progress-bar { width: 100% !important; background: var(--danger); }
+.work-progress { margin: 14px 0 4px; }
+.work-progress[hidden] { display: none; }
+body.viewing .work-progress { display: none; }
+.work-progress-label { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.progress-bar.indeterminate {
+  width: 36% !important;
+  animation: work-slide 1.15s ease-in-out infinite;
+}
+@keyframes work-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(280%); }
+}
 .splash-stage { margin: 10px 0 18px; font-size: 14px; }
 #splashPercent { color: var(--muted); font-variant-numeric: tabular-nums; }
 .splash-error { margin: 0 0 16px; color: var(--danger); font-size: 13px; }

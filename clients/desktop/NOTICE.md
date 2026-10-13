@@ -22,6 +22,8 @@ Kurulum dosyasına şu üçüncü taraf bileşenler eklenir:
   ve kayıpsız sıkıştırma için paketlenir (`qpdf.exe`, `qpdf30.dll` ve Visual C++
   çalışma zamanı DLL'leri). Onarma motora bırakılmaz; uygulama qpdf'i doğrudan
   çağırır (`src/qpdf.rs`).
+- Ghostscript 10.06.0 (AGPL-3.0, Artifex): PDF/A ve PDF/X dönüşümü için
+  paketlenir (`gswin64c.exe` / `gs.exe`). Kaynak: https://github.com/ArtifexSoftware/ghostpdl-downloads
 - PDF.js 6.4.299 (`ui/vendor/pdfjs`): Apache License 2.0; `wasm/` altındaki
   JBIG2, OpenJPEG ve QCMS çözücüleri kendi lisans dosyalarıyla birliktedir.
   Görüntüleyici bileşeni (`web/pdf_viewer.mjs`, CSS ve simgeler) aynı lisanstadır.

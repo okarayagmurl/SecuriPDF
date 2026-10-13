@@ -72,6 +72,7 @@ pub struct EngineFiles {
     env: Vec<(String, String)>,
     tesseract: Option<PathBuf>,
     qpdf: Option<PathBuf>,
+    ghostscript: Option<PathBuf>,
     tessdata: Option<PathBuf>,
     versions: Versions,
 }
@@ -97,6 +98,7 @@ impl EngineFiles {
             tesseract: existing(root.join("tesseract").join("tesseract.exe"))
                 .and_then(|exe| exe.parent().map(Path::to_path_buf)),
             qpdf: existing(root.join("qpdf").join("qpdf.exe")).and_then(|exe| exe.parent().map(Path::to_path_buf)),
+            ghostscript: ghostscript_bin(&root),
             tessdata: existing(root.join("tessdata")),
             versions: std::fs::read_to_string(root.join("engine.json"))
                 .map(|text| parse_versions(&text))
@@ -205,7 +207,17 @@ impl Engine {
         if let Some(dir) = &files.qpdf {
             restore_qpdf(dir);
         }
-        let tools: Vec<PathBuf> = [&files.tesseract, &files.qpdf].into_iter().flatten().map(|dir| short_path(dir)).collect();
+        if let Some(dir) = &files.ghostscript {
+            ensure_gs_alias(dir);
+            if let Some(lib) = ghostscript_lib(dir) {
+                command.env("GS_LIB", lib);
+            }
+        }
+        let tools: Vec<PathBuf> = [&files.tesseract, &files.qpdf, &files.ghostscript]
+            .into_iter()
+            .flatten()
+            .map(|dir| short_path(dir))
+            .collect();
         if !tools.is_empty() {
             let mut path = std::ffi::OsString::new();
             for dir in &tools {
@@ -311,6 +323,60 @@ fn free_port() -> Result<u16, String> {
         .and_then(|listener| listener.local_addr())
         .map(|addr| addr.port())
         .map_err(|err| format!("Yerel motor için kapı bulunamadı: {err}"))
+}
+
+fn ghostscript_bin(root: &Path) -> Option<PathBuf> {
+    let bundled = root.join("gs").join("bin");
+    if gs_exe(&bundled).is_some() {
+        return Some(bundled);
+    }
+    system_ghostscript_bin()
+}
+
+fn gs_exe(dir: &Path) -> Option<PathBuf> {
+    ["gs.exe", "gswin64c.exe", "gswin32c.exe"]
+        .into_iter()
+        .map(|name| dir.join(name))
+        .find(|path| path.is_file())
+}
+
+fn system_ghostscript_bin() -> Option<PathBuf> {
+    let pf = std::env::var_os("ProgramFiles")?;
+    let mut found = None;
+    if let Ok(entries) = std::fs::read_dir(PathBuf::from(pf).join("gs")) {
+        for entry in entries.flatten() {
+            let bin = entry.path().join("bin");
+            if gs_exe(&bin).is_some() {
+                found = Some(bin);
+            }
+        }
+    }
+    found
+}
+
+/// Stirling looks for `gs --version`. Windows ships `gswin64c.exe`.
+fn ensure_gs_alias(dir: &Path) {
+    let gs = dir.join("gs.exe");
+    if gs.is_file() {
+        return;
+    }
+    if let Some(src) = gs_exe(dir) {
+        let _ = std::fs::copy(src, gs);
+    }
+}
+
+fn ghostscript_lib(bin: &Path) -> Option<std::ffi::OsString> {
+    let root = bin.parent()?;
+    let mut value = std::ffi::OsString::new();
+    for folder in [root.join("lib"), root.join("Resource").join("Init")] {
+        if folder.is_dir() {
+            if !value.is_empty() {
+                value.push(";");
+            }
+            value.push(short_path(&folder));
+        }
+    }
+    (!value.is_empty()).then_some(value)
 }
 
 /// Earlier builds renamed the real binary to `qpdf-real.exe` and put a shim on
@@ -459,6 +525,16 @@ mod tests {
     fn accepts_stirling_tool_paths() {
         assert!(is_local_api_path("/api/v1/general/merge-pdfs"));
         assert!(is_local_api_path("/api/v1/convert/pdf/img"));
+    }
+
+    #[test]
+    fn ghostscript_alias_uses_gswin64c() {
+        let dir = std::env::temp_dir().join(format!("securipdf-gs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("gswin64c.exe"), b"gs").unwrap();
+        super::ensure_gs_alias(&dir);
+        assert!(dir.join("gs.exe").is_file());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

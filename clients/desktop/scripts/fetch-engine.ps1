@@ -35,6 +35,12 @@ $qpdfFiles = @(
     "qpdf.exe", "qpdf30.dll", "concrt140.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll",
     "msvcp140_atomic_wait.dll", "msvcp140_codecvt_ids.dll", "vcruntime140.dll", "vcruntime140_1.dll"
 )
+# Stirling PDF/A and PDF/X look for `gs` on PATH. Windows Ghostscript is gswin64c.exe.
+$gsVersion = "10.06.0"
+$gsSetup = @{
+    Url = "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10060/gs10060w64.exe"
+    Sha256 = "8d552205c0fe87a16bac2f377c8a1b090cfcbc610db7c281bd6a646b39c9c468"
+}
 $languages = @{
     tur = "e0c3338dc17503dc7d335a507c9ae01b2b46cfd07561171e1e1ac55d85e8e438"
     eng = "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba"
@@ -144,6 +150,29 @@ try {
         Copy-Item (Join-Path $qpdfBin $file) $qpdfDir
     }
 
+    $gsArchive = Join-Path $tmp "gs-setup.exe"
+    Get-Verified $gsSetup.Url $gsSetup.Sha256 $gsArchive
+    $gsUnpacked = Join-Path $tmp "gs"
+    & $SevenZip x $gsArchive "-o$gsUnpacked" -y | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Ghostscript paketi açılamadı" }
+    # NSIS installer extracts bin/ at the archive root; older zips nest one folder.
+    $gsRoot = $null
+    if (Test-Path (Join-Path $gsUnpacked "bin\gswin64c.exe")) {
+        $gsRoot = Get-Item $gsUnpacked
+    } else {
+        $gsRoot = Get-ChildItem $gsUnpacked -Directory -Recurse | Where-Object {
+            Test-Path (Join-Path $_.FullName "bin\gswin64c.exe")
+        } | Select-Object -First 1
+    }
+    if (-not $gsRoot) { throw "Ghostscript bin\gswin64c.exe bulunamadı" }
+    $gsDir = Join-Path $engine "gs"
+    New-Item -ItemType Directory -Path $gsDir | Out-Null
+    foreach ($name in @("bin", "lib", "Resource", "iccprofiles")) {
+        $from = Join-Path $gsRoot.FullName $name
+        if (Test-Path $from) { Copy-Item $from (Join-Path $gsDir $name) -Recurse }
+    }
+    Copy-Item (Join-Path $gsDir "bin\gswin64c.exe") (Join-Path $gsDir "bin\gs.exe") -Force
+
     $jvmOptions | Set-Content -Encoding ASCII (Join-Path $engine "jvm.args")
     $engineEnv.Keys | Sort-Object | ForEach-Object { "$_=$($engineEnv[$_])" } |
         Set-Content -Encoding ASCII (Join-Path $engine "engine.env")
@@ -179,6 +208,7 @@ try {
         java = $jre[0].release_name
         tesseract = $tesseractVersion
         qpdf = $qpdfVersion
+        ghostscript = $gsVersion
         tessdata = "tessdata_best 4.1.0: " + (($languages.Keys | Sort-Object) -join ", ")
     } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $engine "engine.json")
     Write-Host "Yerel motor hazır: $engine"

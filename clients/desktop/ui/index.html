@@ -75,6 +75,12 @@
           <div id="fields" class="fields"></div>
           <p class="error" id="formError" role="alert"></p>
           <button id="run" type="submit" class="primary">Çalıştır</button>
+          <div class="work-progress" id="workProgress" hidden>
+            <div class="progress" role="progressbar" aria-label="İşleniyor" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar indeterminate" id="workBar"></div>
+            </div>
+            <p class="work-progress-label" id="workLabel">İşleniyor…</p>
+          </div>
           <div class="viewer-actions">
             <button id="openViewer" type="button" class="primary" hidden>Görüntüleyicide aç</button>
             <button id="toWord" type="button" class="secondary" hidden>Word'e dönüştür</button>

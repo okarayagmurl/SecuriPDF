@@ -41,7 +41,7 @@ Kurulum paketindeki uygulama ilk kullanımda 15 günlük deneme lisansı açar (
 
 Üst çubuktaki "Gezgin sağ tık menüsü" kutusu PDF, Office ve UDF dosyalarına bir "SecuriPDF" alt menüsü ekler (OCR, Word'e, UDF'e, PDF'e, PDF/A'ya dönüştür, sıkıştır). Kayıtlar yönetici izni gerektirmeyen `HKCU\Software\Classes\SystemFileAssociations` altındadır; kutu kapatılınca ve uygulama kaldırılınca (`windows/hooks.nsh`) silinir.
 
-Onarma ve kayıpsız sıkıştırma için qpdf 12.4.2 paketlenir (`fetch-engine.ps1`). Onarma motora bırakılmaz; uygulama qpdf'i doğrudan çalıştırır (`src/qpdf.rs`). Ghostscript gerektiren sıkıştırma düzeyleri (6–9) paketlenmez.
+Onarma ve kayıpsız sıkıştırma için qpdf 12.4.2 paketlenir (`fetch-engine.ps1`). Onarma motora bırakılmaz; uygulama qpdf'i doğrudan çalıştırır (`src/qpdf.rs`). PDF/A ve PDF/X için Ghostscript 10.06.0 paketlenir; sıkıştırma düzeyleri 6–9 hâlâ kapalıdır.
 
 Motor yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. Pencere splash boyanıncaya kadar gizli kalır; WebView2 ilk açılışta beyaz ekran göstermez. Açılış, derleme sırasında üretilen Java AOT önbelleği sayesinde yaklaşık 15-20 saniyedir; bu sırada dosya seçilip önizlenebilir. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
 
@@ -61,6 +61,7 @@ cargo tauri build
 - Stirling-PDF 2.14.3 server JAR (açılmış hali `app\`)
 - Temurin 25 JRE (`jre\`)
 - UB Mannheim Tesseract 5.4 (`tesseract\`, yalnızca `tesseract.exe` ve yüklediği DLL'ler)
+- Ghostscript 10.06.0 (`gs\`, `gs.exe` = `gswin64c.exe`); PDF/A ve PDF/X için
 - `tessdata_best` 4.1.0 Türkçe, İngilizce, Arapça, Almanca, Fransızca, İspanyolca ve İtalyanca dil verisi (`tessdata\`); `configs\pdf` dosyasına `user_defined_dpi 500` eklenir, yoksa taranmış belgelerde OCR sonrası sayfalar 7 kat büyük çıkar
 
 Betik ardından motoru bir kez açıp kapatarak AOT önbelleğini (`engine.aot`) eğitir. JVM seçenekleri (`jvm.args`) ve motor ayarları (`engine.env`) da buraya yazılır; uygulama motoru bu dosyalarla başlatır. Önbellek yalnızca aynı seçeneklerle kullanılabildiği için bu iki dosya elle değiştirilmemeli, betik yeniden çalıştırılmalıdır.

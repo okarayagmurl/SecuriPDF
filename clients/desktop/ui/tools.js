@@ -977,7 +977,7 @@
       id: "pdf-to-pdfa",
       category: "convert",
       title: "PDF → PDF/A / PDF/X",
-      description: "PDF'i arşiv (PDF/A) veya baskı (PDF/X) biçimine dönüştürün.",
+      description: "PDF'i arşiv (PDF/A) veya baskı (PDF/X) biçimine dönüştürün. Ghostscript motorla gelir; PDF/X için zorunludur.",
       apiPath: "/api/v1/convert/pdf/pdfa",
       suffix: "arsiv",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
@@ -990,6 +990,9 @@
         ] },
       ],
       constants: { strict: "false" },
+      httpError: (_status, detail) => /ghostscript/i.test(detail || "")
+        ? "PDF/A ve PDF/X dönüşümü Ghostscript ister. Yeni SecuriPDF kurucusunu yükleyin."
+        : "",
     },
     {
       id: "compress-pdf",
