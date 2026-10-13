@@ -10,7 +10,7 @@ const LOAD_OPTIONS = {
   iccUrl: "./vendor/pdfjs/iccs/",
   enableXfa: false,
 };
-const THUMB_WIDTH = 132;
+const THUMB_WIDTH = 104;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -109,17 +109,57 @@ function closeViewer(force = true) {
   return true;
 }
 
-function button(text, title, kind) {
-  const node = el("button", kind === "primary" ? "viewer-btn viewer-btn-primary" : kind === "ghost" ? "viewer-btn viewer-btn-ghost" : "viewer-btn", text);
+const ICONS = {
+  prev: '<polyline points="15 18 9 12 15 6"/>',
+  next: '<polyline points="9 18 15 12 9 6"/>',
+  minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  width: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+  fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  rotate: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  select: '<path d="M4 4l7.5 17 1.8-7 7-1.8z"/>',
+  highlight: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  ink: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  text: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+  edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  print: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  word: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l2 8 2-5 2 5 2-8"/>',
+  pages: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="16.65" y1="16.65" x2="21" y2="21"/>',
+};
+
+function svgIcon(inner) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+
+function button(label, title, kind, icon) {
+  const cls = kind === "primary" ? "viewer-btn viewer-btn-primary"
+    : kind === "ghost" ? "viewer-btn viewer-btn-ghost"
+    : kind === "icon" ? "viewer-btn viewer-btn-icon"
+    : kind === "tool" ? "viewer-btn viewer-btn-tool"
+    : "viewer-btn";
+  const node = el("button", cls);
   node.type = "button";
   if (title) node.title = title;
+  if (icon) node.innerHTML = svgIcon(icon) + (label ? `<span>${label}</span>` : "");
+  else node.textContent = label;
   return node;
 }
 
-function cluster(label, ...items) {
+function cluster(...items) {
   const node = el("div", "viewer-cluster");
-  if (label) node.appendChild(el("span", "viewer-cluster-label", label));
   node.append(...items.filter(Boolean));
+  return node;
+}
+
+function group(caption, ...items) {
+  const node = el("div", "viewer-group");
+  const tools = el("div", "viewer-group-tools");
+  tools.append(...items.filter(Boolean));
+  node.append(tools, el("span", "viewer-group-caption", caption));
   return node;
 }
 
@@ -144,39 +184,49 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const chrome = el("div", "viewer-chrome");
   const top = el("div", "viewer-top");
   const ribbon = el("div", "viewer-ribbon");
-  const hint = el("div", "viewer-hint", MARKS[0].title);
+  const brand = el("img", "viewer-brand");
+  brand.src = "logo-mark.svg";
+  brand.alt = "";
   const name = el("span", "viewer-title", title || "Belge");
   const dirtyBadge = el("span", "viewer-dirty", "Kaydedilmedi");
   dirtyBadge.hidden = true;
   const titleWrap = el("div", "viewer-title-wrap");
-  titleWrap.append(name, dirtyBadge);
+  titleWrap.append(brand, name, dirtyBadge);
 
-  const prev = button("‹", "Önceki sayfa");
+  const prev = button("", "Önceki sayfa", "icon", ICONS.prev);
   const pageInput = el("input", "viewer-page");
   pageInput.type = "number";
   pageInput.min = "1";
   pageInput.title = "Sayfaya git";
   const pageTotal = el("span", "viewer-pos");
-  const next = button("›", "Sonraki sayfa");
+  const next = button("", "Sonraki sayfa", "icon", ICONS.next);
 
-  const zoomOut = button("−", "Uzaklaştır");
+  const pageBox = el("div", "viewer-page-box");
+  pageBox.append(pageInput, pageTotal);
+
+  const zoomOut = button("", "Uzaklaştır", "icon", ICONS.minus);
   const zoomLabel = el("span", "viewer-zoom", "—");
-  const zoomIn = button("+", "Yakınlaştır");
-  const fitWidth = button("Genişlik", "Sayfa genişliğine sığdır");
-  const fitPage = button("Sayfa", "Tüm sayfayı göster");
-  const rotate = button("90°", "Sayfaları 90° döndür");
+  const zoomIn = button("", "Yakınlaştır", "icon", ICONS.plus);
+  const fitWidth = button("Genişlik", "Sayfa genişliğine sığdır", "tool", ICONS.width);
+  const fitPage = button("Sığdır", "Tüm sayfayı göster", "tool", ICONS.fit);
+  const rotate = button("Döndür", "Sayfaları 90° döndür", "tool", ICONS.rotate);
 
   const find = el("input", "viewer-find");
   find.type = "search";
-  find.placeholder = "Belgede ara  Ctrl+F";
-  const findPrev = button("‹", "Önceki eşleşme");
-  const findNext = button("›", "Sonraki eşleşme");
+  find.placeholder = "Belgede ara";
+  find.setAttribute("aria-label", "Belgede ara (Ctrl+F)");
+  const findPrev = button("", "Önceki eşleşme", "icon", ICONS.prev);
+  const findNext = button("", "Sonraki eşleşme", "icon", ICONS.next);
   const findCount = el("span", "viewer-count");
+  const searchBox = el("div", "viewer-search");
+  const searchIcon = el("span", "viewer-search-icon");
+  searchIcon.innerHTML = svgIcon(ICONS.search);
+  searchBox.append(searchIcon, find, findPrev, findNext, findCount);
 
-  const marks = el("div", "viewer-cluster viewer-marks");
-  marks.appendChild(el("span", "viewer-cluster-label", "Düzenle"));
-  const markButtons = MARKS.map((mark) => {
-    const node = button(mark.label, mark.title);
+  const marks = el("div", "viewer-marks");
+  const markIcons = [ICONS.select, ICONS.highlight, ICONS.ink, ICONS.text, ICONS.image];
+  const markButtons = MARKS.map((mark, index) => {
+    const node = button(mark.label, mark.title, "tool", markIcons[index]);
     node.dataset.mode = String(mark.mode);
     marks.appendChild(node);
     return node;
@@ -186,28 +236,34 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
-  const replace = button("Metni değiştir", "Seçili satırı kapatıp yerine yazın. Satırlar kaymaz.");
-  const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost");
-  const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost") : null;
-  const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary");
+  const replace = button("Metni değiştir", "Seçili satırı kapatıp yerine yazın. Satırlar kaymaz.", "tool", ICONS.edit);
+  const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
+  const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
+  const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
   save.disabled = true;
-  const close = button("Kapat", "Görüntüleyiciyi kapat (Esc)", "ghost");
+  const close = button("", "Görüntüleyiciyi kapat (Esc)", "icon", ICONS.close);
+  close.classList.add("viewer-btn-close");
 
-  top.append(
-    titleWrap,
-    cluster(null, find, findPrev, findNext, findCount),
-    cluster(null, ...[printBtn, toWord, save, close].filter(Boolean)),
-  );
+  top.append(titleWrap, searchBox, cluster(...[printBtn, toWord, save].filter(Boolean)), close);
   ribbon.append(
-    cluster("Sayfa", prev, pageInput, pageTotal, next),
-    cluster("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
-    marks,
-    cluster(null, replace),
+    group("Sayfa", prev, pageBox, next),
+    group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
+    group("İşaretle", marks),
+    group("Düzenle", replace),
   );
-  chrome.append(top, ribbon, hint);
+  chrome.append(top, ribbon);
   const workspace = el("div", "viewer-workspace");
-  const thumbs = el("div", "viewer-thumbs");
-  thumbs.hidden = true;
+  const thumbs = el("aside", "viewer-thumbs");
+  const thumbsHead = el("div", "viewer-thumbs-head");
+  const thumbsTitle = el("strong", null, "Sayfalar");
+  const thumbsToggle = button("", "Sayfa listesini gizle veya göster", "icon", ICONS.pages);
+  thumbsHead.append(thumbsTitle, thumbsToggle);
+  const thumbsList = el("div", "viewer-thumbs-list");
+  thumbs.append(thumbsHead, thumbsList);
+  thumbsToggle.onclick = () => {
+    root.classList.toggle("thumbs-collapsed");
+    thumbsToggle.title = root.classList.contains("thumbs-collapsed") ? "Sayfa listesini göster" : "Sayfa listesini gizle";
+  };
   const body = el("div", "viewer-body");
   const stage = el("div", "viewer-stage");
   const pages = el("div", "pdfViewer");
@@ -215,7 +271,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
   stage.appendChild(pages);
   body.append(stage, loading);
   workspace.append(thumbs, body);
-  root.append(chrome, workspace);
+  const status = el("div", "viewer-status");
+  const statusPage = el("span", "viewer-status-page", "Sayfa —");
+  const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
+  const statusKeys = el("span", "viewer-status-keys", "Ctrl+S kaydet · Ctrl+F ara · Esc kapat");
+  const statusZoom = el("span", "viewer-status-zoom", "—");
+  status.append(statusPage, statusMode, statusKeys, statusZoom);
+  root.append(chrome, workspace, status);
   document.body.appendChild(root);
 
   const eventBus = new lib.EventBus();
@@ -270,7 +332,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
   } catch {
     if (viewer === current) {
       loading.textContent = "PDF açılamadı.";
-      thumbs.hidden = true;
     }
     return;
   }
@@ -288,33 +349,30 @@ async function openViewer(source, pageNumber, title, options = {}) {
   pageTotal.textContent = `/ ${doc.numPages}`;
   pageInput.max = String(doc.numPages);
 
-  const thumbWidth = 96;
-  if (doc.numPages > 1) {
-    thumbs.hidden = false;
-    const observer = new IntersectionObserver((items) => {
-      items.forEach((item) => {
-        if (!item.isIntersecting) return;
-        observer.unobserve(item.target);
-        const number = Number(item.target.dataset.page);
-        doc.getPage(number)
-          .then((page) => renderPage(page, item.target.querySelector("canvas"), thumbWidth))
-          .catch(() => {});
-      });
-    }, { root: thumbs, rootMargin: "200px" });
-    current.thumbsObserver = observer;
-    for (let number = 1; number <= doc.numPages; number++) {
-      const cell = el("button", "viewer-thumb");
-      cell.type = "button";
-      cell.dataset.page = String(number);
-      cell.title = `Sayfa ${number}`;
-      const canvas = el("canvas");
-      canvas.style.width = thumbWidth + "px";
-      canvas.style.height = Math.round(thumbWidth * 1.41) + "px";
-      cell.append(canvas, el("span", null, String(number)));
-      cell.onclick = () => { pdfViewer.currentPageNumber = number; };
-      thumbs.appendChild(cell);
-      observer.observe(cell);
-    }
+  thumbsTitle.textContent = `${doc.numPages} sayfa`;
+  const observer = new IntersectionObserver((items) => {
+    items.forEach((item) => {
+      if (!item.isIntersecting) return;
+      observer.unobserve(item.target);
+      const number = Number(item.target.dataset.page);
+      doc.getPage(number)
+        .then((page) => renderPage(page, item.target.querySelector("canvas"), THUMB_WIDTH))
+        .catch(() => {});
+    });
+  }, { root: thumbsList, rootMargin: "200px" });
+  current.thumbsObserver = observer;
+  for (let number = 1; number <= doc.numPages; number++) {
+    const cell = el("button", "viewer-thumb");
+    cell.type = "button";
+    cell.dataset.page = String(number);
+    cell.title = `Sayfa ${number}`;
+    const canvas = el("canvas");
+    canvas.style.width = THUMB_WIDTH + "px";
+    canvas.style.height = Math.round(THUMB_WIDTH * 1.41) + "px";
+    cell.append(canvas, el("span", null, String(number)));
+    cell.onclick = () => { pdfViewer.currentPageNumber = number; };
+    thumbsList.appendChild(cell);
+    observer.observe(cell);
   }
 
   eventBus.on("pagesinit", () => {
@@ -324,15 +382,20 @@ async function openViewer(source, pageNumber, title, options = {}) {
   });
   eventBus.on("pagechanging", ({ pageNumber: number }) => {
     pageInput.value = String(number);
+    statusPage.textContent = `Sayfa ${number} / ${doc.numPages}`;
     prev.disabled = number <= 1;
     next.disabled = number >= doc.numPages;
-    thumbs.querySelectorAll(".viewer-thumb").forEach((node) => {
+    thumbsList.querySelectorAll(".viewer-thumb").forEach((node) => {
       const currentPage = node.dataset.page === String(number);
       node.classList.toggle("current", currentPage);
       if (currentPage) node.scrollIntoView({ block: "nearest" });
     });
   });
-  eventBus.on("scalechanging", ({ scale }) => { zoomLabel.textContent = Math.round(scale * 100) + "%"; });
+  eventBus.on("scalechanging", ({ scale }) => {
+    const shown = Math.round(scale * 100) + "%";
+    zoomLabel.textContent = shown;
+    statusZoom.textContent = shown;
+  });
 
   prev.onclick = () => pdfViewer.previousPage();
   next.onclick = () => pdfViewer.nextPage();
@@ -403,7 +466,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return;
     }
     markButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === String(mark.mode)));
-    hint.textContent = mark.title;
+    statusMode.textContent = mark.title;
     color.hidden = !mark.color;
     if (mark.mode === pdfjs.AnnotationEditorType.HIGHLIGHT) {
       eventBus.dispatch("switchannotationeditorparams", {
@@ -629,7 +692,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const openReplace = () => {
     const found = captureSelection() || pendingReplace;
     if (!found || !found.boxes) {
-      hint.textContent = "Önce Seç kipinde değiştirilecek metni işaretleyin. Satırlar kaymaz; uzun düzenleme için Word kullanın.";
+      statusMode.textContent = "Önce Seç kipinde değiştirilecek metni işaretleyin. Satırlar kaymaz; uzun düzenleme için Word kullanın.";
       return;
       return;
     }
