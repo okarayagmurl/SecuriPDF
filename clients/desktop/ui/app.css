@@ -685,10 +685,12 @@ button:disabled { opacity: 0.55; cursor: default; }
   border-radius: 4px;
   background: #fff;
   color: #0f172a;
-  padding: 0 6px;
+  padding: 2px 6px;
   font-family: "Segoe UI", sans-serif;
   font-weight: 500;
-  line-height: 1;
+  line-height: 1.25;
+  resize: none;
+  overflow: auto;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 .replace-field[hidden], .replace-actions[hidden] { display: none; }

@@ -236,7 +236,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
-  const replace = button("Metni değiştir", "Seçili satırı kapatıp yerine yazın. Satırlar kaymaz.", "tool", ICONS.edit);
+  const replace = button("Metni değiştir", "Seçilen paragrafta satırlar bu blokta kayar. Alttaki paragraflar yerinde kalır.", "tool", ICONS.edit);
   const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
   const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
   const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
@@ -498,10 +498,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     event.preventDefault();
   });
 
-  const field = el("input", "replace-field");
-  field.type = "text";
+  const field = el("textarea", "replace-field");
   field.hidden = true;
+  field.rows = 2;
   field.setAttribute("aria-label", "Yeni metin");
+  field.setAttribute("spellcheck", "false");
   const actions = el("div", "replace-actions");
   actions.hidden = true;
   const fontColor = el("input", "replace-color");
@@ -554,6 +555,85 @@ async function openViewer(source, pageNumber, title, options = {}) {
     pendingReplace = null;
   };
 
+  const padBox = (rect, pad) => ({
+    left: rect.left - pad,
+    top: rect.top - pad,
+    right: rect.right + pad,
+    bottom: rect.bottom + pad,
+    width: rect.width + pad * 2,
+    height: rect.height + pad * 2,
+  });
+
+  const paragraphAround = (pageEl, seed) => {
+    const spans = Array.from(pageEl.querySelectorAll(".textLayer span")).map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        text: node.textContent || "",
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    }).filter((item) => item.width > 1 && item.height > 1 && item.text.trim());
+    const hits = spans.filter((item) =>
+      item.left < seed.right && item.right > seed.left && item.top < seed.bottom && item.bottom > seed.top);
+    if (!hits.length) return null;
+    const sortedHit = hits.slice().sort((a, b) => a.left - b.left);
+    const colLeft = sortedHit[Math.floor(sortedHit.length / 2)].left;
+    const lineH = hits.slice().sort((a, b) => a.height - b.height)[Math.floor(hits.length / 2)].height;
+    const included = new Set(hits);
+    let growing = true;
+    while (growing) {
+      growing = false;
+      const members = Array.from(included);
+      const top = Math.min(...members.map((item) => item.top));
+      const bottom = Math.max(...members.map((item) => item.bottom));
+      const right = Math.max(...members.map((item) => item.right));
+      spans.forEach((item) => {
+        if (included.has(item)) return;
+        const sameCol = Math.abs(item.left - colLeft) <= 28 || (item.left >= colLeft - 10 && item.left < right);
+        const near = item.top <= bottom + lineH * 1.35 && item.bottom >= top - lineH * 1.35;
+        if (sameCol && near) {
+          included.add(item);
+          growing = true;
+        }
+      });
+    }
+    const list = Array.from(included).sort((a, b) => a.top - b.top || a.left - b.left);
+    const pad = Math.max(3, lineH * 0.22);
+    const boxes = list.map((item) => padBox(item, pad));
+    return {
+      text: list.map((item) => item.text).join("").replace(/\s+/g, " ").trim(),
+      boxes,
+      wrapWidth: Math.max(...boxes.map((box) => box.width)),
+    };
+  };
+
+  const wrapLines = (ctx, text, maxWidth) => {
+    const lines = [];
+    String(text).replace(/\r/g, "").split("\n").forEach((block) => {
+      const words = block.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+      if (!words.length) {
+        lines.push("");
+        return;
+      }
+      let current = "";
+      words.forEach((word) => {
+        const trial = current ? current + " " + word : word;
+        if (current && ctx.measureText(trial).width > maxWidth) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = trial;
+        }
+      });
+      if (current) lines.push(current);
+    });
+    return lines.length ? lines : [""];
+  };
+
   const captureSelection = () => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !root.contains(sel.anchorNode)) return null;
@@ -571,21 +651,28 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const originEl = pageEl.querySelector(".canvasWrapper") || pageEl.querySelector("canvas") || pageEl;
     const origin = originEl.getBoundingClientRect();
     const pad = Math.max(3, screen[0].height * 0.22);
-    const boxes = screen.map((rect) => ({
-      left: rect.left - pad,
-      top: rect.top - pad,
-      right: rect.right + pad,
-      bottom: rect.bottom + pad,
-      width: rect.width + pad * 2,
-      height: rect.height + pad * 2,
-    }));
+    let boxes = screen.map((rect) => padBox(rect, pad));
+    const seed = {
+      left: Math.min(...boxes.map((box) => box.left)),
+      top: Math.min(...boxes.map((box) => box.top)),
+      right: Math.max(...boxes.map((box) => box.right)),
+      bottom: Math.max(...boxes.map((box) => box.bottom)),
+    };
+    const paragraph = paragraphAround(pageEl, seed);
+    let wrapWidth = Math.max(...boxes.map((box) => box.width));
+    let value = text;
+    if (paragraph && paragraph.boxes.length) {
+      boxes = paragraph.boxes;
+      wrapWidth = paragraph.wrapWidth;
+      value = paragraph.text;
+    }
     const toPdf = (x, y) => view.getPagePoint(x - origin.left, y - origin.top);
     const pdfOf = (box) => {
       const a = toPdf(box.left, box.top);
       const b = toPdf(box.right, box.bottom);
       return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
     };
-    return { text, pageNumber, pageEl, originEl, view, boxes, pdfRects: boxes.map(pdfOf) };
+    return { text: value, pageNumber, pageEl, originEl, view, boxes, pdfRects: boxes.map(pdfOf), wrapWidth };
   };
 
   const showReplace = (found) => {
@@ -602,18 +689,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
       covers.push(cover);
     });
     const first = found.boxes[0];
+    const last = found.boxes[found.boxes.length - 1];
+    const blockWidth = found.wrapWidth || Math.max(...found.boxes.map((box) => box.width));
+    const blockHeight = Math.max(last.bottom - first.top, first.height);
     field.style.left = (first.left - pageBox.left) + "px";
     field.style.top = (first.top - pageBox.top) + "px";
-    field.style.width = Math.max(first.width, 160) + "px";
-    field.style.height = first.height + "px";
+    field.style.width = Math.max(blockWidth, 160) + "px";
+    field.style.height = Math.max(blockHeight, 36) + "px";
     field.value = found.text;
     fontSizeInput.value = String(Math.round(Math.max(8, first.height * 0.72)));
     field.style.fontSize = fontSizeInput.value + "px";
     field.style.fontFamily = fontFamily.value;
     field.style.color = fontColor.value || "#0f172a";
+    field.style.lineHeight = "1.25";
     field.hidden = false;
     found.pageEl.appendChild(field);
-    const last = found.boxes[found.boxes.length - 1];
     actions.style.left = (first.left - pageBox.left) + "px";
     actions.style.top = (last.bottom - pageBox.top + 6) + "px";
     actions.hidden = false;
@@ -648,7 +738,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       hideReplace();
       return;
     }
-    const { pageNumber, boxes, pdfRects, view } = pendingReplace;
+    const { pageNumber, boxes, view, wrapWidth } = pendingReplace;
     const pageIndex = pageNumber - 1;
     const first = boxes[0];
     const fontSize = Math.max(8, Number(fontSizeInput.value) || first.height * 0.72);
@@ -657,12 +747,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const scale = 3;
     const measure = document.createElement("canvas").getContext("2d");
     measure.font = `500 ${fontSize * scale}px ${face}`;
-    const extra = Math.max(0, measure.measureText(next).width / scale + 6 - first.width);
+    const column = Math.max(40, wrapWidth || Math.max(...boxes.map((box) => box.width)));
+    const lines = wrapLines(measure, next, (column - 6) * scale);
+    const lineHeight = fontSize * 1.25;
     const union = {
       left: Math.min(...boxes.map((box) => box.left)),
       top: Math.min(...boxes.map((box) => box.top)),
-      right: Math.max(...boxes.map((box) => box.right)) + extra,
-      bottom: Math.max(...boxes.map((box) => box.bottom)),
+      right: Math.min(...boxes.map((box) => box.left)) + column,
+      bottom: Math.max(...boxes.map((box) => box.bottom), Math.min(...boxes.map((box) => box.top)) + lines.length * lineHeight + 4),
     };
     union.width = union.right - union.left;
     union.height = union.bottom - union.top;
@@ -676,14 +768,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    pdfRects.forEach((_, index) => {
-      const box = boxes[index];
+    boxes.forEach((box) => {
       ctx.fillRect((box.left - union.left) * scale, (box.top - union.top) * scale, box.width * scale, box.height * scale);
     });
     ctx.fillStyle = ink;
     ctx.font = `500 ${fontSize * scale}px ${face}`;
-    ctx.textBaseline = "middle";
-    ctx.fillText(next, (first.left - union.left) * scale + 2, (first.top - union.top + first.height / 2) * scale);
+    ctx.textBaseline = "top";
+    lines.forEach((line, index) => {
+      ctx.fillText(line, 2 * scale, (2 + index * lineHeight) * scale);
+    });
     const layer = await stampLayer(pageIndex);
     const packed = uiManager && uiManager.imageManager && uiManager.imageManager.getFromCanvas
       ? uiManager.imageManager.getFromCanvas("spf-" + Date.now(), canvas)
@@ -717,7 +810,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const openReplace = () => {
     const found = captureSelection() || pendingReplace;
     if (!found || !found.boxes) {
-      statusMode.textContent = "Önce Seç kipinde değiştirilecek metni işaretleyin. Satırlar kaymaz; uzun düzenleme için Word kullanın.";
+      statusMode.textContent = "Önce Seç kipinde değiştirilecek paragrafı işaretleyin. Satırlar bu blokta kayar; alttaki paragraflar yerinde kalır.";
       return;
     }
     showReplace(found);
@@ -731,7 +824,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   applyBtn.onclick = () => applyReplace();
   cancelBtn.onclick = hideReplace;
   field.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") { event.preventDefault(); applyReplace(); }
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
   });
 
