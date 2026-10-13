@@ -106,10 +106,27 @@ body {
   transition: width 0.6s ease;
 }
 .progress.failed .progress-bar { width: 100% !important; background: var(--danger); }
-.work-progress { margin: 14px 0 4px; }
-.work-progress[hidden] { display: none; }
-body.viewing .work-progress { display: none; }
-.work-progress-label { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.work-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 16px 20px 22px;
+  background: linear-gradient(transparent, rgba(248, 250, 252, 0.94) 28%);
+  pointer-events: none;
+}
+.work-overlay[hidden] { display: none; }
+.work-overlay-card {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 12px 16px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.work-progress-label { margin: 8px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
 .progress-bar.indeterminate {
   width: 36% !important;
   animation: work-slide 1.15s ease-in-out infinite;

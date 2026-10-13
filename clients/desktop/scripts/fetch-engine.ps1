@@ -172,6 +172,9 @@ try {
         if (Test-Path $from) { Copy-Item $from (Join-Path $gsDir $name) -Recurse }
     }
     Copy-Item (Join-Path $gsDir "bin\gswin64c.exe") (Join-Path $gsDir "bin\gs.exe") -Force
+    # Older engine builds only prepend qpdf/tesseract to PATH; keep `gs` there too.
+    Copy-Item (Join-Path $gsDir "bin\gs.exe") (Join-Path $qpdfDir "gs.exe") -Force
+    Copy-Item (Join-Path $gsDir "bin\gsdll64.dll") (Join-Path $qpdfDir "gsdll64.dll") -Force
 
     $jvmOptions | Set-Content -Encoding ASCII (Join-Path $engine "jvm.args")
     $engineEnv.Keys | Sort-Object | ForEach-Object { "$_=$($engineEnv[$_])" } |

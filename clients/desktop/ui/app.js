@@ -52,18 +52,22 @@
     POLICY_SHELL: "Gezgin menüsü kurum ilkesiyle kilitli.",
     POLICY_TOOL: "Kurum ilkesi bu aracı kapatmış.",
     POLICY_GROUP: "Kurum ilkesi bu kullanıcıya SecuriPDF izni vermiyor.",
-    GHOSTSCRIPT_MISSING: "PDF/A ve PDF/X dönüşümü Ghostscript ister. Yeni SecuriPDF kurucusunu yükleyin.",
+    GHOSTSCRIPT_MISSING: "PDF/A ve PDF/X dönüşümü Ghostscript ister. SecuriPDF'i kapatıp yeniden açın; sürmezse yeni kurucuyu yükleyin.",
   };
+
+  function isGhostscriptFailure(text) {
+    return /ghostscript|pdf\/?x conversion|pdf\/?a conversion failed/i.test(text || "");
+  }
 
   function errorText(err) {
     const code = typeof err === "string" ? err : (err && err.message) || String(err);
     if (ERRORS[code]) return ERRORS[code];
     const prefixed = Object.keys(ERRORS).find((key) => code.startsWith(key + ":"));
     if (prefixed) return ERRORS[prefixed];
-    if (/ghostscript/i.test(code)) return ERRORS.GHOSTSCRIPT_MISSING;
+    if (isGhostscriptFailure(code)) return ERRORS.GHOSTSCRIPT_MISSING;
     const http = /^LOCAL_HTTP_(\d+)(?::([\s\S]*))?$/.exec(code);
     if (http) {
-      if (/ghostscript/i.test(http[2] || "")) return ERRORS.GHOSTSCRIPT_MISSING;
+      if (isGhostscriptFailure(http[2] || "")) return ERRORS.GHOSTSCRIPT_MISSING;
       const specific = state.tool && state.tool.httpError && state.tool.httpError(Number(http[1]), http[2] || "");
       if (specific) return specific;
       return Number(http[1]) >= 500
@@ -246,9 +250,9 @@
   }
 
   let workTimer = null;
+  let workDepth = 0;
 
-  function startWork(label) {
-    state.busy = true;
+  function showWork(label) {
     const box = $("workProgress");
     const bar = $("workBar");
     const text = $("workLabel");
@@ -266,21 +270,18 @@
       const seconds = Math.floor((Date.now() - started) / 1000);
       text.textContent = seconds ? `${title} ${seconds} sn` : title;
     }, 250);
+  }
+
+  function beginWork(label) {
+    workDepth += 1;
+    state.busy = true;
+    if (workDepth === 1) showWork(label);
     updateRunButton();
   }
 
-  function setWorkFraction(done, total) {
-    const bar = $("workBar");
-    const text = $("workLabel");
-    if (bar) {
-      bar.classList.remove("indeterminate");
-      bar.style.width = Math.max(6, Math.round((done / Math.max(total, 1)) * 100)) + "%";
-    }
-    if (text) text.textContent = `İşleniyor… ${done}/${total}`;
-    $("run").textContent = `İşleniyor… ${done}/${total}`;
-  }
-
-  function stopWork() {
+  function endWork() {
+    workDepth = Math.max(0, workDepth - 1);
+    if (workDepth > 0) return;
     state.busy = false;
     if (workTimer) {
       clearInterval(workTimer);
@@ -294,6 +295,26 @@
       bar.style.width = "";
     }
     updateRunButton();
+  }
+
+  async function withWork(label, fn) {
+    beginWork(label);
+    try {
+      return await fn();
+    } finally {
+      endWork();
+    }
+  }
+
+  function setWorkFraction(done, total) {
+    const bar = $("workBar");
+    const text = $("workLabel");
+    if (bar) {
+      bar.classList.remove("indeterminate");
+      bar.style.width = Math.max(6, Math.round((done / Math.max(total, 1)) * 100)) + "%";
+    }
+    if (text) text.textContent = `İşleniyor… ${done}/${total}`;
+    $("run").textContent = `İşleniyor… ${done}/${total}`;
   }
 
   function updateRunButton() {
@@ -864,15 +885,17 @@
   }
 
   async function callEngine(apiPath, form) {
-    const request = new Request("http://local.invalid/", { method: "POST", body: form });
-    const body = new Uint8Array(await request.arrayBuffer());
-    const output = await core.invoke("run_local_tool", body, {
-      headers: {
-        "x-securipdf-api-path": apiPath,
-        "x-securipdf-content-type": request.headers.get("content-type"),
-      },
+    return withWork("İşleniyor…", async () => {
+      const request = new Request("http://local.invalid/", { method: "POST", body: form });
+      const body = new Uint8Array(await request.arrayBuffer());
+      const output = await core.invoke("run_local_tool", body, {
+        headers: {
+          "x-securipdf-api-path": apiPath,
+          "x-securipdf-content-type": request.headers.get("content-type"),
+        },
+      });
+      return new Uint8Array(output);
     });
-    return new Uint8Array(output);
   }
 
   async function engineGet(apiPath) {
@@ -880,22 +903,26 @@
   }
 
   async function htmlToPdf(html, page) {
-    return new Uint8Array(await core.invoke("html_to_pdf", { html, page }));
+    return withWork("PDF üretiliyor…", async () => new Uint8Array(await core.invoke("html_to_pdf", { html, page })));
   }
 
   async function scan(file) {
-    const body = new Uint8Array(await file.arrayBuffer());
-    return JSON.parse(await core.invoke("scan_file", body, {
-      headers: { "x-securipdf-file-name": encodeURIComponent(file.name) },
-    }));
+    return withWork("Taranıyor…", async () => {
+      const body = new Uint8Array(await file.arrayBuffer());
+      return JSON.parse(await core.invoke("scan_file", body, {
+        headers: { "x-securipdf-file-name": encodeURIComponent(file.name) },
+      }));
+    });
   }
 
   async function repair(file) {
-    const body = new Uint8Array(await file.arrayBuffer());
-    const output = await core.invoke("repair_pdf", body, {
-      headers: { "x-securipdf-file-name": encodeURIComponent(file.name) },
+    return withWork("Onarılıyor…", async () => {
+      const body = new Uint8Array(await file.arrayBuffer());
+      const output = await core.invoke("repair_pdf", body, {
+        headers: { "x-securipdf-file-name": encodeURIComponent(file.name) },
+      });
+      return new Uint8Array(output);
     });
-    return new Uint8Array(output);
   }
 
   async function makeQr(text) {
@@ -903,21 +930,25 @@
   }
 
   async function addFormFields(bytes, fields) {
-    const output = await core.invoke("add_form_fields", bytes, {
-      headers: { "x-securipdf-form-fields": encodeURIComponent(JSON.stringify(fields)) },
+    return withWork("Form alanı ekleniyor…", async () => {
+      const output = await core.invoke("add_form_fields", bytes, {
+        headers: { "x-securipdf-form-fields": encodeURIComponent(JSON.stringify(fields)) },
+      });
+      return new Uint8Array(output);
     });
-    return new Uint8Array(output);
   }
 
   async function office(file, format) {
-    const body = new Uint8Array(await file.arrayBuffer());
-    const output = await core.invoke("office_convert", body, {
-      headers: {
-        "x-securipdf-file-name": encodeURIComponent(file.name),
-        "x-securipdf-office-format": format,
-      },
+    return withWork("Dönüştürülüyor…", async () => {
+      const body = new Uint8Array(await file.arrayBuffer());
+      const output = await core.invoke("office_convert", body, {
+        headers: {
+          "x-securipdf-file-name": encodeURIComponent(file.name),
+          "x-securipdf-office-format": format,
+        },
+      });
+      return new Uint8Array(output);
     });
-    return new Uint8Array(output);
   }
 
   async function execute(tool, values, files = state.files) {
@@ -977,38 +1008,40 @@
   async function openCurrentViewer(file) {
     let source = file || state.preview.file || allFiles()[0];
     if (!source || !/\.pdf$/i.test(source.name || "")) return;
-    await previewReady;
-    const values = readValues();
-    if (values.protectedView) {
-      if (state.engine !== "ready") {
-        $("formError").textContent = "Korumalı açmak için ön gereksinimlerin hazır olması gerekir.";
-        return;
+    return withWork("Açılıyor…", async () => {
+      await previewReady;
+      const values = readValues();
+      if (values.protectedView) {
+        if (state.engine !== "ready") {
+          $("formError").textContent = "Korumalı açmak için ön gereksinimlerin hazır olması gerekir.";
+          return;
+        }
+        const form = new FormData();
+        form.append("fileInput", source, source.name);
+        form.append("removeJavaScript", "true");
+        form.append("removeEmbeddedFiles", "true");
+        form.append("removeLinks", "true");
+        form.append("removeMetadata", "false");
+        form.append("removeXMPMetadata", "false");
+        form.append("removeFonts", "false");
+        const cleaned = await callEngine("/api/v1/security/sanitize-pdf", form);
+        source = new File([cleaned], source.name, { type: "application/pdf" });
       }
-      const form = new FormData();
-      form.append("fileInput", source, source.name);
-      form.append("removeJavaScript", "true");
-      form.append("removeEmbeddedFiles", "true");
-      form.append("removeLinks", "true");
-      form.append("removeMetadata", "false");
-      form.append("removeXMPMetadata", "false");
-      form.append("removeFonts", "false");
-      const cleaned = await callEngine("/api/v1/security/sanitize-pdf", form);
-      source = new File([cleaned], source.name, { type: "application/pdf" });
-    }
-    const stem = (source.name || "belge").replace(/\.[^.]+$/, "") || "belge";
-    const lockPath = source.securipdfPath || source.path;
-    if (lockPath && core) {
-      await core.invoke("lock_opened_file", { path: lockPath }).catch(() => {});
-    }
-    await window.SecuriPreview.openViewer(source, 1, source.name, {
-      password: values.password || undefined,
-      formDesign: state.tool && state.tool.id === "add-form-fields",
-      addFormFields,
-      onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
-      onToWord: () => selectTool("pdf-to-word", [source]),
-      onClose: () => {
-        if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
-      },
+      const stem = (source.name || "belge").replace(/\.[^.]+$/, "") || "belge";
+      const lockPath = source.securipdfPath || source.path;
+      if (lockPath && core) {
+        await core.invoke("lock_opened_file", { path: lockPath }).catch(() => {});
+      }
+      await window.SecuriPreview.openViewer(source, 1, source.name, {
+        password: values.password || undefined,
+        formDesign: state.tool && state.tool.id === "add-form-fields",
+        addFormFields,
+        onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
+        onToWord: () => selectTool("pdf-to-word", [source]),
+        onClose: () => {
+          if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
+        },
+      });
     });
   }
 
@@ -1033,18 +1066,16 @@
     }
     if (state.busy || (needsEngine(state.tool) && state.engine !== "ready")) return;
     const values = readValues();
-    await countSourcePages(values);
-    if (state.busy) return;
-    const problem = validate(values);
-    $("formError").textContent = problem || "";
-    if (problem) return;
-
-    const tool = state.tool;
-    clearResult();
-    refreshPreview();
-    startWork("İşleniyor…");
-    const started = Date.now();
+    beginWork("İşleniyor…");
     try {
+      await countSourcePages(values);
+      const problem = validate(values);
+      $("formError").textContent = problem || "";
+      if (problem) return;
+      const tool = state.tool;
+      clearResult();
+      refreshPreview();
+      const started = Date.now();
       if (state.batch && state.files[tool.files[0].name].length > 1) {
         await runBatch(tool, values, started);
         return;
@@ -1062,7 +1093,7 @@
     } catch (err) {
       $("formError").textContent = errorText(err);
     } finally {
-      stopWork();
+      endWork();
     }
   }
 
@@ -1098,6 +1129,7 @@
     const button = $("saveFolder");
     button.disabled = true;
     try {
+      beginWork("Kaydediliyor…");
       const folder = await core.invoke("choose_output_folder");
       if (!folder) return;
       const files = state.result.outputs.concat([{ name: REPORT_NAME, data: state.result.report }]);
@@ -1108,6 +1140,7 @@
     } catch (err) {
       $("formError").textContent = errorText(err);
     } finally {
+      endWork();
       button.disabled = false;
     }
   }
@@ -1124,7 +1157,7 @@
     const button = $("save");
     button.disabled = true;
     try {
-      const saved = await saveBytes(state.result.bytes, state.result.name);
+      const saved = await withWork("Kaydediliyor…", () => saveBytes(state.result.bytes, state.result.name));
       if (saved) $("resultText").textContent = `Kaydedildi: ${saved}`;
     } catch (err) {
       $("formError").textContent = errorText(err);
@@ -1326,7 +1359,7 @@
         await cliFail("INVALID", problem);
         return;
       }
-      const { bytes, note } = await execute(tool, values);
+      const { bytes, note } = await withWork("İşleniyor…", () => execute(tool, values));
       const headers = { "x-securipdf-file-name": encodeURIComponent(outputName(bytes)) };
       if (note) headers["x-securipdf-cli-note"] = encodeURIComponent(note);
       await cliFinish("ok", bytes, headers);
@@ -1484,6 +1517,7 @@
   }
 
   // Read-only view used by the automated UI tests.
+  window.SecuriWork = { begin: beginWork, end: endWork };
   window.SecuriApp = { lastResult: () => state.result && { name: state.result.name, bytes: state.result.bytes.slice() } };
 
   selectTool("open-pdf");

@@ -394,13 +394,22 @@ async fn http_error(resp: reqwest::Response) -> String {
 }
 
 fn engine_error_detail(body: &str) -> Option<String> {
-    let json: serde_json::Value = serde_json::from_str(body).ok()?;
-    let detail = ["detail", "message", "error"]
-        .iter()
-        .filter_map(|key| json.get(key).and_then(|value| value.as_str()))
-        .map(str::trim)
-        .find(|text| !text.is_empty())?;
-    Some(detail.chars().take(300).collect())
+    let clipped = |text: &str| text.chars().take(300).collect::<String>();
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {
+        let detail = ["detail", "message", "error"]
+            .iter()
+            .filter_map(|key| json.get(key).and_then(|value| value.as_str()))
+            .map(str::trim)
+            .find(|text| !text.is_empty());
+        if let Some(text) = detail {
+            return Some(clipped(text));
+        }
+    }
+    let text = body.trim();
+    if text.is_empty() || text.starts_with('<') {
+        return None;
+    }
+    Some(clipped(text))
 }
 
 /// Returns the saved path, or `None` when the user cancels the dialog.
@@ -630,6 +639,10 @@ mod tests {
         );
         assert_eq!(engine_error_detail(r#"{"message":" ","error":"Bad Request"}"#).as_deref(), Some("Bad Request"));
         assert_eq!(engine_error_detail("<html>500</html>"), None);
+        assert_eq!(
+            engine_error_detail("Ghostscript is required for PDF/X conversion").as_deref(),
+            Some("Ghostscript is required for PDF/X conversion")
+        );
     }
 
     #[test]

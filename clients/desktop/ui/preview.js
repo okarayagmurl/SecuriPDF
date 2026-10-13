@@ -992,6 +992,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
       multiline: kind === "text" && formRect.height > 28,
     };
     addFieldBtn.disabled = true;
+    const work = window.SecuriWork;
+    if (work) work.begin("Form alanı ekleniyor…");
     try {
       const bytes = await doc.saveDocument();
       const next = await options.addFormFields(bytes, [spec]);
@@ -1015,6 +1017,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     } catch (err) {
       window.alert(String(err && err.message || err || "Form alanı eklenemedi."));
     } finally {
+      if (work) work.end();
       addFieldBtn.disabled = false;
     }
   };
@@ -1029,6 +1032,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   save.onclick = async () => {
     if (!options.onSave) return;
     save.disabled = true;
+    const work = window.SecuriWork;
+    if (work) work.begin("Kaydediliyor…");
     try {
       const bytes = await doc.saveDocument();
       const saved = await options.onSave(bytes);
@@ -1036,6 +1041,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     } catch {
       markDirty(true);
       window.alert("İşaretlemeler kaydedilemedi.");
+    } finally {
+      if (work) work.end();
+      save.disabled = false;
     }
   };
   if (toWord) {

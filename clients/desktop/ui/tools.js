@@ -990,8 +990,8 @@
         ] },
       ],
       constants: { strict: "false" },
-      httpError: (_status, detail) => /ghostscript/i.test(detail || "")
-        ? "PDF/A ve PDF/X dönüşümü Ghostscript ister. Yeni SecuriPDF kurucusunu yükleyin."
+      httpError: (_status, detail) => /ghostscript|pdf\/?x conversion|pdf\/?a conversion failed/i.test(detail || "")
+        ? "PDF/A ve PDF/X dönüşümü Ghostscript ister. SecuriPDF'i kapatıp yeniden açın; sürmezse yeni kurucuyu yükleyin."
         : "",
     },
     {
