@@ -817,6 +817,13 @@
     return new Uint8Array(await core.invoke("make_qr", { text }));
   }
 
+  async function addFormFields(bytes, fields) {
+    const output = await core.invoke("add_form_fields", bytes, {
+      headers: { "x-securipdf-form-fields": encodeURIComponent(JSON.stringify(fields)) },
+    });
+    return new Uint8Array(output);
+  }
+
   async function office(file, format) {
     const body = new Uint8Array(await file.arrayBuffer());
     const output = await core.invoke("office_convert", body, {
@@ -839,6 +846,7 @@
         form: () => buildForm(values, files),
         htmlToPdf,
         office,
+        addFormFields,
         repair,
         scan,
         makeQr,
@@ -909,6 +917,8 @@
     }
     await window.SecuriPreview.openViewer(source, 1, source.name, {
       password: values.password || undefined,
+      formDesign: state.tool && state.tool.id === "add-form-fields",
+      addFormFields,
       onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
       onToWord: () => selectTool("pdf-to-word", [source]),
       onClose: () => {
@@ -1184,11 +1194,12 @@
   async function runCli(job) {
     try {
       if (job.listTools) {
-        await cliFinish("list", new TextEncoder().encode(JSON.stringify(tools.filter((tool) => !tool.viewer).map(describeTool))));
+        await cliFinish("list", new TextEncoder().encode(JSON.stringify(
+          tools.filter((tool) => !tool.viewer || tool.run).map(describeTool))));
         return;
       }
       const tool = tools.find((item) => item.id === job.tool);
-      if (!tool || tool.viewer) {
+      if (!tool || (tool.viewer && !tool.run)) {
         await cliFail("UNKNOWN_TOOL", `Bilinmeyen araç: ${job.tool}. Araçların listesi için --list-tools kullanın.`);
         return;
       }

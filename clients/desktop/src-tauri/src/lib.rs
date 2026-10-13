@@ -2,6 +2,7 @@ mod cli;
 mod defender;
 mod engine;
 mod file_lock;
+mod form_fields;
 mod license;
 mod office;
 mod policy;
@@ -145,6 +146,7 @@ pub fn run() {
             print::html_to_pdf,
             office::office_convert,
             qpdf::repair_pdf,
+            form_fields::add_form_fields,
             defender::scan_file,
             qr::make_qr,
             license::license_status,
@@ -307,7 +309,7 @@ fn local_engine_status(engine: tauri::State<'_, Engine>) -> EngineStatus {
     engine.status()
 }
 
-fn header(request: &Request<'_>, name: &str) -> Option<String> {
+pub(crate) fn header(request: &Request<'_>, name: &str) -> Option<String> {
     request
         .headers()
         .get(name)
@@ -515,7 +517,7 @@ fn unlock_opened_file(path: String, locks: tauri::State<'_, file_lock::FileLocks
 }
 
 /// Header values must be ASCII, so the page sends the file name URI-encoded.
-fn percent_decode(raw: &str) -> String {
+pub(crate) fn percent_decode(raw: &str) -> String {
     let bytes = raw.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

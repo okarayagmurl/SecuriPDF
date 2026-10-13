@@ -41,6 +41,7 @@
 - PDF görüntüleyici açık temalı düzenleme ekranı: üstte belge ve arama, Word tarzı şerit (sayfa, görünüm, işaretle, düzenle), solda sayfa listesi ve altta durum çubuğu; Ctrl+S kaydeder
 - Office→PDF, Microsoft Office yoksa LibreOffice dener; zaman damgasına kurum TSA adresi yazılır; yerinde metin değiştirmede yazı tipi seçilir
 - Görüntüleyicide seçilen paragraf yerinde kapatılıp blok içinde satır kaydırılarak yazılır; alttaki paragraflar ve sayfa düzeni kaymaz
+- Görüntüleyicide Form ile sayfada sürükleyerek metin, onay kutusu veya liste (AcroForm) alanı eklenir; hesaplama ve JavaScript yazılmaz
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

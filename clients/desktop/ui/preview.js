@@ -101,6 +101,7 @@ function closeViewer(force = true) {
   if (!force && viewer.isDirty() && !window.confirm("Kaydedilmemiş işaretlemeler var. Görüntüleyici kapatılsın mı?")) return false;
   const closing = viewer;
   if (closing.thumbsObserver) closing.thumbsObserver.disconnect();
+  if (typeof closing.cleanup === "function") closing.cleanup();
   viewer.root.remove();
   document.removeEventListener("keydown", viewer.onKey, true);
   viewer.task.destroy();
@@ -129,6 +130,7 @@ const ICONS = {
   word: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l2 8 2-5 2 5 2-8"/>',
   pages: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="16.65" y1="16.65" x2="21" y2="21"/>',
+  form: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
 };
 
 function svgIcon(inner) {
@@ -237,6 +239,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.hidden = true;
   marks.appendChild(color);
   const replace = button("Metni değiştir", "Seçilen paragrafta satırlar bu blokta kayar. Alttaki paragraflar yerinde kalır.", "tool", ICONS.edit);
+  const formBtn = options.addFormFields
+    ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
+    : null;
   const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
   const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
   const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
@@ -249,7 +254,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     group("Sayfa", prev, pageBox, next),
     group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
     group("İşaretle", marks),
-    group("Düzenle", replace),
+    group("Düzenle", replace, formBtn),
   );
   chrome.append(top, ribbon);
   const workspace = el("div", "viewer-workspace");
@@ -298,6 +303,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   linkService.setViewer(pdfViewer);
 
   let dirty = false;
+  let formMode = false;
+  let hideFormDraft = () => {};
+  let setFormMode = () => {};
   let printDocument = () => {};
   const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(source), password: options.password || undefined });
   const onKey = (event) => {
@@ -319,6 +327,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       event.preventDefault();
       pdfViewer.previousPage();
     } else if (event.key === "Escape" && !typing) {
+      if (formMode) { event.preventDefault(); setFormMode(false); hideFormDraft(); return; }
       closeViewer(false);
     }
   };
@@ -349,34 +358,46 @@ async function openViewer(source, pageNumber, title, options = {}) {
   pageTotal.textContent = `/ ${doc.numPages}`;
   pageInput.max = String(doc.numPages);
 
-  thumbsTitle.textContent = `${doc.numPages} sayfa`;
-  const observer = new IntersectionObserver((items) => {
-    items.forEach((item) => {
-      if (!item.isIntersecting) return;
-      observer.unobserve(item.target);
-      const number = Number(item.target.dataset.page);
-      doc.getPage(number)
-        .then((page) => renderPage(page, item.target.querySelector("canvas"), THUMB_WIDTH))
-        .catch(() => {});
-    });
-  }, { root: thumbsList, rootMargin: "200px" });
-  current.thumbsObserver = observer;
-  for (let number = 1; number <= doc.numPages; number++) {
-    const cell = el("button", "viewer-thumb");
-    cell.type = "button";
-    cell.dataset.page = String(number);
-    cell.title = `Sayfa ${number}`;
-    const canvas = el("canvas");
-    canvas.style.width = THUMB_WIDTH + "px";
-    canvas.style.height = Math.round(THUMB_WIDTH * 1.41) + "px";
-    cell.append(canvas, el("span", null, String(number)));
-    cell.onclick = () => { pdfViewer.currentPageNumber = number; };
-    thumbsList.appendChild(cell);
-    observer.observe(cell);
-  }
+  const fillThumbs = (document) => {
+    if (current.thumbsObserver) current.thumbsObserver.disconnect();
+    thumbsList.replaceChildren();
+    thumbsTitle.textContent = `${document.numPages} sayfa`;
+    const observer = new IntersectionObserver((items) => {
+      items.forEach((item) => {
+        if (!item.isIntersecting) return;
+        observer.unobserve(item.target);
+        const number = Number(item.target.dataset.page);
+        document.getPage(number)
+          .then((page) => renderPage(page, item.target.querySelector("canvas"), THUMB_WIDTH))
+          .catch(() => {});
+      });
+    }, { root: thumbsList, rootMargin: "200px" });
+    current.thumbsObserver = observer;
+    for (let number = 1; number <= document.numPages; number++) {
+      const cell = el("button", "viewer-thumb");
+      cell.type = "button";
+      cell.dataset.page = String(number);
+      cell.title = `Sayfa ${number}`;
+      const canvas = el("canvas");
+      canvas.style.width = THUMB_WIDTH + "px";
+      canvas.style.height = Math.round(THUMB_WIDTH * 1.41) + "px";
+      cell.append(canvas, el("span", null, String(number)));
+      cell.onclick = () => { pdfViewer.currentPageNumber = number; };
+      thumbsList.appendChild(cell);
+      observer.observe(cell);
+    }
+  };
+  fillThumbs(doc);
 
+  let restoreView = null;
   eventBus.on("pagesinit", () => {
     loading.remove();
+    if (restoreView) {
+      pdfViewer.currentScaleValue = restoreView.scale;
+      pdfViewer.currentPageNumber = restoreView.page;
+      restoreView = null;
+      return;
+    }
     pdfViewer.currentScaleValue = "page-fit";
     pdfViewer.currentPageNumber = Math.min(doc.numPages, Math.max(1, pageNumber));
   });
@@ -459,7 +480,24 @@ async function openViewer(source, pageNumber, title, options = {}) {
   eventBus.on("updatefindmatchescount", showCount);
   eventBus.on("updatefindcontrolstate", showCount);
 
+  setFormMode = (on) => {
+    formMode = on;
+    if (formBtn) formBtn.classList.toggle("active", on);
+    root.classList.toggle("form-placing", on);
+    if (on) {
+      hideFormDraft();
+      try { pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.NONE }; } catch { /* ignore */ }
+      markButtons.forEach((node) => node.classList.remove("active"));
+      statusMode.textContent = "Sayfada sürükleyerek form alanı çizin. Metin, onay kutusu veya liste eklenir.";
+    } else {
+      hideFormDraft();
+      if (!markButtons.some((node) => node.classList.contains("active"))) {
+        statusMode.textContent = MARKS[0].title;
+      }
+    }
+  };
   const setMark = (mark) => {
+    if (formMode) setFormMode(false);
     try {
       pdfViewer.annotationEditorMode = { mode: mark.mode };
     } catch {
@@ -827,6 +865,163 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
   });
+
+  const draftBox = el("div", "form-draft");
+  draftBox.hidden = true;
+  const formPanel = el("div", "form-actions");
+  formPanel.hidden = true;
+  const kindSel = el("select", "replace-font");
+  [["text", "Metin"], ["checkbox", "Onay kutusu"], ["dropdown", "Liste"]].forEach(([value, label]) => {
+    const option = el("option", null, label);
+    option.value = value;
+    kindSel.appendChild(option);
+  });
+  const nameInput = el("input", "form-name");
+  nameInput.type = "text";
+  nameInput.placeholder = "Alan adı";
+  nameInput.title = "Form alanı adı";
+  const extraInput = el("input", "form-extra");
+  extraInput.type = "text";
+  extraInput.placeholder = "Varsayılan metin";
+  extraInput.title = "Varsayılan değer veya liste seçenekleri";
+  const addFieldBtn = button("Ekle", "Alanı PDF'e yaz", "primary");
+  const skipFieldBtn = button("Vazgeç");
+  formPanel.append(kindSel, nameInput, extraInput, addFieldBtn, skipFieldBtn);
+  root.append(draftBox, formPanel);
+  let formDrag = null;
+  let formRect = null;
+  let formCount = 0;
+  hideFormDraft = () => {
+    formDrag = null;
+    formRect = null;
+    draftBox.hidden = true;
+    formPanel.hidden = true;
+    root.append(draftBox, formPanel);
+  };
+  const placeDraft = (pageEl, a, b) => {
+    const pageBox = pageEl.getBoundingClientRect();
+    const left = Math.min(a.x, b.x) - pageBox.left;
+    const top = Math.min(a.y, b.y) - pageBox.top;
+    const width = Math.abs(b.x - a.x);
+    const height = Math.abs(b.y - a.y);
+    draftBox.style.left = left + "px";
+    draftBox.style.top = top + "px";
+    draftBox.style.width = width + "px";
+    draftBox.style.height = height + "px";
+    draftBox.hidden = false;
+    pageEl.appendChild(draftBox);
+  };
+  kindSel.onchange = () => {
+    extraInput.placeholder = kindSel.value === "dropdown" ? "Seçenek1; Seçenek2" : kindSel.value === "checkbox" ? "işaretli ise evet" : "Varsayılan metin";
+  };
+  stage.addEventListener("mousedown", (event) => {
+    if (!formMode || event.button !== 0) return;
+    if (event.target.closest && event.target.closest(".form-actions")) return;
+    const pageEl = event.target.closest && event.target.closest(".page");
+    if (!pageEl || !root.contains(pageEl)) return;
+    event.preventDefault();
+    hideFormDraft();
+    formDrag = { pageEl, x: event.clientX, y: event.clientY };
+    placeDraft(pageEl, formDrag, { x: event.clientX, y: event.clientY });
+  });
+  const onFormMove = (event) => {
+    if (!formDrag) return;
+    placeDraft(formDrag.pageEl, formDrag, { x: event.clientX, y: event.clientY });
+  };
+  const onFormUp = (event) => {
+    if (!formDrag) return;
+    const start = formDrag;
+    formDrag = null;
+    const width = Math.abs(event.clientX - start.x);
+    const height = Math.abs(event.clientY - start.y);
+    if (width < 12 || height < 12) {
+      hideFormDraft();
+      return;
+    }
+    placeDraft(start.pageEl, start, { x: event.clientX, y: event.clientY });
+    const originEl = start.pageEl.querySelector(".canvasWrapper") || start.pageEl.querySelector("canvas") || start.pageEl;
+    const origin = originEl.getBoundingClientRect();
+    const pageNumber = Number(start.pageEl.dataset.pageNumber);
+    const view = pdfViewer.getPageView(pageNumber - 1);
+    if (!view || !view.getPagePoint) { hideFormDraft(); return; }
+    const a = view.getPagePoint(Math.min(start.x, event.clientX) - origin.left, Math.min(start.y, event.clientY) - origin.top);
+    const b = view.getPagePoint(Math.max(start.x, event.clientX) - origin.left, Math.max(start.y, event.clientY) - origin.top);
+    formRect = {
+      page: pageNumber,
+      x: Math.min(a[0], b[0]),
+      y: Math.min(a[1], b[1]),
+      width: Math.abs(a[0] - b[0]),
+      height: Math.abs(a[1] - b[1]),
+      pageEl: start.pageEl,
+    };
+    formCount += 1;
+    nameInput.value = "alan" + formCount;
+    extraInput.value = "";
+    formPanel.style.left = (Math.min(start.x, event.clientX) - start.pageEl.getBoundingClientRect().left) + "px";
+    formPanel.style.top = (Math.max(start.y, event.clientY) - start.pageEl.getBoundingClientRect().top + 8) + "px";
+    formPanel.hidden = false;
+    start.pageEl.appendChild(formPanel);
+    nameInput.focus();
+    nameInput.select();
+  };
+  document.addEventListener("mousemove", onFormMove, true);
+  document.addEventListener("mouseup", onFormUp, true);
+  current.cleanup = () => {
+    document.removeEventListener("mousemove", onFormMove, true);
+    document.removeEventListener("mouseup", onFormUp, true);
+  };
+  skipFieldBtn.onclick = () => hideFormDraft();
+  addFieldBtn.onclick = async () => {
+    if (!formRect || !options.addFormFields) return;
+    const kind = kindSel.value;
+    const fieldName = nameInput.value.trim() || ("alan" + formCount);
+    const extra = extraInput.value.trim();
+    const spec = {
+      page: formRect.page,
+      kind,
+      name: fieldName,
+      x: formRect.x,
+      y: formRect.y,
+      width: formRect.width,
+      height: formRect.height,
+      value: kind === "checkbox" ? extra : extra,
+      options: kind === "dropdown" ? extra.split(";").map((item) => item.trim()).filter(Boolean) : [],
+      multiline: kind === "text" && formRect.height > 28,
+    };
+    addFieldBtn.disabled = true;
+    try {
+      const bytes = await doc.saveDocument();
+      const next = await options.addFormFields(bytes, [spec]);
+      restoreView = { page: pdfViewer.currentPageNumber, scale: pdfViewer.currentScaleValue };
+      const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: next, password: options.password || undefined });
+      const nextDoc = await nextTask.promise;
+      if (viewer !== current) { nextTask.destroy(); return; }
+      current.task.destroy();
+      current.task = nextTask;
+      doc = nextDoc;
+      doc.annotationStorage.onSetModified = () => markDirty(true);
+      doc.annotationStorage.onResetModified = () => markDirty(false);
+      pdfViewer.setDocument(doc);
+      linkService.setDocument(doc, null);
+      pageTotal.textContent = `/ ${doc.numPages}`;
+      pageInput.max = String(doc.numPages);
+      fillThumbs(doc);
+      markDirty(true);
+      hideFormDraft();
+      statusMode.textContent = `"${fieldName}" alanı eklendi. Kaydet ile PDF'e yazın.`;
+    } catch (err) {
+      window.alert(String(err && err.message || err || "Form alanı eklenemedi."));
+    } finally {
+      addFieldBtn.disabled = false;
+    }
+  };
+  if (formBtn) {
+    formBtn.onclick = () => {
+      hideReplace();
+      setFormMode(!formMode);
+    };
+  }
+  if (options.formDesign && formBtn) setFormMode(true);
 
   save.onclick = async () => {
     if (!options.onSave) return;

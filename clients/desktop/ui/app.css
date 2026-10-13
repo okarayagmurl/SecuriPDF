@@ -710,6 +710,39 @@ button:disabled { opacity: 0.55; cursor: default; }
 .replace-color { width: 28px; height: 28px; padding: 0; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
 .replace-size { width: 56px; padding: 4px 6px; background: #fff; color: var(--ink); border: 1px solid #e2e8f0; border-radius: 6px; }
 .replace-font { max-width: 150px; padding: 4px 6px; background: #fff; color: var(--ink); border: 1px solid #e2e8f0; border-radius: 6px; font: 12px "Segoe UI", sans-serif; }
+.form-draft {
+  position: absolute;
+  z-index: 3;
+  border: 2px dashed #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+  pointer-events: none;
+}
+.form-draft[hidden] { display: none; }
+.form-actions {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  max-width: min(420px, 90%);
+}
+.form-actions[hidden] { display: none; }
+.form-name, .form-extra {
+  width: 120px;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font: 12px "Segoe UI", sans-serif;
+}
+.form-extra { width: 160px; }
+.viewer.form-placing .viewer-stage { cursor: crosshair; }
+.viewer.form-placing { user-select: none; }
 
 @media print {
   body > *:not(.print-sheet) { display: none !important; }
