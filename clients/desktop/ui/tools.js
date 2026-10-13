@@ -211,7 +211,7 @@
       id: "open-pdf",
       category: "view",
       title: "Belge aç",
-      description: "PDF'i görüntüleyin, yazdırın, arayın ve sayfalarda gezinin. Form alanı ekleyebilir (metin, onay kutusu, liste) ve doldurabilirsiniz; görsel ekleyip taşıyabilir, vurgu / çizim / metin notu kaydedebilir, seçilen paragrafı yerinde kapatıp blok içinde kaydırarak değiştirebilirsiniz. Alttaki paragraflar ve sayfa düzeni kaymaz; tüm belgeyi yeniden akıtmak için Word'e dönüştürün.",
+      description: "PDF'i açın; yazdırın, arayın, form ekleyip doldurun, işaretleyin veya seçilen paragrafı yerinde değiştirin. Sayfa düzeni kaymaz; uzun düzenleme için Word'e dönüştürün.",
       viewer: true,
       batch: false,
       files: [{ name: "fileInput", label: "PDF belgesi", accept: PDF }],
@@ -1354,18 +1354,18 @@
       batch: false,
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [
-        { name: "kind", label: "Alan türü", type: "select", local: true, default: "text", options: [
+        { name: "kind", label: "Alan türü", type: "select", local: true, cliOnly: true, default: "text", options: [
           { value: "text", label: "Metin" },
           { value: "checkbox", label: "Onay kutusu" },
           { value: "dropdown", label: "Liste" },
         ] },
-        { name: "fieldName", label: "Alan adı", type: "text", local: true, default: "alan1" },
-        { name: "pageNumber", label: "Sayfa", type: "number", default: 1, min: 1 },
-        { name: "x", label: "X (punto)", type: "number", default: 72, min: 0 },
-        { name: "y", label: "Y (punto, alttan)", type: "number", default: 700, min: 0 },
-        { name: "width", label: "Genişlik", type: "number", default: 180, min: 12 },
-        { name: "height", label: "Yükseklik", type: "number", default: 18, min: 12 },
-        { name: "value", label: "Varsayılan / seçenekler (;)", type: "text", local: true, default: "" },
+        { name: "fieldName", label: "Alan adı", type: "text", local: true, cliOnly: true, default: "alan1" },
+        { name: "pageNumber", label: "Sayfa", type: "number", cliOnly: true, default: 1, min: 1 },
+        { name: "x", label: "X (punto)", type: "number", cliOnly: true, default: 72, min: 0 },
+        { name: "y", label: "Y (punto, alttan)", type: "number", cliOnly: true, default: 700, min: 0 },
+        { name: "width", label: "Genişlik", type: "number", cliOnly: true, default: 180, min: 12 },
+        { name: "height", label: "Yükseklik", type: "number", cliOnly: true, default: 18, min: 12 },
+        { name: "value", label: "Varsayılan / seçenekler (;)", type: "text", local: true, cliOnly: true, default: "" },
       ],
       async run({ files, values, addFormFields }) {
         const bytes = new Uint8Array(await files.fileInput[0].arrayBuffer());

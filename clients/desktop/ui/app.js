@@ -219,20 +219,47 @@
     return Boolean(tool && tool.viewer);
   }
 
+  const HOME_CHIPS = [
+    ["merge-pdfs", "Birleştir"],
+    ["ocr-pdf", "OCR"],
+    ["cert-sign", "İmzala"],
+    ["office-to-pdf", "Office → PDF"],
+    ["pdf-to-word", "PDF → Word"],
+    ["redact", "Karart"],
+  ];
+
+  function renderHomeShortcuts() {
+    const box = $("homeShortcuts");
+    const chips = $("homeChips");
+    const home = state.tool && state.tool.id === "open-pdf";
+    box.hidden = !home;
+    if (!home) return;
+    const allowed = new Set(allowedTools().map((tool) => tool.id));
+    chips.replaceChildren();
+    HOME_CHIPS.forEach(([id, label]) => {
+      if (!allowed.has(id)) return;
+      chips.appendChild(el("button", { type: "button", text: label, onclick: () => selectTool(id) }));
+    });
+  }
+
   function updateRunButton() {
     const run = $("run");
     const waiting = needsEngine(state.tool) && state.engine !== "ready";
     const unlicensed = state.license && !state.license.valid;
     const viewing = isViewerTool(state.tool);
+    const home = state.tool && state.tool.id === "open-pdf";
+    const hasFile = Boolean(state.tool && allFiles()[0]);
     run.hidden = viewing;
-    $("openViewer").hidden = !viewing;
-    $("toWord").hidden = !viewing;
+    $("openViewer").hidden = !viewing || !hasFile;
+    $("toWord").hidden = !viewing || !hasFile;
     document.body.classList.toggle("viewing", viewing);
+    document.body.classList.toggle("home", home);
+    renderHomeShortcuts();
     run.disabled = viewing || state.busy || waiting || unlicensed;
     run.textContent = state.busy ? "İşleniyor…" : waiting ? "Ön gereksinimler hazırlanıyor…" : "Çalıştır";
     if (unlicensed && !viewing) run.textContent = "Lisans gerekli";
-    $("openViewer").disabled = viewing && !allFiles()[0];
-    $("toWord").disabled = viewing && !allFiles()[0];
+    $("openViewer").disabled = viewing && !hasFile;
+    $("toWord").disabled = viewing && !hasFile;
     if (needsEngine(state.tool) && (state.engine === "failed" || state.engine === "missing")) {
       run.textContent = "Hazır değil";
       $("formError").textContent = ($("engine").title || "Ön gereksinimler hazırlanamadı.") +
@@ -260,7 +287,7 @@
         list.appendChild(el("button", {
           type: "button",
           text: tool.title,
-          "aria-current": state.tool && state.tool.id === tool.id ? "true" : "false",
+          "aria-current": state.tool && state.tool.id === tool.id ? "true" : undefined,
           onclick: () => selectTool(tool.id),
         }));
       });
@@ -363,12 +390,15 @@
         multiple && index < list.length - 1 ? el("button", { type: "button", title: "Aşağı taşı", text: "↓", onclick: () => moveFile(spec, index, 1) }) : null,
         el("button", { type: "button", title: "Kaldır", text: "✕", onclick: () => removeFile(spec, index) }),
       ]));
+      const home = state.tool && state.tool.id === "open-pdf";
       const drop = el("div", { class: "drop", "data-files": spec.name, hidden: !isVisible(spec, readValues()) }, [
         el("div", { class: "drop-head" }, [
-          el("strong", { text: spec.label + (multiple && !spec.multiple ? " (her biri ayrı işlenir)" : "") }),
+          el("strong", { text: home ? "PDF belgesini açın" : spec.label + (multiple && !spec.multiple ? " (her biri ayrı işlenir)" : "") }),
           el("button", { type: "button", class: "secondary", text: multiple ? "Dosya ekle" : "Dosya seç", onclick: () => picker.click() }),
         ]),
-        el("p", { class: "drop-hint", text: multiple ? "Dosyaları buraya sürükleyebilirsiniz." : "Dosyayı buraya sürükleyebilirsiniz." }),
+        el("p", { class: "drop-hint", text: home
+          ? "Dosyayı buraya sürükleyin, seçin veya Birlikte aç ile gönderin."
+          : (multiple ? "Dosyaları buraya sürükleyebilirsiniz." : "Dosyayı buraya sürükleyebilirsiniz.") }),
         el("ul", { class: "files" }, items),
         picker,
       ]);
@@ -456,9 +486,10 @@
       }
       input.addEventListener("change", () => onFieldChange(field));
       input.addEventListener("input", () => onFieldChange(field));
+      const kind = ["field", field.type === "checkbox" ? "check" : "", field.cliOnly ? "cli-only" : ""].filter(Boolean).join(" ");
       const wrapper = field.type === "checkbox"
-        ? el("div", { class: "field check", "data-field": field.name }, [el("label", { for: id }, [input, document.createTextNode(field.label)])])
-        : el("div", { class: "field", "data-field": field.name }, [el(field.type === "checks" || field.type === "pad" || field.type === "range" ? "span" : "label", { for: id, class: "label", text: field.label }), input]);
+        ? el("div", { class: kind, "data-field": field.name }, [el("label", { for: id }, [input, document.createTextNode(field.label)])])
+        : el("div", { class: kind, "data-field": field.name }, [el(field.type === "checks" || field.type === "pad" || field.type === "range" ? "span" : "label", { for: id, class: "label", text: field.label }), input]);
       if (field.load) {
         wrapper.appendChild(el("button", { type: "button", class: "secondary refresh", text: "Listeyi yenile", onclick: () => loadOptions(field, true) }));
       }
@@ -632,7 +663,7 @@
     $("previewName").textContent = source ? source.name : "";
     const host = $("previewHost");
     if (!source) {
-      host.replaceChildren(el("p", { class: "preview-note", text: "Önizleme için bir dosya seçin." }));
+      host.replaceChildren(el("p", { class: "preview-note preview-empty", text: "Bir dosya seçince sayfalar burada görünür." }));
       return;
     }
     await previewReady;

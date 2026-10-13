@@ -51,16 +51,18 @@
   <header class="top">
     <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
     <button type="button" class="open-file" id="openFile">Belge aç</button>
-    <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
-      <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
-    </label>
-    <button type="button" class="update-badge" id="updateBtn" hidden>Güncelleme</button>
-    <button type="button" class="license-badge" id="licenseBtn" data-state="unknown" title="Lisans">Lisans</button>
-    <span class="engine" id="engine" data-state="starting">Ön gereksinimler hazırlanıyor…</span>
+    <div class="top-end">
+      <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
+        <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
+      </label>
+      <button type="button" class="update-badge" id="updateBtn" hidden>Güncelleme</button>
+      <button type="button" class="license-badge" id="licenseBtn" data-state="unknown" title="Lisans">Lisans</button>
+      <span class="engine" id="engine" data-state="starting">Ön gereksinimler hazırlanıyor…</span>
+    </div>
   </header>
   <div class="layout">
     <nav class="side">
-      <input id="search" type="search" placeholder="Araç ara" autocomplete="off">
+      <input id="search" type="search" placeholder="Araçlarda ara" autocomplete="off" aria-label="Araçlarda ara">
       <div id="toolList"></div>
     </nav>
     <main class="workspace">
@@ -78,6 +80,10 @@
             <button id="toWord" type="button" class="secondary" hidden>Word'e dönüştür</button>
           </div>
         </form>
+        <div class="home-shortcuts" id="homeShortcuts" hidden>
+          <p class="home-shortcuts-label">Sık kullanılanlar</p>
+          <div class="home-chips" id="homeChips"></div>
+        </div>
         <div id="result" class="result" hidden>
           <p id="resultText"></p>
           <div class="result-actions">
@@ -96,7 +102,7 @@
           <span class="preview-name" id="previewName"></span>
         </div>
         <div class="preview-scroll">
-          <div id="previewHost"><p class="preview-note">Önizleme için bir dosya seçin.</p></div>
+          <div id="previewHost"><p class="preview-note preview-empty">Bir dosya seçince sayfalar burada görünür.</p></div>
         </div>
       </aside>
     </main>

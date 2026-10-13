@@ -876,14 +876,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
     option.value = value;
     kindSel.appendChild(option);
   });
+  kindSel.title = "Alan türü";
   const nameInput = el("input", "form-name");
   nameInput.type = "text";
   nameInput.placeholder = "Alan adı";
   nameInput.title = "Form alanı adı";
+  nameInput.setAttribute("aria-label", "Alan adı");
   const extraInput = el("input", "form-extra");
   extraInput.type = "text";
   extraInput.placeholder = "Varsayılan metin";
   extraInput.title = "Varsayılan değer veya liste seçenekleri";
+  extraInput.setAttribute("aria-label", "Varsayılan değer");
   const addFieldBtn = button("Ekle", "Alanı PDF'e yaz", "primary");
   const skipFieldBtn = button("Vazgeç");
   formPanel.append(kindSel, nameInput, extraInput, addFieldBtn, skipFieldBtn);
