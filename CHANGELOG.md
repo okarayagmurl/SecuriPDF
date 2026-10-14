@@ -51,6 +51,7 @@
 - Masaüstü karartmaya web ile aynı desenler eklendi (VKN, pasaport, sabit telefon, posta kodu, adres)
 - Ön gereksinim açılış ekranında Entera logosu gösterilir
 - Damga, filigran, üst/alt bilgide yazı tipi (alfabe) seçilir; görüntüleyicide sistem yazı tipleri listelenir
+- Ön gereksinim ekranında Entera logosu alta alındı; kurulum dosyası SecuriPDF simgesini taşır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 
