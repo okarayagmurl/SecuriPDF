@@ -2,6 +2,8 @@
 
 Sunucu gerektirmeyen masaüstü uygulaması. Dosyalar bilgisayarda işlenir, hiçbir yere gönderilmez; sunucu adresi, oturum veya ağ bağlantısı gerekmez.
 
+Kurulum paketi Windows x64 içindir ve şu ön gereksinimleri içerir: PDF motoru (Stirling-PDF, Java 25 JRE, Tesseract, Ghostscript, qpdf) ve WebView2 Evergreen çevrimdışı kurucusu. WebView2 yoksa kurulum onu internetsiz yükler. Microsoft Office veya LibreOffice pakette yoktur; Office→PDF için bilgisayarda biri gerekir.
+
 Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server JAR, Java 25, Tesseract OCR). Araçlar:
 
 - Görüntüle: PDF aç, yazdır (Ctrl+P), ara, gez; form doldur, görsel ekle/taşı, metin ekle, seçili satırı renk ve punto ile değiştir, vurgu ve çizim kaydet; korumalı aç JavaScript ve ekleri kaldırır

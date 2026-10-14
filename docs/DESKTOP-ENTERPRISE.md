@@ -31,7 +31,7 @@ Kurum lisansı (`scope=organization`) tek `.lic` ile tüm bilgisayarlarda geçer
 
 ## SCCM / Intune
 
-Kurulum paketi: `SecuriPDF_*_x64-setup.exe` (NSIS) veya `SecuriPDF_*_x64_en-US.msi`. NSIS sessiz: `/S`. Tüm kullanıcılar: `/S /ALLUSERS`. MSI: `msiexec /i paket.msi /qn ALLUSERS=1`. `Install-SecuriPDF.ps1` her iki türü de kurar.
+Kurulum paketi: `SecuriPDF_*_x64-setup.exe` (NSIS) veya `SecuriPDF_*_x64_en-US.msi`. NSIS sessiz: `/S`. Tüm kullanıcılar: `/S /ALLUSERS`. MSI: `msiexec /i paket.msi /qn ALLUSERS=1`. `Install-SecuriPDF.ps1` her iki türü de kurar. Paket WebView2 Evergreen çevrimdışı kurucusunu gömer; hedefte WebView2 yoksa kurulum internet istemez. Office veya LibreOffice pakette yoktur.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File clients\desktop\deploy\Install-SecuriPDF.ps1 `
