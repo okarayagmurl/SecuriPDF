@@ -688,75 +688,6 @@ ${paragraphs.join("\n")}
     return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
   }
 
-  function accessibilityReport(fileName, info, lines) {
-    const pages = groupPageText(lines);
-    const empty = [...pages.entries()].filter(([, text]) => !text).map(([n]) => n);
-    const words = [...pages.values()].join(" ").trim();
-    const tagged = dataFlag(info, ["tagged", "isTagged", "MarkInfo", "marked", "hasOutline"]);
-    const title = firstValue(info, ["Title", "title", "metadataTitle"]);
-    const language = firstValue(info, ["Language", "language", "lang"]);
-    const encrypted = dataFlag(info, ["encrypted", "isEncrypted", "passwordProtected"]);
-    const form = dataFlag(info, ["form", "hasForm", "acroForm"]);
-    const issues = [];
-    if (!words) issues.push("Metin katmanı yok veya boş; taranmış belgeyse OCR uygulayın.");
-    if (empty.length) issues.push(`Metinsiz sayfalar: ${empty.slice(0, 20).join(", ")}${empty.length > 20 ? "…" : ""}`);
-    if (!title) issues.push("Belge başlığı (Title) boş.");
-    if (!language) issues.push("Belge dili (Language) belirtilmemiş.");
-    if (tagged === false) issues.push("Etiketli (tagged) PDF işareti yok; PDF/UA üretimi yapılmaz.");
-    if (encrypted) issues.push("Belge şifreli; yardımcı teknolojiler içeriği okuyamayabilir.");
-    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
-      body { margin: 0; font: 10pt "Segoe UI", Arial, sans-serif; color: #111; }
-      h1 { font-size: 16pt; margin: 0 0 2pt; }
-      .file { color: #555; margin: 0 0 12pt; }
-      section { border: 0.75pt solid #999; border-left-width: 5pt; padding: 6pt 10pt; }
-      section.ok { border-left-color: #1a7f37; }
-      section.warn { border-left-color: #bf8700; }
-      ul { margin: 0; padding-left: 16pt; }
-    </style></head><body>
-      <h1>Erişilebilirlik raporu</h1>
-      <p class="file">${escapeHtml(fileName)} · ${escapeHtml(new Date().toLocaleString("tr-TR"))}</p>
-      <section class="${issues.length ? "warn" : "ok"}">
-        <p>${issues.length ? `${issues.length} bulgu` : "Temel metin ve üstveri denetiminde sorun yok"}</p>
-        <ul>
-          <li>Sayfa: ${pages.size || 0}</li>
-          <li>Metin sözcükleri: ${words ? words.split(/\s+/).length : 0}</li>
-          <li>Başlık: ${escapeHtml(title || "—")}</li>
-          <li>Dil: ${escapeHtml(language || "—")}</li>
-          <li>Etiketli PDF: ${tagged === true ? "Evet" : tagged === false ? "Hayır" : "Bilinmiyor"}</li>
-          <li>Form: ${form === true ? "Var" : form === false ? "Yok" : "Bilinmiyor"}</li>
-        </ul>
-        ${issues.length ? `<ul>${issues.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
-        <p>Bu rapor PDF/UA belgesi üretmez; yapısal etiket eklemez. Tam PDF/UA doğrulaması için ayrı bir denetleyici gerekir.</p>
-      </section>
-    </body></html>`;
-    return page(html, { marginTop: 0.6, marginRight: 0.6, marginBottom: 0.6, marginLeft: 0.6 });
-  }
-
-  function dataFlag(info, keys) {
-    if (!info || typeof info !== "object") return undefined;
-    for (const key of keys) {
-      if (info[key] === true || info[key] === false) return info[key];
-      if (info[key] && typeof info[key] === "object") {
-        const nested = dataFlag(info[key], keys);
-        if (nested !== undefined) return nested;
-      }
-    }
-    return undefined;
-  }
-
-  function firstValue(info, keys) {
-    if (!info || typeof info !== "object") return "";
-    for (const key of keys) {
-      const value = info[key];
-      if (typeof value === "string" && value.trim()) return value.trim();
-      if (value && typeof value === "object") {
-        const nested = firstValue(value, keys);
-        if (nested) return nested;
-      }
-    }
-    return "";
-  }
-
   function imagesToPptx(entries) {
     const images = (entries || []).filter((entry) => /\.(png|jpe?g)$/i.test(entry.name) && entry.data && entry.data.length);
     if (!images.length) throw new Error("Sunuma dönüştürülecek görsel bulunamadı.");
@@ -841,6 +772,6 @@ ${paragraphs.join("\n")}
   window.SecuriFormats = {
     zipEntry, zipEntries, zipStore, udfToHtml, linesToUdf, invoiceToHtml,
     signatureVerdict, signatureReport, scanReport, compareReport, infoReport,
-    accessibilityReport, imagesToPptx, crc32,
+    imagesToPptx, crc32,
   };
 })();

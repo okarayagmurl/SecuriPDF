@@ -13,7 +13,7 @@ Uygulama yanında küçük bir PDF motoru çalıştırır (Stirling-PDF server J
 - Güvenlik: damga, filigran (metin, görsel veya QR kod), parola ekle (AES-256), parola kaldır, karartma (metin, düzenli ifade, TC kimlik no, IBAN, e-posta, telefon, kart numarası), Windows Defender ile virüs tarama
 - E-imza: dijital imza (Windows sertifika deposu, PKCS#11 akıllı kart/token, PFX/P12, PEM; CMS/PKCS#7, PAdES iddia edilmez), RFC 3161 zaman damgası (hazır TSA veya kurum adresi), imza doğrulama raporu, imzaları kaldırma
 - Dönüştür: PDF'ten görsele (PNG, JPEG, WebP, GIF, BMP), görselden PDF'e, PDF'ten Excel / CSV / metne, PDF'ten PDF/A veya PDF/X'e, PDF'ten PowerPoint'e, UYAP UDF'ten PDF'e, PDF'ten UDF'e (yalnızca metin), e-Fatura / e-Arşiv / e-İrsaliye XML'inden PDF'e, Word / Excel / PowerPoint'ten PDF veya PDF/A'ya, PDF'ten Word'e
-- Optimize: sıkıştır, üstveri düzenle, boş sayfa sil, onar, temizle, görselleri çıkar veya kaldır, PDF bilgisi, erişilebilirlik raporu (PDF/UA üretmez)
+- Optimize: sıkıştır, üstveri düzenle, boş sayfa sil, onar, temizle, görselleri çıkar veya kaldır, PDF bilgisi
 
 UDF ve e-Fatura dönüşümleri motoru kullanmaz: belge arayüzde HTML olarak dizilir ve WebView2'nin yazdırma motoruyla PDF'e çevrilir (`src/print.rs`), böylece metin seçilebilir kalır. Bu sayfalarda betik çalıştırılmaz. e-Fatura'da belgeye gömülü XSLT şablonu varsa o, yoksa SecuriPDF standart şablonu kullanılır.
 

@@ -1475,25 +1475,5 @@
         return htmlToPdf(html, page);
       },
     },
-    {
-      id: "accessibility-report",
-      category: "optimize",
-      title: "Erişilebilirlik Raporu",
-      description: "Metin katmanı, başlık, dil ve etiketli PDF işaretini denetler. PDF/UA belgesi üretmez; yapısal etiket eklemez.",
-      suffix: "erisilebilirlik",
-      usesEngine: true,
-      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
-      fields: [],
-      async run({ files, engine, htmlToPdf, note }) {
-        const file = files.fileInput[0];
-        let info = {};
-        try { info = await pdfInfo(engine, file); } catch { /* rapor metin katmanıyla da üretilir */ }
-        const lines = await window.SecuriPreview.textLines(file);
-        const words = lines.map((line) => line.text).join(" ").trim();
-        note(words ? `${lines.length} satır metin` : "Metin katmanı yok");
-        const { html, page } = window.SecuriFormats.accessibilityReport(file.name, info, lines);
-        return htmlToPdf(html, page);
-      },
-    },
   ];
 })();
