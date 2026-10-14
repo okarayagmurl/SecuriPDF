@@ -7,6 +7,8 @@
     html, body { margin: 0; height: 100%; background: #f8fafc; }
     .splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #f8fafc 0%, #e0e7ff 100%); }
     .splash-card { width: min(520px, 90vw); padding: 36px 40px 28px; border-radius: 18px; background: #fff; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14); text-align: center; font: 15px/1.5 "Segoe UI", sans-serif; color: #0f172a; }
+    .splash-entera { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 18px; color: #0f172a; font: 600 15px/1 "Segoe UI", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+    .splash-entera img { width: 42px; height: 42px; }
     .splash-logo { width: 100%; max-width: 380px; height: auto; }
     .splash-version { margin: 4px 0 22px; color: #475569; font-size: 13px; min-height: 1.2em; }
     .progress { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
@@ -21,6 +23,7 @@
 <body>
   <div class="splash" id="splash" role="status" aria-live="polite">
     <div class="splash-card">
+      <div class="splash-entera"><img src="entera-logo.png" alt="">Entera</div>
       <img class="splash-logo" src="logo.svg" alt="SecuriPDF">
       <p class="splash-version" id="splashVersion"></p>
       <div class="progress" role="progressbar" aria-label="Ön gereksinimler hazırlanıyor" aria-valuemin="0" aria-valuemax="100" aria-valuenow="12" id="splashProgress">

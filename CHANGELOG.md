@@ -48,6 +48,8 @@
 - Başka bilgisayarda Java AOT önbelleği eski işlemcide çöküyordu; motor AOT olmadan yeniden açılır
 - Lisans penceresinden .lic dosyası veya yapıştırılan metinle lisans güncellenir; kurulum kimliği kopyalanır
 - PDF/UA, etiketli PDF ve erişilebilirlik denetimi kapsam dışıdır; erişilebilirlik raporu aracı kaldırıldı
+- Masaüstü karartmaya web ile aynı desenler eklendi (VKN, pasaport, sabit telefon, posta kodu, adres)
+- Ön gereksinim açılış ekranında Entera logosu gösterilir
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

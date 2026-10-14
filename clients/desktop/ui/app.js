@@ -517,10 +517,21 @@
       } else if (field.type === "checkbox") {
         input = el("input", { id, name: field.name, type: "checkbox", checked: !!field.default });
       } else if (field.type === "checks") {
-        input = el("div", { id, class: "checks" }, field.options.map((option) => el("label", {}, [
+        const groups = [];
+        field.options.forEach((option) => {
+          const name = option.group || "";
+          const last = groups[groups.length - 1];
+          if (!last || last.name !== name) groups.push({ name, options: [option] });
+          else last.options.push(option);
+        });
+        const box = (option) => el("label", {}, [
           el("input", { type: "checkbox", value: option.value, checked: (field.default || []).includes(option.value) }),
           document.createTextNode(option.label),
-        ])));
+        ]);
+        input = el("div", { id, class: "checks" + (groups.some((group) => group.name) ? " grouped" : "") },
+          groups.flatMap((group) => group.name
+            ? [el("div", { class: "check-group" }, [el("span", { class: "check-group-label", text: group.name }), el("div", { class: "checks" }, group.options.map(box))])]
+            : group.options.map(box)));
       } else if (field.type === "textarea") {
         input = el("textarea", { id, name: field.name, rows: field.rows || 4, placeholder: field.placeholder, spellcheck: "false" });
         input.value = field.default || "";

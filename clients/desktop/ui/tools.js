@@ -41,14 +41,22 @@
     return (capabilities.detectedLibraries || []).map((lib) => ({ value: lib.path, label: `${lib.name} (${lib.path})` }));
   }
 
-  // Personal data that is common in Turkish documents.
+  // Same pattern set as the web redaction studio (services/platform/app/redaction_presets.py).
   const REDACT_PRESETS = {
-    tckn: /(?<!\d)[1-9]\d{10}(?!\d)/gu,
-    iban: /TR\s?\d{2}(?:\s?\d{4}){5}\s?\d{2}/giu,
-    email: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gu,
-    phone: /(?<!\d)(?:\+90|0)?\s?\(?5\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}(?!\d)/gu,
-    card: /(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)/gu,
+    tckn: /\b[1-9][0-9]{10}\b/g,
+    vkn: /\b[0-9]{10}\b/g,
+    mobile_tr: /(?:\+?90[\s.-]?|0)?5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}|\+?90[\s.-]?5\d{9}|\b90[\s.-]?5\d{9}\b/g,
+    phone_tr: /(?:\+?90[\s.-]?|0)?[\s.-]*\(?(?:2\d{2}|3\d{2}|4\d{2}|5\d{2})\)?[\s.-]*(?:\d{7}|\d{3}[\s.-]?\d{2}[\s.-]?\d{2})|\+?90[\s.-]?[2345]\d{9}|\b90[\s.-]?\(?[2345]\d{2}\)?[\s.-]*\d{7}\b/g,
+    email: /[a-zA-Z0-9][a-zA-Z0-9._%+\-]{0,63}@[a-zA-Z0-9][a-zA-Z0-9.\-]{0,62}\.[a-zA-Z]{2,}/g,
+    passport: /\b[A-Z]{1,2}[0-9]{6,9}\b/g,
+    iban_tr: /TR\d{2}[\s]?(?:\d{4}[\s]?){5}\d{2}/gi,
+    credit_card: /\b(?:\d{4}[\s\-]?){3}\d{4,7}\b/g,
+    postal_code_tr: /\b[0-9]{5}\b/g,
+    address_tr: /[\wÇĞİÖŞÜçğıöşü''\-\.]+\s+(?:mah\.?|mahallesi?|mh\.?)\s+.{5,200}?(?:sk\.?|sok\.?|sokak|cad\.?|cadde|cd\.?|bulvar|blv\.?|site(?:si)?|sit\.?).{0,140}?(?:no\.?\s*:?\s*\d+).{0,120}?[A-ZÇĞİÖŞÜ][A-Za-zçğıöşü''\-]+(?:\s*\/\s*[A-ZÇĞİÖŞÜ][A-Za-zçğıöşü''\-]+)?/giu,
   };
+  REDACT_PRESETS.phone = REDACT_PRESETS.mobile_tr;
+  REDACT_PRESETS.iban = REDACT_PRESETS.iban_tr;
+  REDACT_PRESETS.card = REDACT_PRESETS.credit_card;
 
   /** Global RegExps for the form values; throws when a regular expression is invalid. */
   function redactPatterns(v) {
@@ -65,7 +73,7 @@
         throw new Error(`Düzenli ifade geçersiz: ${line}`);
       }
     });
-    return words.concat(v.presets.map((key) => new RegExp(REDACT_PRESETS[key])));
+    return words.concat(v.presets.map((key) => REDACT_PRESETS[key]).filter(Boolean).map((pattern) => new RegExp(pattern)));
   }
 
   // The engine's own text search misplaces boxes and leaves text behind, so
@@ -634,16 +642,21 @@
       id: "redact",
       category: "security",
       title: "Karartma",
-      description: "Belirttiğiniz metinleri ve kişisel verileri (TC kimlik no, IBAN, e-posta, telefon, kart numarası) kalıcı olarak karartın. Sayfalar görsele çevrilir; karartılan bilgi belgede hiçbir biçimde kalmaz.",
+      description: "Belirttiğiniz metinleri ve kişisel verileri (TC kimlik, VKN, pasaport, telefon, e-posta, IBAN, kart, posta kodu, adres) kalıcı olarak karartın. Sayfalar görsele çevrilir; karartılan bilgi belgede hiçbir biçimde kalmaz.",
       suffix: "karartilmis",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [
-        { name: "presets", label: "Kişisel veriler", type: "checks", local: true, default: [], options: [
-          { value: "tckn", label: "TC kimlik no" },
-          { value: "iban", label: "IBAN" },
-          { value: "email", label: "E-posta" },
-          { value: "phone", label: "Cep telefonu" },
-          { value: "card", label: "Kart numarası" },
+        { name: "presets", label: "Hassas veri desenleri", type: "checks", local: true, default: [], options: [
+          { value: "tckn", label: "T.C. Kimlik No", group: "Kimlik" },
+          { value: "vkn", label: "Vergi Kimlik No (VKN)", group: "Kimlik" },
+          { value: "passport", label: "Pasaport No", group: "Kimlik" },
+          { value: "mobile_tr", label: "Cep telefonu", group: "İletişim" },
+          { value: "phone_tr", label: "Telefon (sabit/cep)", group: "İletişim" },
+          { value: "email", label: "E-posta", group: "İletişim" },
+          { value: "iban_tr", label: "IBAN (TR)", group: "Finans" },
+          { value: "credit_card", label: "Banka / kredi kartı", group: "Finans" },
+          { value: "postal_code_tr", label: "Posta kodu", group: "Adres" },
+          { value: "address_tr", label: "Adres", group: "Adres" },
         ] },
         { name: "words", label: "Karartılacak metinler", type: "textarea", local: true, placeholder: "Ahmet Yılmaz\nGizli Proje",
           hint: "Her satıra bir metin yazın." },

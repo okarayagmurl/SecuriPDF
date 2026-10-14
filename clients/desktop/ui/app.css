@@ -90,6 +90,18 @@ body {
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
   text-align: center;
 }
+.splash-entera {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  color: #0f172a;
+  font: 600 15px/1 "Segoe UI", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.splash-entera img { width: 42px; height: 42px; }
 .splash-logo { width: 100%; max-width: 380px; height: auto; }
 .splash-version { margin: 4px 0 22px; color: var(--muted); font-size: 13px; }
 .progress {
@@ -342,6 +354,10 @@ button:disabled { opacity: 0.55; cursor: default; }
 .files li.previewing .name { color: var(--accent); font-weight: 600; }
 
 .checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.checks.grouped { flex-direction: column; flex-wrap: nowrap; gap: 10px; }
+.checks .check-group { display: flex; flex-direction: column; gap: 6px; }
+.checks .check-group-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.checks .check-group .checks { gap: 6px 16px; }
 .checks label { display: flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; }
 
 /* ---- Preview ---- */
