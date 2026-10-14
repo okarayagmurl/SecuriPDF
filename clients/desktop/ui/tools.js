@@ -12,6 +12,19 @@
     { value: "large", label: "Büyük" },
     { value: "x-large", label: "Çok büyük" },
   ];
+  const FONT_TYPES = [
+    { value: "helvetica", label: "Helvetica" },
+    { value: "times", label: "Times" },
+    { value: "courier", label: "Courier" },
+  ];
+  const ALPHABETS = [
+    { value: "roman", label: "Latin (Türkçe)" },
+    { value: "arabic", label: "Arapça" },
+    { value: "japanese", label: "Japonca" },
+    { value: "korean", label: "Korece" },
+    { value: "chinese", label: "Çince" },
+    { value: "thai", label: "Tayca" },
+  ];
   const COLOR_TYPES = [
     { value: "color", label: "Renkli" },
     { value: "greyscale", label: "Gri tonlamalı" },
@@ -176,7 +189,7 @@
     return engine("/api/v1/general/overlay-pdfs", form);
   }
 
-  async function numberStamp(engine, file, text, position, fontSize, fontColor) {
+  async function numberStamp(engine, file, text, position, fontSize, fontColor, fontType) {
     const form = new FormData();
     form.append("fileInput", file, file.name || "belge.pdf");
     form.append("customText", text);
@@ -185,7 +198,7 @@
     form.append("pagesToNumber", "all");
     form.append("pageNumbers", "all");
     form.append("fontSize", String(fontSize || 12));
-    form.append("fontType", "helvetica");
+    form.append("fontType", fontType || "helvetica");
     form.append("fontColor", fontColor || "#000000");
     form.append("customMargin", "medium");
     return engine("/api/v1/misc/add-page-numbers", form);
@@ -515,11 +528,7 @@
         { name: "startingNumber", label: "Başlangıç numarası", type: "number", default: 1, min: 0 },
         { name: "pagesToNumber", label: "Numaralanacak sayfalar", type: "text", default: "all", hint: pageHint },
         { name: "fontSize", label: "Yazı boyutu", type: "number", default: 12, min: 4, max: 96 },
-        { name: "fontType", label: "Yazı tipi", type: "select", default: "helvetica", options: [
-          { value: "helvetica", label: "Helvetica" },
-          { value: "times", label: "Times" },
-          { value: "courier", label: "Courier" },
-        ] },
+        { name: "fontType", label: "Yazı tipi", type: "select", default: "helvetica", options: FONT_TYPES },
         { name: "fontColor", label: "Renk", type: "color", default: "#000000" },
         { name: "customMargin", label: "Kenar boşluğu", type: "select", default: "medium", options: MARGINS },
       ],
@@ -542,12 +551,14 @@
         ] },
         { name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint },
         { name: "fontSize", label: "Yazı boyutu", type: "number", default: 40, min: 4, max: 300 },
+        { name: "alphabet", label: "Yazı tipi (alfabe)", type: "select", default: "roman", options: ALPHABETS,
+          hint: "Damga metninin diline uygun alfabeyi seçin. Türkçe için Latin yeterlidir." },
         { name: "rotation", label: "Açı", type: "range", default: 0, min: -180, max: 180, step: 5, unit: "°" },
         { name: "opacity", label: "Saydamlık", type: "range", default: 0.5, min: 0, max: 1, step: 0.05, unit: "%" },
         { name: "customColor", label: "Renk", type: "color", default: "#d3d3d3" },
         { name: "customMargin", label: "Kenar boşluğu", type: "select", default: "medium", options: MARGINS },
       ],
-      constants: { stampType: "text", alphabet: "roman", overrideX: "-1", overrideY: "-1" },
+      constants: { stampType: "text", overrideX: "-1", overrideY: "-1" },
     },
     {
       id: "add-watermark",
@@ -573,6 +584,9 @@
           hint: "Adres veya kısa metin. Kod bu bilgisayarda üretilir." },
         { name: "fontSize", label: "Yazı boyutu", type: "number", default: 30, min: 4, max: 200,
           showIf: { watermarkType: "text" } },
+        { name: "alphabet", label: "Yazı tipi (alfabe)", type: "select", default: "roman", options: ALPHABETS,
+          showIf: { watermarkType: "text" },
+          hint: "Filigran metninin diline uygun alfabeyi seçin. Türkçe için Latin yeterlidir." },
         { name: "customColor", label: "Renk", type: "color", default: "#808080",
           showIf: { watermarkType: "text" } },
         { name: "rotation", label: "Açı", type: "range", default: 45, min: -180, max: 180, step: 5, unit: "°",
@@ -582,7 +596,7 @@
         { name: "heightSpacer", label: "Dikey aralık", type: "range", default: 50, min: 0, max: 400, step: 5 },
         { name: "convertPDFToImage", label: "Sayfaları görsele çevir (filigran kaldırılamaz)", type: "checkbox", default: false },
       ],
-      constants: { alphabet: "roman" },
+      constants: (v) => (v.watermarkType === "text" ? {} : { alphabet: "roman" }),
       usesEngine: true,
       async run({ files, values, engine, form, makeQr }) {
         if (values.watermarkType !== "qr") return engine("/api/v1/security/add-watermark", form());
@@ -1215,16 +1229,17 @@
           { value: "7", label: "Sol" }, { value: "8", label: "Orta" }, { value: "9", label: "Sağ" },
         ] },
         { name: "fontSize", label: "Yazı boyutu", type: "number", default: 10, min: 4, max: 72 },
+        { name: "fontType", label: "Yazı tipi", type: "select", default: "helvetica", options: FONT_TYPES },
         { name: "fontColor", label: "Renk", type: "color", default: "#334155" },
       ],
       validate: (v) => (v.header.trim() || v.footer.trim() ? null : "Üst veya alt bilgi yazın."),
       async run({ files, values, engine }) {
         let bytes = new Uint8Array(await files.fileInput[0].arrayBuffer());
         if (values.header.trim()) {
-          bytes = await numberStamp(engine, pdfFile(bytes, "belge.pdf"), values.header.trim(), values.headerPos, values.fontSize, values.fontColor);
+          bytes = await numberStamp(engine, pdfFile(bytes, "belge.pdf"), values.header.trim(), values.headerPos, values.fontSize, values.fontColor, values.fontType);
         }
         if (values.footer.trim()) {
-          bytes = await numberStamp(engine, pdfFile(bytes, "belge.pdf"), values.footer.trim(), values.footerPos, values.fontSize, values.fontColor);
+          bytes = await numberStamp(engine, pdfFile(bytes, "belge.pdf"), values.footer.trim(), values.footerPos, values.fontSize, values.fontColor, values.fontType);
         }
         return bytes;
       },

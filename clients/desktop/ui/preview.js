@@ -554,18 +554,35 @@ async function openViewer(source, pageNumber, title, options = {}) {
   fontSizeInput.title = "Yazı boyutu (punto)";
   const fontFamily = el("select", "replace-font");
   fontFamily.title = "Yazı tipi";
-  [
+  const stockFonts = [
     ["Segoe UI, sans-serif", "Segoe UI"],
     ["Arial, Helvetica, sans-serif", "Arial"],
     ["Calibri, sans-serif", "Calibri"],
+    ["Tahoma, sans-serif", "Tahoma"],
+    ["Verdana, sans-serif", "Verdana"],
     ['"Times New Roman", Times, serif', "Times New Roman"],
     ["Georgia, serif", "Georgia"],
     ['"Courier New", Courier, monospace', "Courier New"],
-  ].forEach(([value, label]) => {
+    ["Consolas, monospace", "Consolas"],
+  ];
+  stockFonts.forEach(([value, label]) => {
     const option = el("option", null, label);
     option.value = value;
     fontFamily.appendChild(option);
   });
+  if (window.queryLocalFonts) {
+    window.queryLocalFonts().then((fonts) => {
+      const seen = new Set(stockFonts.map(([, label]) => label.toLowerCase()));
+      [...fonts].sort((a, b) => a.family.localeCompare(b.family, "tr")).forEach((font) => {
+        const name = font.family;
+        if (!name || seen.has(name.toLowerCase())) return;
+        seen.add(name.toLowerCase());
+        const option = el("option", null, name);
+        option.value = `"${name.replace(/"/g, "")}", sans-serif`;
+        fontFamily.appendChild(option);
+      });
+    }).catch(() => { /* WebView2 font izni yoksa stok liste kalır */ });
+  }
   const applyBtn = button("Uygula", "Değişikliği yaz", "primary");
   const cancelBtn = button("Vazgeç");
   actions.append(fontFamily, fontColor, fontSizeInput, applyBtn, cancelBtn);
