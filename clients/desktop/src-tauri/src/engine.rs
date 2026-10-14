@@ -64,6 +64,7 @@ struct Versions {
 pub struct Engine(Arc<Mutex<Inner>>);
 
 /// Layout written by `scripts/fetch-engine.ps1`.
+#[derive(Clone)]
 pub struct EngineFiles {
     java: PathBuf,
     jar: PathBuf,
@@ -179,10 +180,22 @@ impl Engine {
     }
 
     pub fn start(&self, files: EngineFiles, work_dir: &Path) -> Result<u16, String> {
+        self.spawn(&files, work_dir, files.aot_cache.is_some(), false)
+    }
+
+    fn spawn(&self, files: &EngineFiles, work_dir: &Path, use_aot: bool, append_log: bool) -> Result<u16, String> {
         std::fs::create_dir_all(work_dir).map_err(|err| err.to_string())?;
         let port = free_port()?;
         let log_path = work_dir.join("engine.log");
-        let log = std::fs::File::create(&log_path).map_err(|err| err.to_string())?;
+        let log = if append_log {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+        } else {
+            std::fs::File::create(&log_path)
+        }
+        .map_err(|err| err.to_string())?;
         let log_err = log.try_clone().map_err(|err| err.to_string())?;
         let mut command = Command::new(&files.java);
         command.current_dir(work_dir);
@@ -190,8 +203,14 @@ impl Engine {
             Some(args) => command.arg(format!("@{}", args.display())),
             None => command.args(["-Xmx1g", "-Djava.awt.headless=true"]),
         };
-        if let Some(cache) = &files.aot_cache {
-            command.arg(format!("-XX:AOTCache={}", cache.display()));
+        // AOT is trained on the build PC. Loading it on an older CPU throws
+        // EXCEPTION_ILLEGAL_INSTRUCTION (hs_err AdapterBlob).
+        if use_aot {
+            if let Some(cache) = &files.aot_cache {
+                command.arg(format!("-XX:AOTCache={}", cache.display()));
+            }
+        } else {
+            command.arg("-XX:UseAVX=0");
         }
         // Desktop mode unlocks signing with the Windows certificate store and
         // PKCS#11 tokens, and stops the engine when this process goes away.
@@ -248,31 +267,46 @@ impl Engine {
         inner.child = Some(child);
         inner.log = Some(log_path);
         inner.started = Some(Instant::now());
-        inner.versions = files.versions;
+        inner.versions = files.versions.clone();
         Ok(port)
     }
 
-    pub async fn wait_ready(&self, port: u16) {
+    pub async fn wait_ready(&self, port: u16, files: EngineFiles, work_dir: PathBuf) {
+        if self.await_up(port).await {
+            return;
+        }
+        if files.aot_cache.is_none() {
+            return;
+        }
+        match self.spawn(&files, &work_dir, false, true) {
+            Ok(port) => {
+                let _ = self.await_up(port).await;
+            }
+            Err(detail) => self.fail(&detail),
+        }
+    }
+
+    async fn await_up(&self, port: u16) -> bool {
         let client = reqwest::Client::new();
         let url = format!("http://127.0.0.1:{port}/api/v1/info/status");
         let started = Instant::now();
         loop {
             if self.exited() {
                 self.fail("Yerel motor kapandı.");
-                return;
+                return false;
             }
             if let Ok(resp) = client.get(&url).timeout(Duration::from_secs(3)).send().await {
                 if resp.status().is_success() {
                     if let Ok(mut inner) = self.0.lock() {
                         inner.state = EngineState::Ready;
                     }
-                    return;
+                    return true;
                 }
             }
             if started.elapsed() > STARTUP_LIMIT {
                 self.stop();
                 self.fail("Yerel motor zamanında açılmadı.");
-                return;
+                return false;
             }
             tokio::time::sleep(Duration::from_millis(750)).await;
         }

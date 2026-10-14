@@ -45,7 +45,7 @@ Kurulum paketindeki uygulama ilk kullanımda 15 günlük deneme lisansı açar (
 
 Onarma ve kayıpsız sıkıştırma için qpdf 12.4.2 paketlenir (`fetch-engine.ps1`). Onarma motora bırakılmaz; uygulama qpdf'i doğrudan çalıştırır (`src/qpdf.rs`). PDF/A ve PDF/X için Ghostscript 10.06.0 paketlenir; sıkıştırma düzeyleri 6–9 hâlâ kapalıdır.
 
-Motor yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. Pencere splash boyanıncaya kadar gizli kalır; WebView2 ilk açılışta beyaz ekran göstermez. Açılış, derleme sırasında üretilen Java AOT önbelleği sayesinde yaklaşık 15-20 saniyedir; bu sırada dosya seçilip önizlenebilir. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
+Motor yalnızca `127.0.0.1` üzerinde dinler. Uygulama kapanınca, zorla kapatılsa da, motor da kapanır. AOT önbelleği derleme bilgisayarının işlemcisine bağlıdır; başka makinede JVM `EXCEPTION_ILLEGAL_INSTRUCTION` ile düşerse motor AOT olmadan yeniden açılır. Pencere splash boyanıncaya kadar gizli kalır; WebView2 ilk açılışta beyaz ekran göstermez. Açılış, derleme sırasında üretilen Java AOT önbelleği sayesinde yaklaşık 15-20 saniyedir; bu sırada dosya seçilip önizlenebilir. Motor kaydı `%LOCALAPPDATA%\net.entera.securipdf.desktop\engine\engine.log` dosyasındadır.
 
 ## Derleme
 

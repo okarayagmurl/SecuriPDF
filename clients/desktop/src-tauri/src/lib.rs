@@ -602,9 +602,9 @@ fn start_engine(app: &AppHandle, work_dir_name: &str) {
     let Ok(work_dir) = app.path().app_local_data_dir().map(|dir| dir.join(work_dir_name)) else {
         return;
     };
-    match engine.start(files, &work_dir) {
+    match engine.start(files.clone(), &work_dir) {
         Ok(port) => {
-            tauri::async_runtime::spawn(async move { engine.wait_ready(port).await });
+            tauri::async_runtime::spawn(async move { engine.wait_ready(port, files, work_dir).await });
         }
         Err(detail) => engine.fail(&detail),
     }

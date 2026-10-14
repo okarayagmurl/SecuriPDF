@@ -45,6 +45,7 @@
 - Masaüstü açılış, araç listesi ve lisans penceresi görüntüleyiciyle aynı açık temaya çekildi; Belge aç ekranı büyük bırakma alanı ve sık kullanılan kısayollar gösterir
 - PDF/A ve PDF/X dönüşümü Ghostscript ile çalışır; her işleme sırasında altta ilerleme çubuğu görünür
 - Windows kurucusu WebView2 Evergreen çevrimdışı paketini gömer; kurulum internet gerektirmez
+- Başka bilgisayarda Java AOT önbelleği eski işlemcide çöküyordu; motor AOT olmadan yeniden açılır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 
