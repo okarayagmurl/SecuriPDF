@@ -1390,8 +1390,12 @@
         : (status.customer ? `Lisanslı · ${status.customer}` : "Lisanslı");
     btn.title = status.message || "Lisans";
     $("licenseSummary").textContent = status.message || "";
+    $("licenseKind").textContent = !status.valid
+      ? (status.expired ? "Süresi dolmuş" : "Geçersiz")
+      : status.licenseType === "demo" ? "Deneme (15 gün)" : "Ticari";
     $("licenseInstall").textContent = status.installationId || "—";
     $("licenseCustomer").textContent = status.customer || "—";
+    $("licenseKey").textContent = status.licenseKey || "—";
     $("licenseExpiry").textContent = formatLicenseDate(status.expiresAt);
     const policyNote = state.policy && (state.policy.licenseFile || state.policy.licenseDirectory || state.policy.disableDemo);
     $("licensePolicyRow").hidden = !policyNote;
@@ -1447,11 +1451,39 @@
         $("licenseError").textContent = errorText(err);
       }
     });
+    $("licenseCopyId").addEventListener("click", async () => {
+      const id = $("licenseInstall").textContent.trim();
+      if (!id || id === "—") return;
+      try {
+        await navigator.clipboard.writeText(id);
+        $("licenseError").textContent = "";
+        $("licenseSummary").textContent = "Kurulum kimliği panoya kopyalandı.";
+      } catch {
+        $("licenseError").textContent = "Kimlik kopyalanamadı.";
+      }
+    });
     $("licenseLoad").addEventListener("click", async () => {
       $("licenseError").textContent = "";
       try {
         applyLicense(await core.invoke("license_open_and_activate"));
-        if (state.license && state.license.valid) $("licenseDialog").hidden = true;
+        if (state.license && state.license.valid) {
+          $("licensePaste").value = "";
+          $("licenseSummary").textContent = state.license.message || "Lisans güncellendi.";
+        }
+      } catch (err) {
+        $("licenseError").textContent = errorText(err);
+      }
+    });
+    $("licenseApplyPaste").addEventListener("click", async () => {
+      $("licenseError").textContent = "";
+      try {
+        applyLicense(await core.invoke("license_activate_text", { text: $("licensePaste").value }));
+        if (state.license && state.license.valid) {
+          $("licensePaste").value = "";
+          $("licenseSummary").textContent = state.license.message || "Lisans güncellendi.";
+        } else {
+          $("licenseError").textContent = (state.license && state.license.message) || "Lisans uygulanamadı.";
+        }
       } catch (err) {
         $("licenseError").textContent = errorText(err);
       }

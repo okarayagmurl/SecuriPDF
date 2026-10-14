@@ -25,6 +25,10 @@ fn main() {
             "update_status",
             "update_open",
             "reveal_window",
+            "license_status",
+            "license_save_request",
+            "license_open_and_activate",
+            "license_activate_text",
         ]),
     ))
     .expect("tauri build failed");

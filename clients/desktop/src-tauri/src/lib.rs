@@ -152,6 +152,7 @@ pub fn run() {
             license::license_status,
             license::license_save_request,
             license::license_open_and_activate,
+            license::license_activate_text,
             policy::policy_status,
             update::update_status,
             update::update_open,

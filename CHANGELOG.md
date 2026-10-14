@@ -46,6 +46,7 @@
 - PDF/A ve PDF/X dönüşümü Ghostscript ile çalışır; her işleme sırasında altta ilerleme çubuğu görünür
 - Windows kurucusu WebView2 Evergreen çevrimdışı paketini gömer; kurulum internet gerektirmez
 - Başka bilgisayarda Java AOT önbelleği eski işlemcide çöküyordu; motor AOT olmadan yeniden açılır
+- Lisans penceresinden .lic dosyası veya yapıştırılan metinle lisans güncellenir; kurulum kimliği kopyalanır
 
 ## 1.2.8-stirling-2.14.3 (2026-10-02)
 

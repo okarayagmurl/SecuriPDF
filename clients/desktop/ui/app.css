@@ -861,7 +861,9 @@ button:disabled { opacity: 0.55; cursor: default; }
 }
 .dialog[hidden] { display: none; }
 .dialog-card {
-  width: min(460px, 92vw);
+  width: min(520px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
   padding: 24px 26px 20px;
   border-radius: 16px;
   background: #fff;
@@ -884,3 +886,27 @@ button:disabled { opacity: 0.55; cursor: default; }
 .license-facts dt { color: var(--muted); font-weight: 600; }
 .license-facts dd { margin: 0; word-break: break-all; }
 .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.license-update {
+  margin: 16px 0 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.license-update h3 { margin: 0 0 6px; font-size: 15px; }
+.license-update p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.license-update textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  font: 12px/1.4 Consolas, "Cascadia Mono", monospace;
+}
+.license-update .dialog-actions { margin-top: 10px; }
+button.linkish {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font: 12px "Segoe UI", sans-serif;
+  cursor: pointer;
+}

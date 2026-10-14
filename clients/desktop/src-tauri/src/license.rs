@@ -229,6 +229,15 @@ pub async fn license_open_and_activate(app: AppHandle) -> Result<LicenseStatus, 
     activate_path(&path)
 }
 
+#[tauri::command]
+pub fn license_activate_text(text: String) -> Result<LicenseStatus, String> {
+    let raw = text.trim();
+    if raw.is_empty() {
+        return Err("Lisans metni boş. .lic içeriğini yapıştırın veya dosyadan yükleyin.".into());
+    }
+    activate_bytes(&Store::default_store(), raw, unix_now())
+}
+
 fn data_dir() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)

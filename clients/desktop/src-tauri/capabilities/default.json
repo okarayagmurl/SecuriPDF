@@ -23,6 +23,7 @@
     "allow-license-status",
     "allow-license-save-request",
     "allow-license-open-and-activate",
+    "allow-license-activate-text",
     "allow-reveal-window",
     "allow-cli-job",
     "allow-cli-start-engine",

@@ -112,18 +112,28 @@
       <h2 id="licenseTitle">Lisans</h2>
       <p id="licenseSummary"></p>
       <dl class="license-facts">
-        <div><dt>Kurulum</dt><dd id="licenseInstall"></dd></div>
+        <div><dt>Tür</dt><dd id="licenseKind">—</dd></div>
+        <div><dt>Kurulum</dt><dd><span id="licenseInstall"></span> <button type="button" class="linkish" id="licenseCopyId">Kopyala</button></dd></div>
         <div><dt>Müşteri</dt><dd id="licenseCustomer"></dd></div>
+        <div><dt>Anahtar</dt><dd id="licenseKey">—</dd></div>
         <div><dt>Bitiş</dt><dd id="licenseExpiry"></dd></div>
         <div id="licensePolicyRow" hidden><dt>İlke</dt><dd id="licensePolicy"></dd></div>
       </dl>
+      <section class="license-update">
+        <h3>Lisansı güncelle</h3>
+        <p>Yeni veya yenilenmiş .lic dosyasını seçin ya da içeriğini yapıştırın. Mevcut lisansın yerini alır.</p>
+        <label>Lisans metni <textarea id="licensePaste" rows="5" spellcheck="false" placeholder='{"v":1,"payload":…,"sig":…}'></textarea></label>
+        <div class="dialog-actions">
+          <button type="button" class="primary" id="licenseApplyPaste">Yapıştırılan lisansı uygula</button>
+          <button type="button" class="secondary" id="licenseLoad">Dosyadan yükle (.lic)</button>
+        </div>
+      </section>
       <form id="licenseRequest">
         <label>Kurum / müşteri <input id="licenseCompany" required minlength="2" autocomplete="organization"></label>
         <label>E-posta <input id="licenseEmail" type="email" autocomplete="email"></label>
         <button type="submit" class="secondary">Talep dosyası kaydet (.req)</button>
       </form>
       <div class="dialog-actions">
-        <button type="button" class="primary" id="licenseLoad">Lisans dosyası yükle (.lic)</button>
         <button type="button" class="secondary" id="licenseClose">Kapat</button>
       </div>
       <p class="error" id="licenseError" role="alert"></p>
