@@ -94,7 +94,8 @@
   // and turns the pages into images, which removes the text underneath.
   async function redact({ files, values, engine, note }) {
     const file = files.fileInput[0];
-    const boxes = await window.SecuriPreview.textBoxes(file, redactPatterns(values));
+    const patterns = redactPatterns(values);
+    let boxes = await window.SecuriPreview.textBoxes(file, patterns);
     if (!boxes.length) throw new Error("Aranan metinler belgede bulunamadı. Taranmış bir belgeyse önce OCR uygulayın.");
     let input = file;
     // FreeText/form text sits above page content. Flatten it into the page
@@ -104,6 +105,8 @@
       flatten.append("fileInput", file, file.name);
       flatten.append("flattenOnlyForms", "false");
       input = new File([await engine("/api/v1/misc/flatten", flatten)], file.name, { type: "application/pdf" });
+      const after = await window.SecuriPreview.textBoxes(input, patterns);
+      if (after.length) boxes = after;
     }
     const form = new FormData();
     form.append("fileInput", input, file.name);

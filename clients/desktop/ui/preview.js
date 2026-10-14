@@ -570,19 +570,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
     option.value = value;
     fontFamily.appendChild(option);
   });
-  if (window.queryLocalFonts) {
-    window.queryLocalFonts().then((fonts) => {
-      const seen = new Set(stockFonts.map(([, label]) => label.toLowerCase()));
-      [...fonts].sort((a, b) => a.family.localeCompare(b.family, "tr")).forEach((font) => {
-        const name = font.family;
-        if (!name || seen.has(name.toLowerCase())) return;
-        seen.add(name.toLowerCase());
-        const option = el("option", null, name);
-        option.value = `"${name.replace(/"/g, "")}", sans-serif`;
-        fontFamily.appendChild(option);
-      });
-    }).catch(() => { /* WebView2 font izni yoksa stok liste kalır */ });
-  }
   const applyBtn = button("Uygula", "Değişikliği yaz", "primary");
   const cancelBtn = button("Vazgeç");
   actions.append(fontFamily, fontColor, fontSizeInput, applyBtn, cancelBtn);
@@ -1490,16 +1477,33 @@ function annotationPlainText(annot) {
   return typeof annot.contents === "string" ? annot.contents : "";
 }
 
+function annotationFontSize(annot) {
+  const data = annot && annot.defaultAppearanceData;
+  if (data && Number(data.fontSize) > 0) return Number(data.fontSize);
+  const appearance = String((annot && (annot.defaultAppearance || annot.da)) || "");
+  const tf = /(?:^|[\s/])(\d+(?:\.\d+)?)\s+Tf/.exec(appearance);
+  if (tf) return Number(tf[1]);
+  const html = String((annot && (annot.richText || annot.rc)) || "");
+  const css = /font(?:-size)?\s*:\s*(\d+(?:\.\d+)?)\s*px/i.exec(html);
+  return css ? Number(css[1]) : 0;
+}
+
 function annotationLines(annot) {
   const text = annotationPlainText(annot);
   const rect = annot && annot.rect;
   if (!text || !Array.isArray(rect) || rect.length < 4) return [];
   const rows = text.split(/\r\n|\n|\r/);
-  const [x1, y1, x2, y2] = rect;
-  const height = (y2 - y1) / Math.max(rows.length, 1);
+  const x1 = Math.min(rect[0], rect[2]);
+  const x2 = Math.max(rect[0], rect[2]);
+  const y1 = Math.min(rect[1], rect[3]);
+  const y2 = Math.max(rect[1], rect[3]);
+  // Preview/macOS FreeText /Rect is often taller than the text. Stretching
+  // rows to fill it shifts later lines (the TCKN box lands on the phone).
+  const size = annotationFontSize(annot) || 12;
+  const lineHeight = Math.min(size * 1.2, (y2 - y1) / Math.max(rows.length, 1));
   return rows.map((line, index) => ({
     text: line,
-    rect: [x1, y2 - (index + 1) * height, x2, y2 - index * height],
+    rect: [x1, y2 - (index + 1) * lineHeight, x2, y2 - index * lineHeight],
   }));
 }
 
@@ -1542,9 +1546,10 @@ function boxesForAnnotation(annot, patterns, page, viewport) {
           const width = x2 - x1;
           const length = Math.max(row.text.length, 1);
           const pad = Math.max(2, width * 0.04);
+          const padY = Math.max(1.5, (y2 - y1) * 0.15);
           const left = x1 + (width * from) / length - (from === 0 ? pad : width * 0.12);
           const right = x1 + (width * to) / length + (to >= row.text.length ? pad : width * 0.12);
-          const box = viewportBox(viewport, [left, y1, right, y2], page, true);
+          const box = viewportBox(viewport, [left, y1 - padY, right, y2 + padY], page, true);
           if (box.width > 0 && box.height > 0) boxes.push(box);
         }
         offset = lineEnd + 1;
