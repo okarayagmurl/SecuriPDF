@@ -75,9 +75,20 @@
     const file = files.fileInput[0];
     const boxes = await window.SecuriPreview.textBoxes(file, redactPatterns(values));
     if (!boxes.length) throw new Error("Aranan metinler belgede bulunamadı. Taranmış bir belgeyse önce OCR uygulayın.");
+    let input = file;
+    // FreeText/form text sits above page content. Flatten it into the page
+    // first so convert-to-image cannot paint the original words on top of the boxes.
+    if (boxes.some((box) => box.annotation)) {
+      const flatten = new FormData();
+      flatten.append("fileInput", file, file.name);
+      flatten.append("flattenOnlyForms", "false");
+      input = new File([await engine("/api/v1/misc/flatten", flatten)], file.name, { type: "application/pdf" });
+    }
     const form = new FormData();
-    form.append("fileInput", file, file.name);
-    form.append("redactions", JSON.stringify(boxes.map((box) => ({ ...box, color: values.redactColor }))));
+    form.append("fileInput", input, file.name);
+    form.append("redactions", JSON.stringify(boxes.map((box) => ({
+      page: box.page, x: box.x, y: box.y, width: box.width, height: box.height, color: values.redactColor,
+    }))));
     form.append("convertPDFToImage", "true");
     let bytes = await engine("/api/v1/security/redact", form);
     if (values.ocr) {

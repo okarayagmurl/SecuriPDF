@@ -1391,6 +1391,19 @@ async function textLines(data, password) {
         if (item.hasEOL) flush();
       }
       flush();
+      const annotations = await page.getAnnotations({ intent: "display" });
+      for (const annot of annotations) {
+        for (const { text } of annotationLines(annot)) {
+          const trimmed = text.replace(/\s+$/, "");
+          if (!trimmed) continue;
+          lines.push({
+            text: trimmed,
+            size: 12,
+            pageBreakBefore: number > 1 && !lines.some((row) => row.page === number),
+            page: number,
+          });
+        }
+      }
       page.cleanup();
     }
     return lines;
@@ -1439,8 +1452,89 @@ function mergeBoxes(boxes) {
     prev.height = Math.max(prev.y + prev.height, box.y + box.height) - y;
     prev.x = x;
     prev.y = y;
+    if (box.annotation) prev.annotation = true;
   });
   return out;
+}
+
+/** FreeText comments and filled widgets store text outside getTextContent(). */
+function annotationPlainText(annot) {
+  if (!annot || annot.subtype === "Popup") return "";
+  const widget = annot.subtype === "Widget" || annot.fieldType;
+  if (widget) {
+    const value = annot.fieldValue;
+    if (Array.isArray(value)) return value.filter((part) => typeof part === "string").join("\n");
+    if (typeof value === "string" && value) return value;
+  }
+  if (annot.subtype !== "FreeText" && !widget) return "";
+  if (annot.contentsObj && typeof annot.contentsObj.str === "string" && annot.contentsObj.str) {
+    return annot.contentsObj.str;
+  }
+  return typeof annot.contents === "string" ? annot.contents : "";
+}
+
+function annotationLines(annot) {
+  const text = annotationPlainText(annot);
+  const rect = annot && annot.rect;
+  if (!text || !Array.isArray(rect) || rect.length < 4) return [];
+  const rows = text.split(/\r\n|\n|\r/);
+  const [x1, y1, x2, y2] = rect;
+  const height = (y2 - y1) / Math.max(rows.length, 1);
+  return rows.map((line, index) => ({
+    text: line,
+    rect: [x1, y2 - (index + 1) * height, x2, y2 - index * height],
+  }));
+}
+
+function viewportBox(viewport, rect, page, annotation) {
+  const [x1, y1, x2, y2] = rect;
+  const corners = [[x1, y1], [x2, y1], [x1, y2], [x2, y2]].map(([x, y]) => viewport.convertToViewportPoint(x, y));
+  const xs = corners.map((point) => point[0]);
+  const ys = corners.map((point) => point[1]);
+  const left = Math.max(0, Math.min(...xs));
+  const top = Math.max(0, Math.min(...ys));
+  return {
+    page,
+    x: left,
+    y: top,
+    width: Math.min(viewport.width, Math.max(...xs)) - left,
+    height: Math.min(viewport.height, Math.max(...ys)) - top,
+    annotation,
+  };
+}
+
+function boxesForAnnotation(annot, patterns, page, viewport) {
+  const rows = annotationLines(annot);
+  const joined = rows.map((row) => row.text).join("\n");
+  if (!joined) return [];
+  const boxes = [];
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(joined))) {
+      if (!match[0]) { pattern.lastIndex++; continue; }
+      const start = match.index;
+      const end = start + match[0].length;
+      let offset = 0;
+      for (const row of rows) {
+        const lineEnd = offset + row.text.length;
+        if (end > offset && start < lineEnd) {
+          const from = Math.max(0, start - offset);
+          const to = Math.min(row.text.length, end - offset);
+          const [x1, y1, x2, y2] = row.rect;
+          const width = x2 - x1;
+          const length = Math.max(row.text.length, 1);
+          const pad = Math.max(2, width * 0.04);
+          const left = x1 + (width * from) / length - (from === 0 ? pad : width * 0.12);
+          const right = x1 + (width * to) / length + (to >= row.text.length ? pad : width * 0.12);
+          const box = viewportBox(viewport, [left, y1, right, y2], page, true);
+          if (box.width > 0 && box.height > 0) boxes.push(box);
+        }
+        offset = lineEnd + 1;
+      }
+    }
+  }
+  return boxes;
 }
 
 /**
@@ -1526,6 +1620,8 @@ async function textBoxes(data, patterns, password) {
           }
         }
       }
+      const annotations = await page.getAnnotations({ intent: "display" });
+      for (const annot of annotations) boxes.push(...boxesForAnnotation(annot, patterns, number, viewport));
       page.cleanup();
     }
     return mergeBoxes(boxes);
