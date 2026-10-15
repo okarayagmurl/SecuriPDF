@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Masaüstü PDF motoru Stirling-PDF **3.1.0** (2.14.3 → 3.1.0; JPDFium karartma, otomatik sayfa döndürme, OCR yön düzeltme)
+- Masaüstünde belge süreci: Döndür → OCR → Karart → İmzala; görüntüleyicide İşle şeridi
+- Taranmış belgede yan/ters sayfalar otomatik düzeltilir (`auto-rotate-pdf`, OCR `rotatePages`)
+- Stirling Sign, Office Convert beta, Processor/S3 ve PDF/UA alınmadı (çevrimdışı lisans ve mevcut kapsam)
 - Windows uygulaması sunucusuz çalışır; 19 araç dosyayı bilgisayardan çıkarmadan işler
 - Windows uygulamasında Türkçe ve İngilizce OCR ile aranabilir PDF bilgisayarda üretilir
 - Windows uygulaması belgeyi ve sonucu önizler; sayfa silme, çıkarma ve bölmede sayfalar küçük resimlerden seçilir

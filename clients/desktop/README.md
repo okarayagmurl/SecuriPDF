@@ -60,7 +60,7 @@ cargo tauri build
 
 `fetch-engine.ps1` şunları SHA256 özetini doğrulayarak `src-tauri\engine` altına koyar; bu dosyalar repoya girmez:
 
-- Stirling-PDF 2.14.3 server JAR (açılmış hali `app\`)
+- Stirling-PDF 3.1.0 server JAR (açılmış hali `app\`)
 - Temurin 25 JRE (`jre\`)
 - UB Mannheim Tesseract 5.4 (`tesseract\`, yalnızca `tesseract.exe` ve yüklediği DLL'ler)
 - Ghostscript 10.06.0 (`gs\`, `gs.exe` = `gswin64c.exe`); PDF/A ve PDF/X için

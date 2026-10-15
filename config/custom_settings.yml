@@ -40,6 +40,7 @@ endpoints:
   - multi-tool
   - pdf-to-json
   - pdf-to-rtf
+  - pdf-to-ua
   - pdf-to-video
   - pipeline
   - redact

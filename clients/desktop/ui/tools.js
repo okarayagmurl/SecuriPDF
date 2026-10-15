@@ -1,4 +1,4 @@
-// Field names and option values follow the Stirling-PDF 2.14.3 OpenAPI spec (/v1/api-docs).
+// Field names and option values follow the Stirling-PDF 3.1.0 OpenAPI spec (/v1/api-docs).
 (function () {
   const PDF = ".pdf,application/pdf";
   const IMAGES = ".jpg,.jpeg,.png,.gif,.bmp,.tif,.tiff,.webp,image/*";
@@ -331,6 +331,8 @@
           { value: "skip-text", label: "Atla, yalnızca taranmış sayfaları tanı" },
           { value: "force-ocr", label: "Tüm sayfaları yeniden tanı" },
         ] },
+        { name: "rotatePages", label: "Yanlış yöndeki sayfaları otomatik düzelt", type: "checkbox", default: true,
+          hint: "Taranmış belgede yan veya ters sayfaları Tesseract OSD ile 90/180/270 döndürür." },
       ],
       constants: { ocrRenderType: "hocr", deskew: "false", clean: "false", cleanFinal: "false", sidecar: "false", removeImagesAfter: "false" },
       validate: (v) => (v.languages.length ? null : "En az bir dil seçin."),
@@ -388,6 +390,23 @@
           { value: "270", label: "270°" },
         ] },
       ],
+    },
+    {
+      id: "auto-rotate-pdf",
+      category: "pages",
+      title: "Otomatik döndür",
+      description: "Her sayfanın yönünü metin veya tarama algısıyla bulur; yan ve ters sayfaları dik konumuna çevirir. Taranmış belgelerde OCR'dan önce çalıştırın.",
+      apiPath: "/api/v1/misc/auto-rotate-pdf",
+      suffix: "duzeltilmis",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "detectionMode", label: "Algılama", type: "select", default: "auto", options: [
+          { value: "auto", label: "Metin, yoksa tarama (OSD)" },
+          { value: "text", label: "Yalnızca gömülü metin" },
+          { value: "osd", label: "Yalnızca tarama (OSD)" },
+        ] },
+      ],
+      constants: { dryRun: "false", inferUndetected: "true" },
     },
     {
       id: "remove-pages",

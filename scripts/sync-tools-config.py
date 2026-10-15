@@ -21,7 +21,7 @@ ENV_FILE = ROOT / "docker" / ".env"
 
 ALL_ENDPOINTS = [
     "add-attachments", "add-image", "add-page-numbers", "add-password", "add-stamp",
-    "add-watermark", "adjust-contrast", "auto-redact", "auto-rename", "auto-split-pdf",
+    "add-watermark", "adjust-contrast", "auto-redact", "auto-rename", "auto-rotate-pdf", "auto-split-pdf",
     "automate", "booklet-imposition", "cert-sign", "change-permissions", "compare",
     "compress-pdf", "crop", "dev-airgapped-docs", "dev-api-docs", "dev-folder-scanning-docs",
     "dev-sso-guide-docs", "edit-table-of-contents", "eml-to-pdf", "extract-image-scans",
@@ -31,7 +31,7 @@ ALL_ENDPOINTS = [
     "pdf-to-epub", "pdf-to-html", "pdf-to-img", "pdf-to-json", "pdf-to-markdown",
     "pdf-to-pdfa", "pdf-to-presentation", "pdf-to-rtf", "pdf-to-single-page",
     "pdf-to-text", "pdf-to-vector", "pdf-to-video", "pdf-to-word", "pdf-to-xml",
-    "pdf-to-xlsx", "ebook-to-pdf", "extract-attachments",
+    "pdf-to-xlsx", "pdf-to-ua", "ebook-to-pdf", "extract-attachments",
     "pipeline", "rearrange-pages", "redact", "remove-annotations", "remove-blanks",
     "remove-cert-sign", "remove-image-pdf", "remove-pages", "remove-password", "repair",
     "rotate-pdf", "sanitize-pdf", "scale-pages", "sign", "split-by-size-or-count",

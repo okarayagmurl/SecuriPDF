@@ -1,5 +1,5 @@
 param(
-    [string]$StirlingVersion = "2.14.3",
+    [string]$StirlingVersion = "3.1.0",
     [int]$JavaMajor = 25,
     [string]$SevenZip = "C:\Program Files\7-Zip\7z.exe"
 )

@@ -7,7 +7,7 @@ kod (Stirling PDF User License) kopyalanmamıştır.
 
 Kurulum dosyasına şu üçüncü taraf bileşenler eklenir:
 
-- Stirling-PDF 2.14.3 `Stirling-PDF-server.jar`: MIT lisansı (aşağıda). JAR,
+- Stirling-PDF 3.1.0 `Stirling-PDF-server.jar`: MIT lisansı (aşağıda). JAR,
   proprietary modül içermez; içindeki kütüphaneler kendi lisanslarına tabidir.
 - Eclipse Temurin 25 JRE: GPLv2 ve Classpath Exception.
 - Tesseract OCR 5.4 (UB Mannheim Windows derlemesi) ve `tessdata_best` dil

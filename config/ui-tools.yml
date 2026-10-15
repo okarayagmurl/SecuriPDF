@@ -243,6 +243,30 @@ tools:
           - value: "270"
             label: "270°"
 
+  - id: auto-rotate-pdf
+    title: Otomatik döndür
+    description: Her sayfanın yönünü metin veya tarama algısıyla bulur; yan ve ters sayfaları dik konumuna çevirir.
+    category: pages
+    icon: rotate
+    apiPath: /api/v1/misc/auto-rotate-pdf
+    inputs:
+      - name: fileInput
+        label: PDF dosyası
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+      - name: detectionMode
+        label: Algılama
+        type: select
+        default: auto
+        options:
+          - value: auto
+            label: Metin, yoksa tarama (OSD)
+          - value: text
+            label: Yalnızca gömülü metin
+          - value: osd
+            label: Yalnızca tarama (OSD)
+
   - id: remove-pages
     title: Sayfa Sil
     description: Belirttiğiniz sayfaları PDF'ten kaldırır; kalan sayfalar tek belgede kalır.

@@ -59,7 +59,7 @@ PARSED_STIRLING="$(echo "${TO_VERSION}" | sed -n 's/.*-stirling-//p')"
 if [[ -n "${PARSED_STIRLING}" ]]; then
   STIRLING_VERSION="${PARSED_STIRLING}"
 else
-  STIRLING_VERSION="${STIRLING_VERSION:-2.14.3}"
+  STIRLING_VERSION="${STIRLING_VERSION:-3.1.0}"
 fi
 STIRLING_IMAGE="${STIRLING_IMAGE:-docker.stirlingpdf.com/stirlingtools/stirling-pdf}"
 FROM_SAFE="${FROM_VERSION//\//_}"

@@ -12,6 +12,7 @@ enabled_tools:
 - add-watermark
 - auto-redact
 - auto-rename
+- auto-rotate-pdf
 - auto-split-pdf
 - booklet-imposition
 - cbr-to-pdf

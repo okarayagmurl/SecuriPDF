@@ -250,12 +250,23 @@ async function openViewer(source, pageNumber, title, options = {}) {
   close.classList.add("viewer-btn-close");
 
   top.append(titleWrap, searchBox, cluster(...[printBtn, toWord, save].filter(Boolean)), close);
-  ribbon.append(
+  const processBtns = options.onProcess ? [
+    button("OCR", "Taranmış sayfayı aranabilir yap, sonra karartın veya imzalayın", "tool", ICONS.text),
+    button("Karart", "Kişisel veriyi kalıcı olarak kapatın", "tool", ICONS.highlight),
+    button("İmzala", "Dijital imza ekleyin", "tool", ICONS.edit),
+  ] : [];
+  if (processBtns.length) {
+    processBtns[0].onclick = () => options.onProcess("ocr-pdf");
+    processBtns[1].onclick = () => options.onProcess("redact");
+    processBtns[2].onclick = () => options.onProcess("cert-sign");
+  }
+  ribbon.append(...[
     group("Sayfa", prev, pageBox, next),
     group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
     group("İşaretle", marks),
     group("Düzenle", replace, formBtn),
-  );
+    processBtns.length ? group("İşle", ...processBtns) : null,
+  ].filter(Boolean));
   chrome.append(top, ribbon);
   const workspace = el("div", "viewer-workspace");
   const thumbs = el("aside", "viewer-thumbs");

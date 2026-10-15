@@ -19,6 +19,7 @@ packages:
       - img-to-pdf
       - pdf-to-img
       - rotate-pdf
+      - auto-rotate-pdf
       - add-password
       - remove-password
       - add-watermark
@@ -42,6 +43,7 @@ packages:
       - img-to-pdf
       - pdf-to-img
       - rotate-pdf
+      - auto-rotate-pdf
       - add-password
       - remove-password
       - add-watermark
@@ -76,6 +78,7 @@ packages:
       - html-to-pdf
       - markdown-to-pdf
       - rotate-pdf
+      - auto-rotate-pdf
       - remove-pages
       - extract-pages
       - rearrange-pages

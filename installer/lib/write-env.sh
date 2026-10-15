@@ -40,7 +40,7 @@ write_env() {
   fi
   image_tag="${image_tag:-1.2.8-stirling-2.14.3}"
   stirling_version="$(echo "${image_tag}" | sed -n 's/.*-stirling-//p')"
-  stirling_version="${stirling_version:-2.14.3}"
+  stirling_version="${stirling_version:-3.1.0}"
 
   mkdir -p "${DOCKER_DIR}"
   cat > "${ENV_FILE}" <<EOF

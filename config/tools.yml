@@ -73,6 +73,7 @@ enabled:
   - get-info-on-pdf
 
   # Gelişmiş sayfa
+  - auto-rotate-pdf
   - crop
   - multi-page-layout
   - overlay-pdf

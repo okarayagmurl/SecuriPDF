@@ -226,26 +226,74 @@
     return Boolean(tool && tool.viewer);
   }
 
-  const HOME_CHIPS = [
-    ["merge-pdfs", "Birleştir"],
-    ["ocr-pdf", "OCR"],
-    ["cert-sign", "İmzala"],
-    ["office-to-pdf", "Office → PDF"],
-    ["pdf-to-word", "PDF → Word"],
-    ["redact", "Karart"],
+  const PROCESS_STEPS = [
+    { id: "auto-rotate-pdf", label: "Döndür", title: "Yan ve ters sayfaları düzelt" },
+    { id: "ocr-pdf", label: "OCR", title: "Taranmış sayfayı aranabilir yap" },
+    { id: "redact", label: "Karart", title: "Kişisel veriyi kalıcı kapat" },
+    { id: "cert-sign", label: "İmzala", title: "Dijital imza ekle" },
+  ];
+  const PROCESS_MORE = [
+    { id: "compress-pdf", label: "Sıkıştır" },
+    { id: "pdf-to-word", label: "Word" },
+    { id: "merge-pdfs", label: "Birleştir" },
+    { id: "office-to-pdf", label: "Office → PDF" },
   ];
 
-  function renderHomeShortcuts() {
-    const box = $("homeShortcuts");
-    const chips = $("homeChips");
-    const home = state.tool && state.tool.id === "open-pdf";
-    box.hidden = !home;
-    if (!home) return;
+  function sessionPdf() {
+    if (state.result && /\.pdf$/i.test(state.result.name || "")) {
+      return new File([state.result.bytes], state.result.name, { type: "application/pdf" });
+    }
+    const open = state.preview.file || (state.tool && allFiles()[0]);
+    return open && /\.pdf$/i.test(open.name || "") ? open : null;
+  }
+
+  function applyToSession(toolId) {
+    const file = sessionPdf();
+    selectTool(toolId, file ? [file] : []);
+  }
+
+  function renderProcess() {
+    const box = $("process");
+    const steps = $("processSteps");
+    const more = $("processMore");
+    if (!box || !steps || !more) return;
     const allowed = new Set(allowedTools().map((tool) => tool.id));
-    chips.replaceChildren();
-    HOME_CHIPS.forEach(([id, label]) => {
-      if (!allowed.has(id)) return;
-      chips.appendChild(el("button", { type: "button", text: label, onclick: () => selectTool(id) }));
+    const file = sessionPdf();
+    const hasResult = Boolean(state.result && /\.pdf$/i.test(state.result.name || ""));
+    box.hidden = false;
+    $("processLabel").textContent = hasResult
+      ? "Sonuçla sonraki adım"
+      : file
+        ? "Bu belgeyle sonraki adım"
+        : "Önerilen süreç";
+    steps.replaceChildren();
+    let stepNo = 0;
+    PROCESS_STEPS.forEach((step) => {
+      if (!allowed.has(step.id)) return;
+      stepNo += 1;
+      const item = el("li");
+      if (steps.childElementCount) item.appendChild(el("span", { class: "join", text: "→" }));
+      item.appendChild(el("button", {
+        type: "button",
+        title: step.title,
+        disabled: !file,
+        "aria-current": state.tool && state.tool.id === step.id ? "true" : undefined,
+        onclick: () => applyToSession(step.id),
+      }, [
+        el("span", { class: "n", text: String(stepNo) }),
+        el("span", { text: step.label }),
+      ]));
+      steps.appendChild(item);
+    });
+    more.replaceChildren();
+    PROCESS_MORE.forEach((step) => {
+      if (!allowed.has(step.id)) return;
+      more.appendChild(el("button", {
+        type: "button",
+        text: step.label,
+        disabled: step.id !== "office-to-pdf" && step.id !== "merge-pdfs" && !file,
+        onclick: () => applyToSession(step.id),
+      }));
     });
   }
 
@@ -329,7 +377,7 @@
     $("toWord").hidden = !viewing || !hasFile;
     document.body.classList.toggle("viewing", viewing);
     document.body.classList.toggle("home", home);
-    renderHomeShortcuts();
+    renderProcess();
     run.disabled = viewing || state.busy || waiting || unlicensed;
     run.textContent = state.busy ? "İşleniyor…" : waiting ? "Ön gereksinimler hazırlanıyor…" : "Çalıştır";
     if (unlicensed && !viewing) run.textContent = "Lisans gerekli";
@@ -1049,6 +1097,10 @@
         addFormFields,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
         onToWord: () => selectTool("pdf-to-word", [source]),
+        onProcess: (toolId) => {
+          if (!window.SecuriPreview.closeViewer(false)) return;
+          selectTool(toolId, [source]);
+        },
         onClose: () => {
           if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
         },
@@ -1096,7 +1148,7 @@
       state.result = { bytes, name: outputName(bytes) };
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
       $("resultText").textContent = `Hazır: ${state.result.name} (${formatSize(bytes.length)}, ${seconds} sn)${note ? ". " + note : ""}`;
-      $("continue").hidden = outputExtension(bytes) !== "pdf";
+      renderProcess();
       $("saveFolder").hidden = true;
       $("result").hidden = false;
       $("tabResult").disabled = false;
@@ -1127,7 +1179,7 @@
     };
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
     $("resultText").textContent = `${total} dosyadan ${outputs.length} tanesi hazır${failed ? `, ${failed} tanesinde hata var (ayrıntı ${REPORT_NAME} içinde)` : ""} (${seconds} sn).`;
-    $("continue").hidden = true;
+    renderProcess();
     $("saveFolder").hidden = !outputs.length;
     $("save").textContent = "ZIP olarak kaydet…";
     $("result").hidden = false;
@@ -1177,14 +1229,6 @@
     }
   }
 
-  function continueWithResult() {
-    if (!state.result) return;
-    const file = new File([state.result.bytes], state.result.name, { type: "application/pdf" });
-    const next = acceptsPdf(state.tool.files[0]) ? state.tool : tools.find((tool) => acceptsPdf(tool.files[0]));
-    state.preview.file = file;
-    selectTool(next.id, [file]);
-  }
-
   // ---- Files opened with the app ----
 
   async function loadOpenedFiles() {
@@ -1221,7 +1265,6 @@
   });
   $("splashSkip").addEventListener("click", hideSplash);
   $("save").addEventListener("click", saveResult);
-  $("continue").addEventListener("click", continueWithResult);
   $("saveFolder").addEventListener("click", saveToFolder);
   $("batch").addEventListener("change", (event) => {
     state.batch = event.target.checked;
