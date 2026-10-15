@@ -961,6 +961,19 @@
     return JSON.parse(await core.invoke("local_engine_get", { apiPath }));
   }
 
+  async function callEngineJson(apiPath, payload) {
+    return withWork("İşleniyor…", async () => {
+      const body = new TextEncoder().encode(JSON.stringify(payload));
+      const output = await core.invoke("run_local_tool", body, {
+        headers: {
+          "x-securipdf-api-path": apiPath,
+          "x-securipdf-content-type": "application/json",
+        },
+      });
+      return new Uint8Array(output);
+    });
+  }
+
   async function htmlToPdf(html, page) {
     return withWork("PDF üretiliyor…", async () => new Uint8Array(await core.invoke("html_to_pdf", { html, page })));
   }
@@ -1095,6 +1108,10 @@
         password: values.password || undefined,
         formDesign: state.tool && state.tool.id === "add-form-fields",
         addFormFields,
+        engine: callEngine,
+        engineGet,
+        engineJson: callEngineJson,
+        errorText,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
         onToWord: () => selectTool("pdf-to-word", [source]),
         onProcess: (toolId) => {

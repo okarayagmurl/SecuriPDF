@@ -332,8 +332,11 @@ async fn run_local_tool(
     if api_path.contains("timestamp") && !policy::load().allow_timestamp {
         return Err("POLICY_TIMESTAMP".into());
     }
-    if !is_local_api_path(&api_path) || !content_type.starts_with("multipart/form-data; boundary=")
-    {
+    let multipart = content_type.starts_with("multipart/form-data; boundary=");
+    // The text editor sends the changed page as JSON. Every other tool stays multipart.
+    let text_edit = content_type == "application/json"
+        && api_path.starts_with("/api/v1/convert/pdf/text-editor/partial/");
+    if !is_local_api_path(&api_path) || !(multipart || text_edit) {
         return Err("LOCAL_BAD_REQUEST".into());
     }
     let base = engine.base_url().ok_or("LOCAL_ENGINE_NOT_READY")?;

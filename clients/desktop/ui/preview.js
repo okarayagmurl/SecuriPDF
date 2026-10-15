@@ -238,7 +238,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
-  const replace = button("Metni değiştir", "Seçilen paragrafta satırlar bu blokta kayar. Alttaki paragraflar yerinde kalır.", "tool", ICONS.edit);
+  const replace = button("Metni değiştir", "Seçilen yazıyı belgenin metnine işler. Yorum kutusundaki yazı da değişir.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
     : null;
@@ -535,11 +535,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     activeMark.current = color.value;
     eventBus.dispatch("switchannotationeditorparams", { source: color, type: activeMark.color, value: color.value });
   };
-  let uiManager = null;
-  eventBus.on("annotationeditoruimanager", (event) => {
-    uiManager = event.uiManager;
-    setMark(MARKS[0]);
-  });
+  eventBus.on("annotationeditoruimanager", () => setMark(MARKS[0]));
 
   // Toolbar clicks would clear the text selection; keep it so "Metni değiştir" can read it.
   chrome.addEventListener("mousedown", (event) => {
@@ -554,44 +550,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   field.setAttribute("spellcheck", "false");
   const actions = el("div", "replace-actions");
   actions.hidden = true;
-  const fontColor = el("input", "replace-color");
-  fontColor.type = "color";
-  fontColor.value = "#0f172a";
-  fontColor.title = "Yazı rengi";
-  const fontSizeInput = el("input", "replace-size");
-  fontSizeInput.type = "number";
-  fontSizeInput.min = "8";
-  fontSizeInput.max = "96";
-  fontSizeInput.title = "Yazı boyutu (punto)";
-  const fontFamily = el("select", "replace-font");
-  fontFamily.title = "Yazı tipi";
-  const stockFonts = [
-    ["Segoe UI, sans-serif", "Segoe UI"],
-    ["Arial, Helvetica, sans-serif", "Arial"],
-    ["Calibri, sans-serif", "Calibri"],
-    ["Tahoma, sans-serif", "Tahoma"],
-    ["Verdana, sans-serif", "Verdana"],
-    ['"Times New Roman", Times, serif', "Times New Roman"],
-    ["Georgia, serif", "Georgia"],
-    ['"Courier New", Courier, monospace', "Courier New"],
-    ["Consolas, monospace", "Consolas"],
-  ];
-  stockFonts.forEach(([value, label]) => {
-    const option = el("option", null, label);
-    option.value = value;
-    fontFamily.appendChild(option);
-  });
-  const applyBtn = button("Uygula", "Değişikliği yaz", "primary");
+  const applyBtn = button("Uygula", "Değişikliği belgenin yazısına işle", "primary");
   const cancelBtn = button("Vazgeç");
-  actions.append(fontFamily, fontColor, fontSizeInput, applyBtn, cancelBtn);
-  const syncFieldFace = () => {
-    field.style.fontFamily = fontFamily.value;
-    field.style.color = fontColor.value || "#0f172a";
-    field.style.fontSize = Math.max(8, Number(fontSizeInput.value) || 12) + "px";
-  };
-  fontFamily.onchange = syncFieldFace;
-  fontColor.oninput = syncFieldFace;
-  fontSizeInput.oninput = syncFieldFace;
+  actions.append(applyBtn, cancelBtn);
   root.append(field, actions);
   let pendingReplace = null;
   const covers = [];
@@ -750,10 +711,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.width = Math.max(blockWidth, 160) + "px";
     field.style.height = Math.max(blockHeight, 36) + "px";
     field.value = found.text;
-    fontSizeInput.value = String(Math.round(Math.max(8, first.height * 0.72)));
-    field.style.fontSize = fontSizeInput.value + "px";
-    field.style.fontFamily = fontFamily.value;
-    field.style.color = fontColor.value || "#0f172a";
+    field.style.fontSize = Math.round(Math.max(12, first.height * 0.72)) + "px";
+    field.style.fontFamily = "Segoe UI, sans-serif";
+    field.style.color = "#0f172a";
     field.style.lineHeight = "1.25";
     field.hidden = false;
     found.pageEl.appendChild(field);
@@ -766,28 +726,96 @@ async function openViewer(source, pageNumber, title, options = {}) {
     window.getSelection().removeAllRanges();
   };
 
-  const stampLayer = async (pageIndex) => {
-    // PDF.js redraws a page that already has comments before the stamp layer
-    // exists, and waits for pagerendered. If that event is missed the layer
-    // never appears and text replace fails after the short wait.
-    try {
-      pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.STAMP };
-    } catch {
-      /* editor not enabled yet */
-    }
-    for (let i = 0; i < 60; i++) {
-      const view = pdfViewer.getPageView(pageIndex);
-      if (view && view.renderingState === 0) {
-        try { pdfViewer.forceRendering(); } catch { /* queue will draw the page */ }
+  const boxOf = (item) => {
+    const matrix = item.textMatrix || [];
+    const size = Number(item.fontSize || matrix[0] || 12);
+    const x = Number(matrix.length > 4 ? matrix[4] : item.x || 0);
+    const y = Number(matrix.length > 5 ? matrix[5] : item.y || 0);
+    const width = Number(item.width || size);
+    const height = Math.max(Number(item.height || 0), size);
+    return { left: x, right: x + width, bottom: y - size * 0.25, top: y + height * 0.15, x, y, size };
+  };
+
+  const overlapsPdf = (box, rect) => box.left < rect[2] && box.right > rect[0] && box.bottom < rect[3] && box.top > rect[1];
+
+  const wrapPdfLines = (text, fontSize, maxWidth) => {
+    const measure = document.createElement("canvas").getContext("2d");
+    measure.font = `${fontSize}px sans-serif`;
+    return wrapLines(measure, text, Math.max(40, maxWidth));
+  };
+
+  const waitForTextJob = async (jobId) => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const status = await options.engineGet(`/api/v1/general/job/${jobId}`);
+      if (status && status.complete) {
+        if (status.error) throw new Error(String(status.error));
+        return;
       }
-      const builder = view && view.annotationEditorLayer;
-      if (builder && !builder.annotationEditorLayer && view.viewport) {
-        try { await builder.render({ viewport: view.viewport }); } catch { /* layer still attaching */ }
-      }
-      if (builder && builder.annotationEditorLayer) return builder.annotationEditorLayer;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, attempt < 6 ? 400 : 900));
     }
-    return null;
+    throw new Error("Metin düzenleyici zaman aşımına uğradı.");
+  };
+
+  const writeLines = (elements, chosen, text) => {
+    const groups = [];
+    chosen.forEach((item) => {
+      const box = boxOf(item);
+      const group = groups.find((entry) => Math.abs(entry.y - box.y) < 2.5);
+      if (group) group.items.push(item);
+      else groups.push({ y: box.y, items: [item] });
+    });
+    groups.sort((a, b) => b.y - a.y);
+    const first = boxOf(groups[0].items[0]);
+    const left = Math.min(...chosen.map((item) => boxOf(item).left));
+    const right = Math.max(...chosen.map((item) => boxOf(item).right));
+    const wrapped = wrapPdfLines(text, first.size, right - left);
+    const leading = groups.length > 1 ? Math.abs(groups[0].y - groups[1].y) : first.size * 1.25;
+    groups.forEach((group, index) => {
+      const line = wrapped[index] || "";
+      group.items.forEach((item, itemIndex) => {
+        item.text = itemIndex === 0 ? line : "";
+        if (itemIndex === 0) item.width = Math.max(first.size, line.length * (Number(item.spaceWidth) || first.size * 0.45));
+        delete item.charCodes;
+      });
+    });
+    const template = groups[groups.length - 1].items[0];
+    for (let index = groups.length; index < wrapped.length; index++) {
+      const copy = JSON.parse(JSON.stringify(template));
+      delete copy.charCodes;
+      const matrix = (copy.textMatrix || [first.size, 0, 0, first.size, left, first.y]).slice();
+      matrix[4] = left;
+      matrix[5] = first.y - leading * index;
+      copy.textMatrix = matrix;
+      copy.text = wrapped[index];
+      copy.width = Math.max(first.size, wrapped[index].length * (Number(copy.spaceWidth) || first.size * 0.45));
+      copy.zOrder = (Number(copy.zOrder) || 1000000) + index;
+      elements.push(copy);
+    }
+  };
+
+  const replaceAnnotation = (page, annot, text) => {
+    const rect = annot.rect;
+    const contents = String(annot.contents || "");
+    const lineCount = Math.max(1, contents.split(/\n/).filter((line) => line.trim()).length);
+    const size = Math.max(9, Math.min(16, (rect[3] - rect[1]) / lineCount * 0.72));
+    const fontId = (page.textElements || []).map((item) => item.fontId).find(Boolean) || "helv";
+    const wrapped = wrapPdfLines(text, size, Math.max(40, rect[2] - rect[0] - 4));
+    page.annotations = (page.annotations || []).filter((item) => item !== annot);
+    page.textElements = page.textElements || [];
+    wrapped.forEach((line, index) => {
+      const y = rect[3] - size * (index + 1) * 1.2;
+      page.textElements.push({
+        text: line,
+        fontId,
+        fontSize: size,
+        fontMatrixSize: size,
+        spaceWidth: size * 0.28,
+        width: Math.max(size, line.length * size * 0.5),
+        height: size * 0.7,
+        zOrder: 2000000 + index,
+        textMatrix: [size, 0, 0, size, rect[0] + 2, y],
+      });
+    });
   };
 
   const applyReplace = async () => {
@@ -797,85 +825,57 @@ async function openViewer(source, pageNumber, title, options = {}) {
       hideReplace();
       return;
     }
-    const { pageNumber, boxes, view, wrapWidth } = pendingReplace;
-    const pageIndex = pageNumber - 1;
-    const first = boxes[0];
-    const fontSize = Math.max(8, Number(fontSizeInput.value) || first.height * 0.72);
-    const ink = fontColor.value || "#0f172a";
-    const face = fontFamily.value || "Segoe UI, sans-serif";
-    const scale = 3;
-    const measure = document.createElement("canvas").getContext("2d");
-    measure.font = `500 ${fontSize * scale}px ${face}`;
-    const column = Math.max(40, wrapWidth || Math.max(...boxes.map((box) => box.width)));
-    const lines = wrapLines(measure, next, (column - 6) * scale);
-    const lineHeight = fontSize * 1.25;
-    const union = {
-      left: Math.min(...boxes.map((box) => box.left)),
-      top: Math.min(...boxes.map((box) => box.top)),
-      right: Math.min(...boxes.map((box) => box.left)) + column,
-      bottom: Math.max(...boxes.map((box) => box.bottom), Math.min(...boxes.map((box) => box.top)) + lines.length * lineHeight + 4),
-    };
-    union.width = union.right - union.left;
-    union.height = union.bottom - union.top;
-    const origin = pendingReplace.originEl.getBoundingClientRect();
-    const a = view.getPagePoint(union.left - origin.left, union.top - origin.top);
-    const b = view.getPagePoint(union.right - origin.left, union.bottom - origin.top);
-    const pdfBox = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(2, Math.ceil(union.width * scale));
-    canvas.height = Math.max(2, Math.ceil(union.height * scale));
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    boxes.forEach((box) => {
-      ctx.fillRect((box.left - union.left) * scale, (box.top - union.top) * scale, box.width * scale, box.height * scale);
-    });
-    ctx.fillStyle = ink;
-    ctx.font = `500 ${fontSize * scale}px ${face}`;
-    ctx.textBaseline = "top";
-    lines.forEach((line, index) => {
-      ctx.fillText(line, 2 * scale, (2 + index * lineHeight) * scale);
-    });
-    let packed = null;
-    try {
-      if (uiManager && uiManager.imageManager && uiManager.imageManager.getFromCanvas) {
-        packed = uiManager.imageManager.getFromCanvas("spf-" + Date.now(), canvas);
-      }
-    } catch {
-      packed = null;
-    }
-    const layer = await stampLayer(pageIndex);
-    if (!layer || !layer.deserialize) {
-      hideReplace();
-      window.alert("Metin katmanı hazır değil. Sayfa görününce yeniden deneyin; uzun düzenleme için Word'e dönüştürün.");
+    if (!options.engine || !options.engineGet || !options.engineJson) {
+      window.alert("Metin düzenleyici için yerel motor hazır olmalı.");
       return;
     }
-    let editor = null;
+    const { pageNumber, pdfRects } = pendingReplace;
+    const padded = (pdfRects || []).map((rect) => [rect[0] - 4, rect[1] - 4, rect[2] + 4, rect[3] + 4]);
+    applyBtn.disabled = true;
+    statusMode.textContent = "Metin belgenin yazısına işleniyor…";
     try {
-      editor = await layer.deserialize({
-        annotationType: pdfjs.AnnotationEditorType.STAMP,
-        bitmapId: packed && packed.id,
-        bitmap: packed && packed.bitmap,
-        bitmapUrl: packed ? undefined : canvas.toDataURL("image/png"),
-        pageIndex,
-        rect: pdfBox,
-        rotation: view.rotation || 0,
-        isSvg: false,
-      });
+      const bytes = await doc.saveDocument();
+      const form = new FormData();
+      form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
+      form.append("async", "true");
+      form.append("lightweight", "true");
+      const started = JSON.parse(new TextDecoder().decode(await options.engine("/api/v1/convert/pdf/text-editor", form)));
+      if (!started.jobId) throw new Error("Metin düzenleyici işi başlamadı.");
+      await waitForTextJob(started.jobId);
+      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
+      const elements = page.textElements || [];
+      const picked = elements.filter((item) => String(item.text || "").trim() && padded.some((rect) => overlapsPdf(boxOf(item), rect)));
+      const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && padded.some((rect) => overlapsPdf({
+        left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
+      }, rect)));
+      if (picked.length) writeLines(elements, picked, next);
+      else if (annot) replaceAnnotation(page, annot, next);
+      else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
+      const rebuilt = await options.engineJson(`/api/v1/convert/pdf/text-editor/partial/${started.jobId}`, { pages: [page] });
+      restoreView = { page: pdfViewer.currentPageNumber, scale: pdfViewer.currentScaleValue };
+      const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: rebuilt, password: options.password || undefined });
+      const nextDoc = await nextTask.promise;
+      if (viewer !== current) { nextTask.destroy(); return; }
+      current.task.destroy();
+      current.task = nextTask;
+      doc = nextDoc;
+      doc.annotationStorage.onSetModified = () => markDirty(true);
+      doc.annotationStorage.onResetModified = () => markDirty(false);
+      pdfViewer.setDocument(doc);
+      linkService.setDocument(doc, null);
+      pageTotal.textContent = `/ ${doc.numPages}`;
+      pageInput.max = String(doc.numPages);
+      fillThumbs(doc);
+      markDirty(true);
+      hideReplace();
+      statusMode.textContent = "Metin belgenin yazısına işlendi. Kaydet ile dosyaya yazın.";
     } catch (err) {
       hideReplace();
-      window.alert(String((err && err.message) || err || "Metin yazılamadı."));
-      return;
+      const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin yazılamadı.");
+      window.alert(message);
+    } finally {
+      applyBtn.disabled = false;
     }
-    if (!editor) {
-      hideReplace();
-      window.alert("Metin bu belgede değiştirilemedi. Uzun düzenleme için Word'e dönüştürün.");
-      return;
-    }
-    layer.addOrRebuild(editor);
-    markDirty(true);
-    hideReplace();
-    setTimeout(() => setMark(MARKS[0]), 400);
   };
 
   const openReplace = () => {

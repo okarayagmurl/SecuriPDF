@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Metin değiştirme, yorumlu PDF'te damga katmanı hazır olmadan düşüyordu; sayfa yeniden çizilince katman bekleniyor
+- Metin değiştirme artık beyaz damga basmıyor; seçilen yazıyı Stirling metin düzenleyicisiyle belgenin metnine işliyor. Yorum kutusundaki yazı da aynı yolla değişiyor
 - Masaüstü PDF motoru Stirling-PDF **3.1.0** (2.14.3 → 3.1.0; JPDFium karartma, otomatik sayfa döndürme, OCR yön düzeltme)
 - Masaüstünde belge süreci: Döndür → OCR → Karart → İmzala; görüntüleyicide İşle şeridi
 - Taranmış belgede yan/ters sayfalar otomatik düzeltilir (`auto-rotate-pdf`, OCR `rotatePages`)
