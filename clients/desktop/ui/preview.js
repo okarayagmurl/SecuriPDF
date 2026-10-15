@@ -767,16 +767,22 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
 
   const stampLayer = async (pageIndex) => {
+    // PDF.js redraws a page that already has comments before the stamp layer
+    // exists, and waits for pagerendered. If that event is missed the layer
+    // never appears and text replace fails after the short wait.
     try {
       pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.STAMP };
     } catch {
-      /* already in stamp mode */
+      /* editor not enabled yet */
     }
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 60; i++) {
       const view = pdfViewer.getPageView(pageIndex);
+      if (view && view.renderingState === 0) {
+        try { pdfViewer.forceRendering(); } catch { /* queue will draw the page */ }
+      }
       const builder = view && view.annotationEditorLayer;
       if (builder && !builder.annotationEditorLayer && view.viewport) {
-        await builder.render({ viewport: view.viewport });
+        try { await builder.render({ viewport: view.viewport }); } catch { /* layer still attaching */ }
       }
       if (builder && builder.annotationEditorLayer) return builder.annotationEditorLayer;
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -830,25 +836,37 @@ async function openViewer(source, pageNumber, title, options = {}) {
     lines.forEach((line, index) => {
       ctx.fillText(line, 2 * scale, (2 + index * lineHeight) * scale);
     });
+    let packed = null;
+    try {
+      if (uiManager && uiManager.imageManager && uiManager.imageManager.getFromCanvas) {
+        packed = uiManager.imageManager.getFromCanvas("spf-" + Date.now(), canvas);
+      }
+    } catch {
+      packed = null;
+    }
     const layer = await stampLayer(pageIndex);
-    const packed = uiManager && uiManager.imageManager && uiManager.imageManager.getFromCanvas
-      ? uiManager.imageManager.getFromCanvas("spf-" + Date.now(), canvas)
-      : null;
     if (!layer || !layer.deserialize) {
       hideReplace();
-      window.alert("Metin bu belgede değiştirilemedi. Uzun düzenleme için Word'e dönüştürün.");
+      window.alert("Metin katmanı hazır değil. Sayfa görününce yeniden deneyin; uzun düzenleme için Word'e dönüştürün.");
       return;
     }
-    const editor = await layer.deserialize({
-      annotationType: pdfjs.AnnotationEditorType.STAMP,
-      bitmapId: packed && packed.id,
-      bitmap: packed && packed.bitmap,
-      bitmapUrl: packed ? undefined : canvas.toDataURL("image/png"),
-      pageIndex,
-      rect: pdfBox,
-      rotation: 0,
-      isSvg: false,
-    });
+    let editor = null;
+    try {
+      editor = await layer.deserialize({
+        annotationType: pdfjs.AnnotationEditorType.STAMP,
+        bitmapId: packed && packed.id,
+        bitmap: packed && packed.bitmap,
+        bitmapUrl: packed ? undefined : canvas.toDataURL("image/png"),
+        pageIndex,
+        rect: pdfBox,
+        rotation: view.rotation || 0,
+        isSvg: false,
+      });
+    } catch (err) {
+      hideReplace();
+      window.alert(String((err && err.message) || err || "Metin yazılamadı."));
+      return;
+    }
     if (!editor) {
       hideReplace();
       window.alert("Metin bu belgede değiştirilemedi. Uzun düzenleme için Word'e dönüştürün.");
