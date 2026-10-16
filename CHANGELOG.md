@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Üst çubuktan uygulama dili Türkçe veya English seçilir; seçim bu bilgisayarda hatırlanır
+- Portföy, PDF sayfalarını Türkçe veya İngilizce bir kapağın ardına ekler. PDF olmayan dosyalar belgenin ekine konur
+- Boş sayfa ve sayfa ekleme, eksik jpdfium bileşenine takılmadan qpdf ile birleştirilir
 - Belge aç ekranında önerilen sürecin altında diğer araçlar kategorilere göre listelenir; açık PDF bir sonraki araca taşınır
 - Metin değiştirmede ve metin eklemede yazı tipi (Helvetica, Times, Courier ve kalınları) ile punto seçilir; seçim belgenin yazısına işlenir
 - Masaüstü menüsündeki her aracın yanında ikon var

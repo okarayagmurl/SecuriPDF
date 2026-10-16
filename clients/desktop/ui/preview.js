@@ -137,6 +137,10 @@ function svgIcon(inner) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 }
 
+function t(text) {
+  return window.SecuriI18n ? window.SecuriI18n.t(text) : text;
+}
+
 function button(label, title, kind, icon) {
   const cls = kind === "primary" ? "viewer-btn viewer-btn-primary"
     : kind === "ghost" ? "viewer-btn viewer-btn-ghost"
@@ -145,9 +149,10 @@ function button(label, title, kind, icon) {
     : "viewer-btn";
   const node = el("button", cls);
   node.type = "button";
-  if (title) node.title = title;
-  if (icon) node.innerHTML = svgIcon(icon) + (label ? `<span>${label}</span>` : "");
-  else node.textContent = label;
+  const shown = label ? t(label) : "";
+  if (title) node.title = t(title);
+  if (icon) node.innerHTML = svgIcon(icon) + (shown ? `<span>${shown}</span>` : "");
+  else node.textContent = shown;
   return node;
 }
 
@@ -254,7 +259,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textFont.hidden = true;
   textFont.setAttribute("aria-label", "Yazı tipi");
   TEXT_FONTS.filter((font) => font.stirling).forEach((font) => {
-    const option = el("option", null, font.label);
+    const option = el("option", null, t(font.label));
     option.value = font.id;
     option.style.fontFamily = font.css;
     textFont.appendChild(option);
@@ -569,7 +574,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     }
     root.classList.toggle("text-placing", placingText);
     markButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === String(mark.mode)));
-    statusMode.textContent = mark.title;
+    statusMode.textContent = t(mark.title);
     color.hidden = !mark.color || placingText;
     textFont.hidden = !placingText;
     textSize.hidden = !placingText;
@@ -611,7 +616,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   fontSel.title = "Yazı tipi. Belgedeki, satırın kendi yazı tipini korur.";
   fontSel.setAttribute("aria-label", "Yazı tipi");
   TEXT_FONTS.forEach((font) => {
-    const option = el("option", null, font.label);
+    const option = el("option", null, t(font.label));
     option.value = font.id;
     option.style.fontFamily = font.css;
     fontSel.appendChild(option);
@@ -1216,7 +1221,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   formPanel.hidden = true;
   const kindSel = el("select", "replace-font");
   [["text", "Metin"], ["checkbox", "Onay kutusu"], ["dropdown", "Liste"]].forEach(([value, label]) => {
-    const option = el("option", null, label);
+    const option = el("option", null, t(label));
     option.value = value;
     kindSel.appendChild(option);
   });

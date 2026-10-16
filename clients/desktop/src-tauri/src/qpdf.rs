@@ -85,6 +85,126 @@ fn repair(qpdf: &Path, dir: &Path, body: &[u8]) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+/// Joins page ranges from several PDFs. Stirling's rearrange path needs jpdfium,
+/// which the desktop engine does not ship, so blank and inserted pages go through qpdf.
+#[tauri::command]
+pub async fn assemble_pdf(app: AppHandle, request: Request<'_>) -> Result<Response, String> {
+    crate::license::require()?;
+    let InvokeBody::Raw(body) = request.body() else {
+        return Err("Birleştirilecek veri yok.".into());
+    };
+    let parts = parse_parts(body)?;
+    let qpdf = qpdf_binary(&app).ok_or("qpdf bulunamadı. Motor paketini yeniden hazırlayın.")?;
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|err| err.to_string())?
+        .join("repair")
+        .join(format!("join-{}-{}", std::process::id(), JOBS.fetch_add(1, Ordering::Relaxed)));
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = assemble(&qpdf, &dir, &parts);
+        let _ = std::fs::remove_dir_all(&dir);
+        result
+    })
+    .await
+    .map_err(|err| err.to_string())?
+    .map(Response::new)
+}
+
+struct Part {
+    pages: String,
+    bytes: Vec<u8>,
+}
+
+fn parse_parts(body: &[u8]) -> Result<Vec<Part>, String> {
+    if body.len() < 8 || &body[..4] != b"SPDF" {
+        return Err("Sayfa birleştirme isteği bozuk.".into());
+    }
+    let mut offset = 4;
+    let count = read_u32(body, &mut offset)?;
+    if !(1..=40).contains(&count) {
+        return Err("Sayfa birleştirme isteği bozuk.".into());
+    }
+    let mut parts = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let spec_len = read_u32(body, &mut offset)? as usize;
+        if spec_len == 0 || spec_len > 64 || offset + spec_len > body.len() {
+            return Err("Sayfa aralığı geçersiz.".into());
+        }
+        let spec = std::str::from_utf8(&body[offset..offset + spec_len]).map_err(|_| "Sayfa aralığı geçersiz.".to_string())?;
+        offset += spec_len;
+        if !valid_page_spec(spec) {
+            return Err("Sayfa aralığı geçersiz.".into());
+        }
+        let pdf_len = read_u32(body, &mut offset)? as usize;
+        if pdf_len < 5 || offset + pdf_len > body.len() {
+            return Err("Sayfa birleştirme isteği bozuk.".into());
+        }
+        let bytes = body[offset..offset + pdf_len].to_vec();
+        offset += pdf_len;
+        if &bytes[..4] != b"%PDF" {
+            return Err("Eklenen dosya PDF değil.".into());
+        }
+        parts.push(Part { pages: spec.to_string(), bytes });
+    }
+    if offset != body.len() {
+        return Err("Sayfa birleştirme isteği bozuk.".into());
+    }
+    Ok(parts)
+}
+
+fn read_u32(body: &[u8], offset: &mut usize) -> Result<u32, String> {
+    if *offset + 4 > body.len() {
+        return Err("Sayfa birleştirme isteği bozuk.".into());
+    }
+    let value = u32::from_le_bytes(body[*offset..*offset + 4].try_into().unwrap());
+    *offset += 4;
+    Ok(value)
+}
+
+fn valid_page_spec(spec: &str) -> bool {
+    !spec.is_empty()
+        && spec.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'-' | b',' | b'z'))
+        && spec.bytes().any(|byte| byte.is_ascii_digit() || byte == b'z')
+}
+
+fn assemble(qpdf: &Path, dir: &Path, parts: &[Part]) -> Result<Vec<u8>, String> {
+    std::fs::create_dir_all(dir).map_err(|err| format!("Geçici klasör oluşturulamadı: {err}"))?;
+    let mut args = vec!["--warning-exit-0".to_string(), "--empty".to_string(), "--pages".to_string()];
+    for (index, part) in parts.iter().enumerate() {
+        let path = dir.join(format!("part-{index}.pdf"));
+        std::fs::write(&path, &part.bytes).map_err(|err| format!("Geçici dosya yazılamadı: {err}"))?;
+        args.push(path.display().to_string());
+        args.push(part.pages.clone());
+    }
+    let output = dir.join("out.pdf");
+    args.push("--".into());
+    args.push(output.display().to_string());
+    let mut command = Command::new(qpdf);
+    command
+        .current_dir(qpdf.parent().unwrap_or(dir))
+        .args(&args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_console(&mut command);
+    let result = command.output().map_err(|err| format!("qpdf başlatılamadı: {err}"))?;
+    if !output.is_file() {
+        let err = String::from_utf8_lossy(&result.stderr);
+        let hint = err
+            .lines()
+            .rev()
+            .find(|line| line.contains("qpdf:"))
+            .unwrap_or("Sayfalar birleştirilemedi.");
+        return Err(hint.trim().to_string());
+    }
+    let bytes = std::fs::read(&output).map_err(|err| format!("Birleşen dosya okunamadı: {err}"))?;
+    if bytes.len() < 5 || &bytes[..4] != b"%PDF" {
+        return Err("Birleşen dosya geçersiz.".into());
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{find_qpdf, repair, repair_args};
@@ -112,6 +232,14 @@ startxref
 %%EOF
 "#
         .to_vec()
+    }
+
+    #[test]
+    fn page_spec_rejects_paths() {
+        assert!(super::valid_page_spec("1-z"));
+        assert!(super::valid_page_spec("1-3,5"));
+        assert!(!super::valid_page_spec("../a"));
+        assert!(!super::valid_page_spec(""));
     }
 
     #[test]

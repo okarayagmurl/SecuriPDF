@@ -170,6 +170,10 @@
     return new File([bytes], name, { type: "application/pdf" });
   }
 
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  }
+
   function pageInches(pt) {
     return Math.min(50, Math.max(1, Number(pt) / 72 || 8.27));
   }
@@ -1234,7 +1238,7 @@
       title: "Sayfa Ekle",
       description: "Belirttiğiniz sayfadan önce boş sayfa veya başka bir PDF ekleyin.",
       suffix: "sayfa-eklendi",
-      usesEngine: true,
+      usesEngine: false,
       files: [
         { name: "fileInput", label: "Hedef PDF", accept: PDF },
         { name: "insertPdf", label: "Eklenecek PDF", accept: PDF, showIf: { source: "pdf" } },
@@ -1248,36 +1252,28 @@
           hint: "1 belgenin başına ekler. Son sayfadan büyük bir değer sona ekler." },
         { name: "blankCount", label: "Boş sayfa sayısı", type: "number", default: 1, min: 1, max: 50, showIf: { source: "blank" } },
       ],
-      async run({ files, values, engine, htmlToPdf }) {
+      async run({ files, values, assemble }) {
         const dest = files.fileInput[0];
+        const destBytes = new Uint8Array(await dest.arrayBuffer());
         const pages = await window.SecuriPreview.countPages(dest);
-        const at = Math.max(1, Math.min((pages || 1) + 1, Number(values.atPage) || 1));
-        let insert = files.insertPdf && files.insertPdf[0];
+        if (!pages) throw new Error("PDF sayfaları okunamadı.");
+        const at = Math.max(1, Math.min(pages + 1, Number(values.atPage) || 1));
+        let insertBytes;
         if (values.source === "blank") {
           const info = await window.SecuriPreview.pageInfo(dest);
           const first = info[0] || { width: 595, height: 842 };
-          const setup = {
-            width: pageInches(first.width),
-            height: pageInches(first.height),
-            marginTop: 0,
-            marginRight: 0,
-            marginBottom: 0,
-            marginLeft: 0,
-            landscape: false,
-          };
           const count = Math.max(1, Math.min(50, Number(values.blankCount) || 1));
-          const blanks = [];
-          for (let i = 0; i < count; i++) {
-            blanks.push(pdfFile(await htmlToPdf("<!doctype html><html><body></body></html>", setup), `bos-${i + 1}.pdf`));
-          }
-          insert = blanks.length === 1 ? blanks[0] : pdfFile(await mergePdfs(engine, blanks), "bos.pdf");
+          insertBytes = solidColorPdf(Array.from({ length: count }, () => ({ width: first.width, height: first.height })), "#ffffff");
+        } else {
+          const chosen = files.insertPdf && files.insertPdf[0];
+          if (!chosen) throw new Error("Eklenecek PDF seçin.");
+          insertBytes = new Uint8Array(await chosen.arrayBuffer());
         }
-        if (!insert) throw new Error("Eklenecek PDF seçin.");
         const parts = [];
-        if (at > 1) parts.push(pdfFile(await extractPages(engine, dest, `1-${at - 1}`), "once.pdf"));
-        parts.push(insert);
-        if (at <= pages) parts.push(pdfFile(await extractPages(engine, dest, `${at}-${pages}`), "sonra.pdf"));
-        return parts.length === 1 ? new Uint8Array(await parts[0].arrayBuffer()) : mergePdfs(engine, parts);
+        if (at > 1) parts.push({ bytes: destBytes, pages: `1-${at - 1}` });
+        parts.push({ bytes: insertBytes, pages: "1-z" });
+        if (at <= pages) parts.push({ bytes: destBytes, pages: `${at}-z` });
+        return assemble(parts);
       },
     },
     {
@@ -1633,20 +1629,62 @@
       id: "create-portfolio",
       category: "pages",
       title: "Portföy oluştur",
-      description: "Birden fazla dosyayı tek PDF portföyünde toplar. Normal okuyucuda açılması için Portföyü düzleştir kullanın.",
-      apiPath: "/api/v1/misc/create-portfolio",
+      description: "Seçilen PDF'lerin sayfalarını bir kapak sayfasının ardına ekler. PDF olmayan dosyalar belgenin ekine konur.",
       suffix: "portfoy",
       batch: false,
+      usesEngine: true,
       files: [{ name: "files", label: "Dosyalar", multiple: true, min: 2 }],
       fields: [
         { name: "coverTitle", label: "Kapak başlığı", type: "text", default: "" },
       ],
+      async run({ files, values, engine, htmlToPdf, assemble, note }) {
+        const inputs = files.files || [];
+        const pdfs = [];
+        const others = [];
+        inputs.forEach((file) => {
+          if (/\.pdf$/i.test(file.name || "") || file.type === "application/pdf") pdfs.push(file);
+          else others.push(file);
+        });
+        const english = window.SecuriI18n && window.SecuriI18n.lang === "en";
+        const title = (values.coverTitle || "").trim() || (english ? "Portfolio" : "Portföy");
+        const intro = english
+          ? "The pages of each PDF follow this cover."
+          : "PDF dosyalarının sayfaları bu kapağın ardından gelir.";
+        const extra = others.length
+          ? (english
+            ? "Files that are not PDFs are attached to this document."
+            : "PDF olmayan dosyalar bu belgenin ekindedir.")
+          : "";
+        const items = inputs.map((file, index) => `<li>${escapeHtml(file.name || ("dosya-" + (index + 1)))}</li>`).join("");
+        const html = `<!doctype html><html lang="${english ? "en" : "tr"}"><head><meta charset="utf-8"><style>
+          body{margin:0;font-family:"Segoe UI",sans-serif;color:#0f172a;}
+          h1{font-size:28px;margin:0 0 12px;}
+          p{font-size:14px;line-height:1.45;margin:0 0 8px;}
+          ol{font-size:14px;line-height:1.5;padding-left:1.2em;}
+        </style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${extra ? `<p>${escapeHtml(extra)}</p>` : ""}<ol>${items}</ol></body></html>`;
+        const cover = await htmlToPdf(html, {
+          width: 8.27, height: 11.69, marginTop: 0.7, marginRight: 0.7, marginBottom: 0.7, marginLeft: 0.7, landscape: false,
+        });
+        const parts = [{ bytes: cover, pages: "1-z" }];
+        for (const file of pdfs) parts.push({ bytes: new Uint8Array(await file.arrayBuffer()), pages: "1-z" });
+        let bytes = parts.length === 1 ? cover : await assemble(parts);
+        if (others.length) {
+          const form = new FormData();
+          form.append("fileInput", pdfFile(bytes, "portfoy.pdf"), "portfoy.pdf");
+          others.forEach((file) => form.append("attachments", file, file.name || "ek"));
+          bytes = await engine("/api/v1/misc/add-attachments", form);
+          note(english
+            ? "PDF pages follow the cover. Other files are in the document attachments."
+            : "PDF sayfaları kapağın ardında. Diğer dosyalar belgenin ekindedir.");
+        }
+        return bytes;
+      },
     },
     {
       id: "flatten-portfolio",
       category: "pages",
       title: "Portföyü düzleştir",
-      description: "PDF portföyünün kapak sarmalayıcısını kaldırır. Dosyalar ek olarak kalır; belge normal PDF gibi açılır.",
+      description: "Eski PDF portföyünün kapak sarmalayıcısını kaldırır. Yeni portföy çıktısı sayfaları zaten içerir.",
       apiPath: "/api/v1/misc/flatten-portfolio",
       suffix: "duz",
       files: [{ name: "fileInput", label: "Portföy PDF", accept: PDF }],

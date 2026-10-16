@@ -17,6 +17,7 @@
     "allow-html-to-pdf",
     "allow-office-convert",
     "allow-repair-pdf",
+    "allow-assemble-pdf",
     "allow-add-form-fields",
     "allow-scan-file",
     "allow-make-qr",

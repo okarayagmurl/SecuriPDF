@@ -146,6 +146,7 @@ pub fn run() {
             print::html_to_pdf,
             office::office_convert,
             qpdf::repair_pdf,
+            qpdf::assemble_pdf,
             form_fields::add_form_fields,
             defender::scan_file,
             qr::make_qr,

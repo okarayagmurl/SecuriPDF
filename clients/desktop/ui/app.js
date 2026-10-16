@@ -4,6 +4,7 @@
   const tools = window.SECURIPDF_TOOLS;
   const categories = window.SECURIPDF_CATEGORIES;
   const $ = (id) => document.getElementById(id);
+  const t = (text) => (window.SecuriI18n ? window.SecuriI18n.t(text) : text);
 
   const state = {
     tool: null,
@@ -61,20 +62,20 @@
 
   function errorText(err) {
     const code = typeof err === "string" ? err : (err && err.message) || String(err);
-    if (ERRORS[code]) return ERRORS[code];
+    if (ERRORS[code]) return t(ERRORS[code]);
     const prefixed = Object.keys(ERRORS).find((key) => code.startsWith(key + ":"));
-    if (prefixed) return ERRORS[prefixed];
-    if (isGhostscriptFailure(code)) return ERRORS.GHOSTSCRIPT_MISSING;
+    if (prefixed) return t(ERRORS[prefixed]);
+    if (isGhostscriptFailure(code)) return t(ERRORS.GHOSTSCRIPT_MISSING);
     const http = /^LOCAL_HTTP_(\d+)(?::([\s\S]*))?$/.exec(code);
     if (http) {
-      if (isGhostscriptFailure(http[2] || "")) return ERRORS.GHOSTSCRIPT_MISSING;
+      if (isGhostscriptFailure(http[2] || "")) return t(ERRORS.GHOSTSCRIPT_MISSING);
       const specific = state.tool && state.tool.httpError && state.tool.httpError(Number(http[1]), http[2] || "");
-      if (specific) return specific;
-      return Number(http[1]) >= 500
+      if (specific) return t(specific);
+      return t(Number(http[1]) >= 500
         ? "İşlem tamamlanamadı. Dosya bozuk olabilir, parola yanlış olabilir veya seçenek dosyaya uymuyor olabilir."
-        : "Seçenekler kabul edilmedi. Değerleri kontrol edin.";
+        : "Seçenekler kabul edilmedi. Değerleri kontrol edin.");
     }
-    return code;
+    return t(code);
   }
 
   function formatSize(bytes) {
@@ -87,7 +88,8 @@
     const node = document.createElement(tag);
     Object.entries(attrs || {}).forEach(([key, value]) => {
       if (value === undefined || value === null || value === false) return;
-      if (key === "text") node.textContent = value;
+      if (key === "text") node.textContent = t(value);
+      else if (key === "placeholder" || key === "title" || key === "aria-label") node.setAttribute(key, t(value));
       else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
       else node.setAttribute(key, value === true ? "" : value);
     });
@@ -166,7 +168,7 @@
     if (splash.closed) return;
 
     if (status.state === "failed" || status.state === "missing") {
-      $("splashStage").textContent = "Ön gereksinimler hazırlanamadı.";
+      $("splashStage").textContent = t("Ön gereksinimler hazırlanamadı.");
       $("splashPercent").textContent = "";
       $("splashError").hidden = false;
       $("splashError").textContent = (status.detail || "Uygulamayı kapatıp yeniden açın.") +
@@ -204,14 +206,14 @@
     state.engine = engineState;
     const badge = $("engine");
     badge.dataset.state = engineState;
-    badge.textContent = {
+    badge.textContent = t({
       ready: "Hazır",
       starting: "Ön gereksinimler hazırlanıyor…",
       failed: "Hazırlık başarısız",
       missing: "Kurulum eksik",
-    }[engineState] || engineState;
+    }[engineState] || engineState);
     badge.title = detail || (engineState === "starting"
-      ? "Bu sırada dosya seçip önizleyebilirsiniz."
+      ? t("Bu sırada dosya seçip önizleyebilirsiniz.")
         : "");
     updateRunButton();
     if (engineState === "ready" && state.tool && state.loadedOptions) applyVisibility();
@@ -261,11 +263,11 @@
     const file = sessionPdf();
     const hasResult = Boolean(state.result && /\.pdf$/i.test(state.result.name || ""));
     box.hidden = false;
-    $("processLabel").textContent = hasResult
+    $("processLabel").textContent = t(hasResult
       ? "Sonuçla sonraki adım"
       : file
         ? "Bu belgeyle sonraki adım"
-        : "Önerilen süreç";
+        : "Önerilen süreç");
     steps.replaceChildren();
     let stepNo = 0;
     PROCESS_STEPS.forEach((step) => {
@@ -416,12 +418,12 @@
     document.body.classList.toggle("home", home);
     renderProcess();
     run.disabled = viewing || state.busy || waiting || unlicensed;
-    run.textContent = state.busy ? "İşleniyor…" : waiting ? "Ön gereksinimler hazırlanıyor…" : "Çalıştır";
-    if (unlicensed && !viewing) run.textContent = "Lisans gerekli";
+    run.textContent = state.busy ? t("İşleniyor…") : waiting ? t("Ön gereksinimler hazırlanıyor…") : t("Çalıştır");
+    if (unlicensed && !viewing) run.textContent = t("Lisans gerekli");
     $("openViewer").disabled = viewing && !hasFile;
     $("toWord").disabled = viewing && !hasFile;
     if (needsEngine(state.tool) && (state.engine === "failed" || state.engine === "missing")) {
-      run.textContent = "Hazır değil";
+      run.textContent = t("Hazır değil");
       $("formError").textContent = ($("engine").title || "Ön gereksinimler hazırlanamadı.") +
         " Kayıt: %LOCALAPPDATA%\\net.entera.securipdf.desktop\\engine\\engine.log";
     }
@@ -490,8 +492,8 @@
     state.files[primary.name] = isMultiple(primary) ? carried : carried.slice(0, 1);
     clearResult();
     $("tool").hidden = false;
-    $("toolTitle").textContent = tool.title;
-    $("toolDescription").textContent = tool.description;
+    $("toolTitle").textContent = t(tool.title);
+    $("toolDescription").textContent = t(tool.description);
     $("formError").textContent = "";
     $("toolForm").hidden = false;
     renderFields();
@@ -619,7 +621,7 @@
         });
         const box = (option) => el("label", {}, [
           el("input", { type: "checkbox", value: option.value, checked: (field.default || []).includes(option.value) }),
-          document.createTextNode(option.label),
+          document.createTextNode(t(option.label)),
         ]);
         input = el("div", { id, class: "checks" + (groups.some((group) => group.name) ? " grouped" : "") },
           groups.flatMap((group) => group.name
@@ -667,7 +669,7 @@
       input.addEventListener("input", () => onFieldChange(field));
       const kind = ["field", field.type === "checkbox" ? "check" : "", field.cliOnly ? "cli-only" : ""].filter(Boolean).join(" ");
       const wrapper = field.type === "checkbox"
-        ? el("div", { class: kind, "data-field": field.name }, [el("label", { for: id }, [input, document.createTextNode(field.label)])])
+        ? el("div", { class: kind, "data-field": field.name }, [el("label", { for: id }, [input, document.createTextNode(t(field.label))])])
         : el("div", { class: kind, "data-field": field.name }, [el(field.type === "checks" || field.type === "pad" || field.type === "range" ? "span" : "label", { for: id, class: "label", text: field.label }), input]);
       if (field.load) {
         wrapper.appendChild(el("button", { type: "button", class: "secondary refresh", text: "Listeyi yenile", onclick: () => loadOptions(field, true) }));
@@ -1032,6 +1034,28 @@
     });
   }
 
+  async function assemblePdf(parts) {
+    const chunks = [new TextEncoder().encode("SPDF")];
+    const count = new Uint8Array(4);
+    new DataView(count.buffer).setUint32(0, parts.length, true);
+    chunks.push(count);
+    const enc = new TextEncoder();
+    parts.forEach((part) => {
+      const spec = enc.encode(part.pages || "1-z");
+      const specLen = new Uint8Array(4);
+      new DataView(specLen.buffer).setUint32(0, spec.length, true);
+      const pdfLen = new Uint8Array(4);
+      new DataView(pdfLen.buffer).setUint32(0, part.bytes.length, true);
+      chunks.push(specLen, spec, pdfLen, part.bytes);
+    });
+    let size = 0;
+    chunks.forEach((chunk) => { size += chunk.length; });
+    const body = new Uint8Array(size);
+    let offset = 0;
+    chunks.forEach((chunk) => { body.set(chunk, offset); offset += chunk.length; });
+    return withWork("Sayfalar birleştiriliyor…", async () => new Uint8Array(await core.invoke("assemble_pdf", body)));
+  }
+
   async function repair(file) {
     return withWork("Onarılıyor…", async () => {
       const body = new Uint8Array(await file.arrayBuffer());
@@ -1083,6 +1107,7 @@
         repair,
         scan,
         makeQr,
+        assemble: assemblePdf,
         note: (text) => { note = text; },
       })
       : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));
@@ -1669,6 +1694,27 @@
   // Read-only view used by the automated UI tests.
   window.SecuriWork = { begin: beginWork, end: endWork };
   window.SecuriApp = { lastResult: () => state.result && { name: state.result.name, bytes: state.result.bytes.slice() } };
+
+  function refreshLanguage() {
+    if (window.SecuriI18n) window.SecuriI18n.apply();
+    if (state.engine) setEngine(state.engine);
+    renderToolList($("search") ? $("search").value : "");
+    if (!state.tool) return;
+    $("toolTitle").textContent = t(state.tool.title);
+    $("toolDescription").textContent = t(state.tool.description);
+    renderFields();
+    renderFiles();
+    updateRunButton();
+  }
+  const langBox = $("lang");
+  if (langBox && window.SecuriI18n) {
+    langBox.value = window.SecuriI18n.lang;
+    langBox.addEventListener("change", () => {
+      window.SecuriI18n.set(langBox.value);
+      refreshLanguage();
+    });
+    window.SecuriI18n.apply();
+  }
 
   selectTool("open-pdf");
   (async () => {

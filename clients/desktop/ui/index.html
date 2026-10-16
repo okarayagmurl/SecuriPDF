@@ -28,10 +28,10 @@
       <div class="progress" role="progressbar" aria-label="Ön gereksinimler hazırlanıyor" aria-valuemin="0" aria-valuemax="100" aria-valuenow="12" id="splashProgress">
         <div class="progress-bar" id="splashBar" style="width:12%"></div>
       </div>
-      <p class="splash-stage"><span id="splashStage">Ön gereksinimler hazırlanıyor…</span> <span id="splashPercent">%12</span></p>
+      <p class="splash-stage"><span id="splashStage" data-tr="Ön gereksinimler hazırlanıyor…">Ön gereksinimler hazırlanıyor…</span> <span id="splashPercent">%12</span></p>
       <p class="splash-error" id="splashError" hidden></p>
-      <button type="button" class="secondary" id="splashSkip">Beklerken dosya seç</button>
-      <p class="splash-note">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
+      <button type="button" class="secondary" id="splashSkip" data-tr="Beklerken dosya seç">Beklerken dosya seç</button>
+      <p class="splash-note" data-tr="Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
       <div class="splash-entera"><img src="entera-logo.png" alt="">Entera</div>
     </div>
   </div>
@@ -53,19 +53,25 @@
   </script>
   <header class="top">
     <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
-    <button type="button" class="open-file" id="openFile">Belge aç</button>
+    <button type="button" class="open-file" id="openFile" data-tr="Belge aç">Belge aç</button>
     <div class="top-end">
-      <label class="shell-menu" title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
-        <input type="checkbox" id="shellMenu"> Gezgin sağ tık menüsü
+      <label class="lang" for="lang">
+        <select id="lang" data-tr-aria="Uygulama dili">
+          <option value="tr">Türkçe</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <label class="shell-menu" data-tr-title="PDF, Office ve UDF dosyalarına sağ tıklayınca SecuriPDF menüsü çıkar; sonuç dosyanın yanına kaydedilir.">
+        <input type="checkbox" id="shellMenu"> <span data-tr="Gezgin sağ tık menüsü">Gezgin sağ tık menüsü</span>
       </label>
       <button type="button" class="update-badge" id="updateBtn" hidden>Güncelleme</button>
-      <button type="button" class="license-badge" id="licenseBtn" data-state="unknown" title="Lisans">Lisans</button>
+      <button type="button" class="license-badge" id="licenseBtn" data-state="unknown" title="Lisans" data-tr-title="Lisans">Lisans</button>
       <span class="engine" id="engine" data-state="starting">Ön gereksinimler hazırlanıyor…</span>
     </div>
   </header>
   <div class="layout">
     <nav class="side">
-      <input id="search" type="search" placeholder="Araçlarda ara" autocomplete="off" aria-label="Araçlarda ara">
+      <input id="search" type="search" placeholder="Araçlarda ara" data-tr-placeholder="Araçlarda ara" autocomplete="off" aria-label="Araçlarda ara" data-tr-aria="Araçlarda ara">
       <div id="toolList"></div>
     </nav>
     <main class="workspace">
@@ -73,14 +79,14 @@
         <h1 id="toolTitle"></h1>
         <p class="lead" id="toolDescription"></p>
         <form id="toolForm" novalidate>
-          <label class="batch-toggle" id="batchToggle" hidden><input type="checkbox" id="batch"> Birden çok dosyaya uygula (toplu işlem)</label>
+          <label class="batch-toggle" id="batchToggle" hidden><input type="checkbox" id="batch"> <span data-tr="Birden çok dosyaya uygula (toplu işlem)">Birden çok dosyaya uygula (toplu işlem)</span></label>
           <div id="fileInputs"></div>
           <div id="fields" class="fields"></div>
           <p class="error" id="formError" role="alert"></p>
-          <button id="run" type="submit" class="primary">Çalıştır</button>
+          <button id="run" type="submit" class="primary" data-tr="Çalıştır">Çalıştır</button>
           <div class="viewer-actions">
-            <button id="openViewer" type="button" class="primary" hidden>Görüntüleyicide aç</button>
-            <button id="toWord" type="button" class="secondary" hidden>Word'e dönüştür</button>
+            <button id="openViewer" type="button" class="primary" hidden data-tr="Görüntüleyicide aç">Görüntüleyicide aç</button>
+            <button id="toWord" type="button" class="secondary" hidden data-tr="Word'e dönüştür">Word'e dönüştür</button>
           </div>
         </form>
         <div class="process" id="process" hidden>
@@ -92,53 +98,53 @@
         <div id="result" class="result" hidden>
           <p id="resultText"></p>
           <div class="result-actions">
-            <button id="save" type="button" class="primary">Kaydet…</button>
-            <button id="saveFolder" type="button" class="secondary" hidden>Klasöre kaydet…</button>
+            <button id="save" type="button" class="primary" data-tr="Kaydet…">Kaydet…</button>
+            <button id="saveFolder" type="button" class="secondary" hidden data-tr="Klasöre kaydet…">Klasöre kaydet…</button>
           </div>
         </div>
-        <p class="privacy">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
+        <p class="privacy" data-tr="Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.">Dosyalar bu bilgisayarda işlenir ve hiçbir sunucuya gönderilmez.</p>
       <p class="license-banner" id="licenseBanner" hidden></p>
       </section>
       <aside class="preview">
         <div class="tabs" role="tablist">
-          <button type="button" role="tab" id="tabSource" aria-selected="true">Belge</button>
-          <button type="button" role="tab" id="tabResult" aria-selected="false" disabled>Sonuç</button>
+          <button type="button" role="tab" id="tabSource" aria-selected="true" data-tr="Belge">Belge</button>
+          <button type="button" role="tab" id="tabResult" aria-selected="false" disabled data-tr="Sonuç">Sonuç</button>
           <span class="preview-name" id="previewName"></span>
         </div>
         <div class="preview-scroll">
-          <div id="previewHost"><p class="preview-note preview-empty">Bir dosya seçince sayfalar burada görünür.</p></div>
+          <div id="previewHost"><p class="preview-note preview-empty" data-tr="Bir dosya seçince sayfalar burada görünür.">Bir dosya seçince sayfalar burada görünür.</p></div>
         </div>
       </aside>
     </main>
   </div>
   <div class="dialog" id="licenseDialog" hidden>
     <div class="dialog-card" role="dialog" aria-labelledby="licenseTitle">
-      <h2 id="licenseTitle">Lisans</h2>
+      <h2 id="licenseTitle" data-tr="Lisans">Lisans</h2>
       <p id="licenseSummary"></p>
       <dl class="license-facts">
-        <div><dt>Tür</dt><dd id="licenseKind">—</dd></div>
-        <div><dt>Kurulum</dt><dd><span id="licenseInstall"></span> <button type="button" class="linkish" id="licenseCopyId">Kopyala</button></dd></div>
-        <div><dt>Müşteri</dt><dd id="licenseCustomer"></dd></div>
-        <div><dt>Anahtar</dt><dd id="licenseKey">—</dd></div>
-        <div><dt>Bitiş</dt><dd id="licenseExpiry"></dd></div>
-        <div id="licensePolicyRow" hidden><dt>İlke</dt><dd id="licensePolicy"></dd></div>
+        <div><dt data-tr="Tür">Tür</dt><dd id="licenseKind">—</dd></div>
+        <div><dt data-tr="Kurulum">Kurulum</dt><dd><span id="licenseInstall"></span> <button type="button" class="linkish" id="licenseCopyId" data-tr="Kopyala">Kopyala</button></dd></div>
+        <div><dt data-tr="Müşteri">Müşteri</dt><dd id="licenseCustomer"></dd></div>
+        <div><dt data-tr="Anahtar">Anahtar</dt><dd id="licenseKey">—</dd></div>
+        <div><dt data-tr="Bitiş">Bitiş</dt><dd id="licenseExpiry"></dd></div>
+        <div id="licensePolicyRow" hidden><dt data-tr="İlke">İlke</dt><dd id="licensePolicy"></dd></div>
       </dl>
       <section class="license-update">
-        <h3>Lisansı güncelle</h3>
-        <p>Yeni veya yenilenmiş .lic dosyasını seçin ya da içeriğini yapıştırın. Mevcut lisansın yerini alır.</p>
-        <label>Lisans metni <textarea id="licensePaste" rows="5" spellcheck="false" placeholder='{"v":1,"payload":…,"sig":…}'></textarea></label>
+        <h3 data-tr="Lisansı güncelle">Lisansı güncelle</h3>
+        <p data-tr="Yeni veya yenilenmiş .lic dosyasını seçin ya da içeriğini yapıştırın. Mevcut lisansın yerini alır.">Yeni veya yenilenmiş .lic dosyasını seçin ya da içeriğini yapıştırın. Mevcut lisansın yerini alır.</p>
+        <label><span data-tr="Lisans metni">Lisans metni</span> <textarea id="licensePaste" rows="5" spellcheck="false" placeholder='{"v":1,"payload":…,"sig":…}'></textarea></label>
         <div class="dialog-actions">
-          <button type="button" class="primary" id="licenseApplyPaste">Yapıştırılan lisansı uygula</button>
-          <button type="button" class="secondary" id="licenseLoad">Dosyadan yükle (.lic)</button>
+          <button type="button" class="primary" id="licenseApplyPaste" data-tr="Yapıştırılan lisansı uygula">Yapıştırılan lisansı uygula</button>
+          <button type="button" class="secondary" id="licenseLoad" data-tr="Dosyadan yükle (.lic)">Dosyadan yükle (.lic)</button>
         </div>
       </section>
       <form id="licenseRequest">
-        <label>Kurum / müşteri <input id="licenseCompany" required minlength="2" autocomplete="organization"></label>
-        <label>E-posta <input id="licenseEmail" type="email" autocomplete="email"></label>
-        <button type="submit" class="secondary">Talep dosyası kaydet (.req)</button>
+        <label><span data-tr="Kurum / müşteri">Kurum / müşteri</span> <input id="licenseCompany" required minlength="2" autocomplete="organization"></label>
+        <label><span data-tr="E-posta">E-posta</span> <input id="licenseEmail" type="email" autocomplete="email"></label>
+        <button type="submit" class="secondary" data-tr="Talep dosyası kaydet (.req)">Talep dosyası kaydet (.req)</button>
       </form>
       <div class="dialog-actions">
-        <button type="button" class="secondary" id="licenseClose">Kapat</button>
+        <button type="button" class="secondary" id="licenseClose" data-tr="Kapat">Kapat</button>
       </div>
       <p class="error" id="licenseError" role="alert"></p>
     </div>
@@ -151,6 +157,7 @@
       <p class="work-progress-label" id="workLabel">İşleniyor…</p>
     </div>
   </div>
+  <script src="i18n.js"></script>
   <script src="formats.js"></script>
   <script src="menu-icons.js"></script>
   <script src="tools.js"></script>

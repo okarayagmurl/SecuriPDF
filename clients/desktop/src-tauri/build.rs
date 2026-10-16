@@ -14,6 +14,7 @@ fn main() {
             "html_to_pdf",
             "office_convert",
             "repair_pdf",
+            "assemble_pdf",
             "add_form_fields",
             "scan_file",
             "cli_job",
