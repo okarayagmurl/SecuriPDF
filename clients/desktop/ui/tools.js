@@ -246,7 +246,7 @@
       id: "open-pdf",
       category: "view",
       title: "Belge aç",
-      description: "PDF'i açın; yazdırın, arayın, form ekleyip doldurun, işaretleyin veya seçilen yazıyı belgenin metnine işleyin. Uzun düzenleme için Word'e dönüştürün.",
+      description: "PDF'i açın; yazdırın, arayın, form ekleyip doldurun, işaretleyin veya seçilen satırı ve hücreyi değiştirin. Uzun düzenleme için Word'e dönüştürün.",
       viewer: true,
       batch: false,
       files: [{ name: "fileInput", label: "PDF belgesi", accept: PDF }],

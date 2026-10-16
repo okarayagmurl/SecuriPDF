@@ -238,7 +238,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
-  const replace = button("Metni değiştir", "Seçilen yazıyı belgenin metnine işler. Yorum kutusundaki yazı da değişir.", "tool", ICONS.edit);
+  const replace = button("Metni değiştir", "Seçilen satırı veya hücreyi değiştirir. Sütundaki diğer satırlar olduğu gibi kalır.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
     : null;
@@ -578,51 +578,45 @@ async function openViewer(source, pageNumber, title, options = {}) {
     height: rect.height + pad * 2,
   });
 
-  const paragraphAround = (pageEl, seed) => {
-    const spans = Array.from(pageEl.querySelectorAll(".textLayer span")).map((node) => {
-      const rect = node.getBoundingClientRect();
-      return {
-        text: node.textContent || "",
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-        width: rect.width,
-        height: rect.height,
-      };
-    }).filter((item) => item.width > 1 && item.height > 1 && item.text.trim());
-    const hits = spans.filter((item) =>
-      item.left < seed.right && item.right > seed.left && item.top < seed.bottom && item.bottom > seed.top);
-    if (!hits.length) return null;
-    const sortedHit = hits.slice().sort((a, b) => a.left - b.left);
-    const colLeft = sortedHit[Math.floor(sortedHit.length / 2)].left;
-    const lineH = hits.slice().sort((a, b) => a.height - b.height)[Math.floor(hits.length / 2)].height;
-    const included = new Set(hits);
+  const textSpans = (pageEl) => Array.from(pageEl.querySelectorAll(".textLayer span")).map((node) => {
+    const rect = node.getBoundingClientRect();
+    return {
+      text: node.textContent || "",
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    };
+  }).filter((item) => item.width > 1 && item.height > 1 && item.text.trim());
+
+  const sameBand = (a, b) => {
+    const overlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    return overlap > Math.min(a.height, b.height) * 0.45;
+  };
+
+  // Joins fragments of the selected cell. A gap the size of another column stays a different cell,
+  // and nothing above or below the selection is pulled in.
+  const cellMates = (spans, seeds) => {
+    const selected = new Set(seeds);
     let growing = true;
     while (growing) {
       growing = false;
-      const members = Array.from(included);
-      const top = Math.min(...members.map((item) => item.top));
-      const bottom = Math.max(...members.map((item) => item.bottom));
-      const right = Math.max(...members.map((item) => item.right));
       spans.forEach((item) => {
-        if (included.has(item)) return;
-        const sameCol = Math.abs(item.left - colLeft) <= 28 || (item.left >= colLeft - 10 && item.left < right);
-        const near = item.top <= bottom + lineH * 1.35 && item.bottom >= top - lineH * 1.35;
-        if (sameCol && near) {
-          included.add(item);
+        if (selected.has(item)) return;
+        const touch = Array.from(selected).some((mate) => {
+          if (!sameBand(mate, item)) return false;
+          const gap = item.left >= mate.right ? item.left - mate.right : mate.left - item.right;
+          return gap < Math.max(6, mate.height * 0.45);
+        });
+        if (touch) {
+          selected.add(item);
           growing = true;
         }
       });
     }
-    const list = Array.from(included).sort((a, b) => a.top - b.top || a.left - b.left);
-    const pad = Math.max(3, lineH * 0.22);
-    const boxes = list.map((item) => padBox(item, pad));
-    return {
-      text: list.map((item) => item.text).join("").replace(/\s+/g, " ").trim(),
-      boxes,
-      wrapWidth: Math.max(...boxes.map((box) => box.width)),
-    };
+    return Array.from(selected).sort((a, b) => a.left - b.left);
   };
 
   const wrapLines = (ctx, text, maxWidth) => {
@@ -664,22 +658,45 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (!screen.length) return null;
     const originEl = pageEl.querySelector(".canvasWrapper") || pageEl.querySelector("canvas") || pageEl;
     const origin = originEl.getBoundingClientRect();
-    const pad = Math.max(3, screen[0].height * 0.22);
-    let boxes = screen.map((rect) => padBox(rect, pad));
-    const seed = {
-      left: Math.min(...boxes.map((box) => box.left)),
-      top: Math.min(...boxes.map((box) => box.top)),
-      right: Math.max(...boxes.map((box) => box.right)),
-      bottom: Math.max(...boxes.map((box) => box.bottom)),
+    const spans = textSpans(pageEl);
+    const hits = spans.filter((item) => screen.some((rect) =>
+      item.left < rect.right && item.right > rect.left && item.top < rect.bottom && item.bottom > rect.top));
+    const bands = [];
+    hits.slice().sort((a, b) => a.top - b.top || a.left - b.left).forEach((hit) => {
+      const band = bands.find((entry) => sameBand(entry.seed, hit));
+      if (band) band.hits.push(hit);
+      else bands.push({ seed: hit, hits: [hit] });
+    });
+    let lines = (bands.length ? bands : []).map((band) => cellMates(spans, band.hits));
+    const rowHasAnotherColumn = (line) => {
+      const left = Math.min(...line.map((item) => item.left));
+      const right = Math.max(...line.map((item) => item.right));
+      const band = { top: Math.min(...line.map((item) => item.top)), bottom: Math.max(...line.map((item) => item.bottom)), height: Math.max(...line.map((item) => item.height)) };
+      return spans.some((item) => !line.includes(item) && sameBand(band, item) && (item.right < left - 8 || item.left > right + 8));
     };
-    const paragraph = paragraphAround(pageEl, seed);
-    let wrapWidth = Math.max(...boxes.map((box) => box.width));
-    let value = text;
-    if (paragraph && paragraph.boxes.length) {
-      boxes = paragraph.boxes;
-      wrapWidth = paragraph.wrapWidth;
-      value = paragraph.text;
+    if (lines.length > 1 && lines.some(rowHasAnotherColumn)) {
+      const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      const anchorMid = anchorEl ? (anchorEl.getBoundingClientRect().top + anchorEl.getBoundingClientRect().bottom) / 2 : lines[0][0].top;
+      lines = [lines.reduce((best, line) => {
+        const mid = (Math.min(...line.map((item) => item.top)) + Math.max(...line.map((item) => item.bottom))) / 2;
+        const bestMid = (Math.min(...best.map((item) => item.top)) + Math.max(...best.map((item) => item.bottom))) / 2;
+        return Math.abs(mid - anchorMid) < Math.abs(bestMid - anchorMid) ? line : best;
+      })];
     }
+    const pad = Math.max(2, (screen[0].height || 12) * 0.12);
+    let boxes = lines.length
+      ? lines.map((line) => {
+        const left = Math.min(...line.map((item) => item.left));
+        const top = Math.min(...line.map((item) => item.top));
+        const right = Math.max(...line.map((item) => item.right));
+        const bottom = Math.max(...line.map((item) => item.bottom));
+        return padBox({ left, top, right, bottom, width: right - left, height: bottom - top }, pad);
+      })
+      : screen.map((rect) => padBox(rect, pad));
+    const value = lines.length
+      ? lines.map((line) => line.map((item) => item.text).join("")).join("\n").trim()
+      : text;
+    const wrapWidth = Math.max(...boxes.map((box) => box.width));
     const toPdf = (x, y) => view.getPagePoint(x - origin.left, y - origin.top);
     const pdfOf = (box) => {
       const a = toPdf(box.left, box.top);
@@ -708,7 +725,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const blockHeight = Math.max(last.bottom - first.top, first.height);
     field.style.left = (first.left - pageBox.left) + "px";
     field.style.top = (first.top - pageBox.top) + "px";
-    field.style.width = Math.max(blockWidth, 160) + "px";
+    field.style.width = Math.max(blockWidth, 72) + "px";
     field.style.height = Math.max(blockHeight, 36) + "px";
     field.value = found.text;
     field.style.fontSize = Math.round(Math.max(12, first.height * 0.72)) + "px";
@@ -756,41 +773,30 @@ async function openViewer(source, pageNumber, title, options = {}) {
     throw new Error("Metin düzenleyici zaman aşımına uğradı.");
   };
 
-  const writeLines = (elements, chosen, text) => {
+  const assignLine = (items, line) => {
+    const size = boxOf(items[0]).size;
+    items.forEach((item, index) => {
+      item.text = index === 0 ? line : "";
+      if (index === 0) item.width = Math.max(size, line.length * (Number(item.spaceWidth) || size * 0.5));
+      delete item.charCodes;
+    });
+  };
+
+  const writeLines = (chosen, text) => {
     const groups = [];
     chosen.forEach((item) => {
       const box = boxOf(item);
-      const group = groups.find((entry) => Math.abs(entry.y - box.y) < 2.5);
+      const group = groups.find((entry) => Math.abs(entry.y - box.y) < Math.max(2.5, box.size * 0.35));
       if (group) group.items.push(item);
       else groups.push({ y: box.y, items: [item] });
     });
     groups.sort((a, b) => b.y - a.y);
-    const first = boxOf(groups[0].items[0]);
-    const left = Math.min(...chosen.map((item) => boxOf(item).left));
-    const right = Math.max(...chosen.map((item) => boxOf(item).right));
-    const wrapped = wrapPdfLines(text, first.size, right - left);
-    const leading = groups.length > 1 ? Math.abs(groups[0].y - groups[1].y) : first.size * 1.25;
-    groups.forEach((group, index) => {
-      const line = wrapped[index] || "";
-      group.items.forEach((item, itemIndex) => {
-        item.text = itemIndex === 0 ? line : "";
-        if (itemIndex === 0) item.width = Math.max(first.size, line.length * (Number(item.spaceWidth) || first.size * 0.45));
-        delete item.charCodes;
-      });
-    });
-    const template = groups[groups.length - 1].items[0];
-    for (let index = groups.length; index < wrapped.length; index++) {
-      const copy = JSON.parse(JSON.stringify(template));
-      delete copy.charCodes;
-      const matrix = (copy.textMatrix || [first.size, 0, 0, first.size, left, first.y]).slice();
-      matrix[4] = left;
-      matrix[5] = first.y - leading * index;
-      copy.textMatrix = matrix;
-      copy.text = wrapped[index];
-      copy.width = Math.max(first.size, wrapped[index].length * (Number(copy.spaceWidth) || first.size * 0.45));
-      copy.zOrder = (Number(copy.zOrder) || 1000000) + index;
-      elements.push(copy);
+    const lines = String(text).replace(/\r/g, "").split("\n");
+    if (groups.length === 1) {
+      assignLine(groups[0].items, lines.join(" ").replace(/\s+/g, " ").trim());
+      return;
     }
+    groups.forEach((group, index) => assignLine(group.items, index < lines.length ? lines[index] : ""));
   };
 
   const replaceAnnotation = (page, annot, text) => {
@@ -830,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return;
     }
     const { pageNumber, pdfRects } = pendingReplace;
-    const padded = (pdfRects || []).map((rect) => [rect[0] - 4, rect[1] - 4, rect[2] + 4, rect[3] + 4]);
+    const padded = (pdfRects || []).map((rect) => [rect[0] - 1, rect[1] - 1, rect[2] + 1, rect[3] + 1]);
     applyBtn.disabled = true;
     statusMode.textContent = "Metin belgenin yazısına işleniyor…";
     try {
@@ -848,7 +854,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && padded.some((rect) => overlapsPdf({
         left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
       }, rect)));
-      if (picked.length) writeLines(elements, picked, next);
+      if (picked.length) writeLines(picked, next);
       else if (annot) replaceAnnotation(page, annot, next);
       else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
       const rebuilt = await options.engineJson(`/api/v1/convert/pdf/text-editor/partial/${started.jobId}`, { pages: [page] });
@@ -881,7 +887,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const openReplace = () => {
     const found = captureSelection() || pendingReplace;
     if (!found || !found.boxes) {
-      statusMode.textContent = "Önce Seç kipinde değiştirilecek paragrafı işaretleyin. Satırlar bu blokta kayar; alttaki paragraflar yerinde kalır.";
+      statusMode.textContent = "Önce Seç kipinde değiştirilecek satırı veya hücreyi işaretleyin.";
       return;
     }
     showReplace(found);
