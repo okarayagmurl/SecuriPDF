@@ -22,6 +22,7 @@ enabled_tools:
 - compare
 - compress-pdf
 - convert
+- create-portfolio
 - crop
 - ebook-to-pdf
 - edit-table-of-contents
@@ -32,6 +33,7 @@ enabled_tools:
 - extract-pages
 - file-to-pdf
 - flatten
+- flatten-portfolio
 - get-info-on-pdf
 - html-to-pdf
 - img-to-pdf

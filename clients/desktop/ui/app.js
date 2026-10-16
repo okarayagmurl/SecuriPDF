@@ -1025,7 +1025,7 @@
 
   async function execute(tool, values, files = state.files) {
     let note = "";
-    const bytes = tool.run
+    const produced = tool.run
       ? await tool.run({
         files,
         values,
@@ -1041,7 +1041,9 @@
         note: (text) => { note = text; },
       })
       : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));
-    return { bytes, note };
+    const bytes = produced instanceof Uint8Array ? produced : produced.bytes;
+    const name = produced instanceof Uint8Array ? "" : (produced.name || "");
+    return { bytes, note, name };
   }
 
   /** Runs the tool once per file; results and a report are kept for a ZIP or a folder. */
@@ -1057,9 +1059,9 @@
       const files = { ...state.files, [primary]: [input] };
       const started = Date.now();
       try {
-        const { bytes, note } = await execute(tool, values, files);
-        let name = outputName(bytes, files);
-        for (let n = 2; taken.has(name.toLowerCase()); n++) name = outputName(bytes, files).replace(/(\.[^.]+)?$/, ` (${n})$1`);
+        const { bytes, note, name: given } = await execute(tool, values, files);
+        let name = given || outputName(bytes, files);
+        for (let n = 2; taken.has(name.toLowerCase()); n++) name = (given || outputName(bytes, files)).replace(/(\.[^.]+)?$/, ` (${n})$1`);
         taken.add(name.toLowerCase());
         outputs.push({ name, data: bytes });
         rows.push([input.name, "Başarılı", name, String(bytes.length), ((Date.now() - started) / 1000).toFixed(1), note]);
@@ -1160,9 +1162,9 @@
         await runBatch(tool, values, started);
         return;
       }
-      const { bytes, note } = await execute(tool, values);
+      const { bytes, note, name } = await execute(tool, values);
       if (state.tool !== tool) return;
-      state.result = { bytes, name: outputName(bytes) };
+      state.result = { bytes, name: name || outputName(bytes) };
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
       $("resultText").textContent = `Hazır: ${state.result.name} (${formatSize(bytes.length)}, ${seconds} sn)${note ? ". " + note : ""}`;
       renderProcess();
@@ -1430,8 +1432,8 @@
         await cliFail("INVALID", problem);
         return;
       }
-      const { bytes, note } = await withWork("İşleniyor…", () => execute(tool, values));
-      const headers = { "x-securipdf-file-name": encodeURIComponent(outputName(bytes)) };
+      const { bytes, note, name } = await withWork("İşleniyor…", () => execute(tool, values));
+      const headers = { "x-securipdf-file-name": encodeURIComponent(name || outputName(bytes)) };
       if (note) headers["x-securipdf-cli-note"] = encodeURIComponent(note);
       await cliFinish("ok", bytes, headers);
     } catch (err) {

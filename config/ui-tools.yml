@@ -1210,6 +1210,38 @@ tools:
       - type: toolPanel
         sectionTitle: Bilgi
 
+  - id: create-portfolio
+    title: Portföy oluştur
+    description: Birden fazla dosyayı tek PDF portföyünde toplar.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/misc/create-portfolio
+    inputs:
+      - name: files
+        label: Dosyalar
+        type: file
+        multiple: true
+        required: true
+        sectionTitle: Dosyalar
+      - name: coverTitle
+        label: Kapak başlığı
+        type: text
+
+  - id: flatten-portfolio
+    title: Portföyü düzleştir
+    description: PDF portföy kapak sarmalayıcısını kaldırır; dosyalar ek olarak kalır.
+    category: pages
+    icon: pages
+    apiPath: /api/v1/misc/flatten-portfolio
+    inputs:
+      - name: fileInput
+        label: Portföy PDF
+        type: file
+        accept: .pdf,application/pdf
+        required: true
+        sectionTitle: Dosyalar
+        showSelection: true
+
   - id: edit-table-of-contents
     title: İçindekiler Düzenle
     description: PDF yer imi / içindekiler yapısını JSON verisi ile günceller.

@@ -98,6 +98,8 @@ enabled:
   - ebook-to-pdf
   - verify-pdf
   - edit-table-of-contents
+  - create-portfolio
+  - flatten-portfolio
 
 # UI davranışı
 ui:

@@ -36,6 +36,13 @@
   ];
   const pageHint = "Örnek: 1,3,5-9. Tümü için all yazın.";
 
+  const colorDecimal = (hex) => {
+    const value = parseInt(String(hex || "").replace("#", ""), 16);
+    return String(Number.isFinite(value) ? value : 0);
+  };
+
+  const safeFileName = (text) => String(text || "").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+
   const HARDWARE = "/api/v1/security/cert-sign/hardware";
   const CERTS = ".cer,.crt,.pem,.der";
 
@@ -1523,6 +1530,167 @@
         const info = await pdfInfo(engine, file);
         const { html, page } = window.SecuriFormats.infoReport(file.name, info);
         return htmlToPdf(html, page);
+      },
+    },
+    {
+      id: "edit-table-of-contents",
+      category: "edit",
+      title: "İçindekiler",
+      description: "PDF yer imlerini okuyun veya JSON ile değiştirin. Ayrı bir içindekiler sayfası basılmaz.",
+      apiPath: (values) => values.mode === "edit"
+        ? "/api/v1/general/edit-table-of-contents"
+        : "/api/v1/general/extract-bookmarks",
+      suffix: "yer-imi",
+      outputExt: (bytes) => (bytes[0] === 0x7b || bytes[0] === 0x5b ? "json" : "pdf"),
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "mode", label: "İşlem", type: "select", local: true, default: "extract", options: [
+          { value: "extract", label: "Yer imlerini oku" },
+          { value: "edit", label: "Yer imlerini yaz" },
+        ] },
+        { name: "bookmarkData", label: "Yer imi JSON", type: "textarea", required: true, rows: 8,
+          showIf: { mode: "edit" },
+          placeholder: '[{"title":"Bölüm 1","pageNumber":1,"children":[]}]',
+          hint: "Her öğede title ve pageNumber zorunlu." },
+        { name: "replaceExisting", label: "Mevcut yer imlerini değiştir", type: "checkbox", default: true,
+          showIf: { mode: "edit" } },
+      ],
+    },
+    {
+      id: "add-attachments",
+      category: "edit",
+      title: "Ek dosya ekle",
+      description: "PDF'in içine dosya gömer. Ekler, belgeyi açan programın ekler panelinde görünür.",
+      apiPath: "/api/v1/misc/add-attachments",
+      suffix: "ekli",
+      batch: false,
+      files: [
+        { name: "fileInput", label: "PDF dosyası", accept: PDF },
+        { name: "attachments", label: "Eklenecek dosyalar", multiple: true, min: 1 },
+      ],
+      fields: [
+        { name: "convertToPdfA3b", label: "PDF/A-3b uyumlu yaz", type: "checkbox", default: false },
+      ],
+    },
+    {
+      id: "extract-attachments",
+      category: "optimize",
+      title: "Ekleri çıkar",
+      description: "PDF'e gömülü dosya eklerini ZIP olarak çıkarır. Ek yoksa işlem hata verir.",
+      apiPath: "/api/v1/misc/extract-attachments",
+      suffix: "ekler",
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [],
+    },
+    {
+      id: "create-portfolio",
+      category: "pages",
+      title: "Portföy oluştur",
+      description: "Birden fazla dosyayı tek PDF portföyünde toplar. Normal okuyucuda açılması için Portföyü düzleştir kullanın.",
+      apiPath: "/api/v1/misc/create-portfolio",
+      suffix: "portfoy",
+      batch: false,
+      files: [{ name: "files", label: "Dosyalar", multiple: true, min: 2 }],
+      fields: [
+        { name: "coverTitle", label: "Kapak başlığı", type: "text", default: "" },
+      ],
+    },
+    {
+      id: "flatten-portfolio",
+      category: "pages",
+      title: "Portföyü düzleştir",
+      description: "PDF portföyünün kapak sarmalayıcısını kaldırır. Dosyalar ek olarak kalır; belge normal PDF gibi açılır.",
+      apiPath: "/api/v1/misc/flatten-portfolio",
+      suffix: "duz",
+      files: [{ name: "fileInput", label: "Portföy PDF", accept: PDF }],
+      fields: [],
+    },
+    {
+      id: "auto-rename",
+      category: "edit",
+      title: "Otomatik adlandır",
+      description: "Dosya adını belgenin başlığından, başlık yoksa ilk metin satırından üretir.",
+      suffix: "ad",
+      batch: false,
+      usesEngine: true,
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "useFirstTextAsFallback", label: "Başlık yoksa ilk satırı kullan", type: "checkbox", default: true },
+      ],
+      async run({ files, values, engine, note }) {
+        const file = files.fileInput[0];
+        const form = new FormData();
+        form.append("fileInput", file, file.name);
+        form.append("useFirstTextAsFallback", values.useFirstTextAsFallback ? "true" : "false");
+        const bytes = await engine("/api/v1/misc/auto-rename", form);
+        const named = new File([bytes], file.name, { type: "application/pdf" });
+        let title = "";
+        try {
+          const info = await pdfInfo(engine, named);
+          const piles = [info, info && info.metadata, info && info.info, info && info.documentInfo];
+          for (const pile of piles) {
+            if (!pile || typeof pile !== "object") continue;
+            const found = pile.Title || pile.title;
+            if (found && !/untitled|anonymous/i.test(String(found))) {
+              title = String(found);
+              break;
+            }
+          }
+        } catch { /* başlık okunamadı */ }
+        if (!title && values.useFirstTextAsFallback && window.SecuriPreview.textLines) {
+          const lines = await window.SecuriPreview.textLines(named);
+          const first = lines.find((line) => line && String(line.text || "").trim());
+          title = first ? first.text : "";
+        }
+        const safe = safeFileName(title);
+        if (!safe) {
+          note("Belgede başlık veya ilk satır bulunamadı. Dosya adı değişmedi.");
+          return bytes;
+        }
+        note("Dosya adı belgenin başlığından geldi.");
+        return { bytes, name: safe + ".pdf" };
+      },
+    },
+    {
+      id: "replace-invert-pdf",
+      category: "optimize",
+      title: "Renk değiştir",
+      description: "Metin ve zemini yüksek kontrasta çevirir, renkleri tersine alır veya seçtiğiniz renklere boyar.",
+      suffix: "renk",
+      usesEngine: true,
+      files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
+      fields: [
+        { name: "replaceAndInvertOption", label: "İşlem", type: "select", default: "HIGH_CONTRAST_COLOR", options: [
+          { value: "HIGH_CONTRAST_COLOR", label: "Yüksek kontrast" },
+          { value: "FULL_INVERSION", label: "Renkleri ters çevir" },
+          { value: "CUSTOM_COLOR", label: "Özel renk" },
+          { value: "COLOR_SPACE_CONVERSION", label: "Baskı renk uzayı (CMYK)" },
+        ] },
+        { name: "highContrastColorCombination", label: "Kontrast", type: "select", default: "WHITE_TEXT_ON_BLACK",
+          showIf: { replaceAndInvertOption: "HIGH_CONTRAST_COLOR" }, options: [
+            { value: "WHITE_TEXT_ON_BLACK", label: "Beyaz yazı, siyah zemin" },
+            { value: "BLACK_TEXT_ON_WHITE", label: "Siyah yazı, beyaz zemin" },
+            { value: "YELLOW_TEXT_ON_BLACK", label: "Sarı yazı, siyah zemin" },
+            { value: "GREEN_TEXT_ON_BLACK", label: "Yeşil yazı, siyah zemin" },
+          ] },
+        { name: "textColor", label: "Yazı rengi", type: "color", default: "#ffffff",
+          showIf: { replaceAndInvertOption: "CUSTOM_COLOR" } },
+        { name: "backGroundColor", label: "Zemin rengi", type: "color", default: "#000000",
+          showIf: { replaceAndInvertOption: "CUSTOM_COLOR" } },
+      ],
+      async run({ files, values, engine }) {
+        const file = files.fileInput[0];
+        const form = new FormData();
+        form.append("fileInput", file, file.name);
+        form.append("replaceAndInvertOption", values.replaceAndInvertOption || "HIGH_CONTRAST_COLOR");
+        if (values.replaceAndInvertOption === "HIGH_CONTRAST_COLOR") {
+          form.append("highContrastColorCombination", values.highContrastColorCombination || "WHITE_TEXT_ON_BLACK");
+        }
+        if (values.replaceAndInvertOption === "CUSTOM_COLOR") {
+          form.append("textColor", colorDecimal(values.textColor));
+          form.append("backGroundColor", colorDecimal(values.backGroundColor));
+        }
+        return engine("/api/v1/misc/replace-invert-pdf", form);
       },
     },
   ];

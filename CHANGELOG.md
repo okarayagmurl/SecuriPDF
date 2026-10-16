@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Masaüstüne Stirling'de olup bizde olmayan araçlar eklendi: içindekiler, ek ekleme ve çıkarma, portföy, otomatik adlandırma, renk değiştirme
 - Metin değiştirme tabloda bütün sütunu tek parça sanıyordu; artık yalnızca seçilen satır veya hücre yazılıyor
 - Metin değiştirme artık beyaz damga basmıyor; seçilen yazıyı Stirling metin düzenleyicisiyle belgenin metnine işliyor. Yorum kutusundaki yazı da aynı yolla değişiyor
 - Masaüstü PDF motoru Stirling-PDF **3.1.0** (2.14.3 → 3.1.0; JPDFium karartma, otomatik sayfa döndürme, OCR yön düzeltme)
