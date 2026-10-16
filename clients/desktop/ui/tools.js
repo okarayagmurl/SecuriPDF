@@ -1636,6 +1636,9 @@
       files: [{ name: "files", label: "Dosyalar", multiple: true, min: 2 }],
       fields: [
         { name: "coverTitle", label: "Kapak başlığı", type: "text", default: "" },
+        { name: "coverText", label: "Kapak metni", type: "textarea", rows: 3,
+          default: "PDF dosyalarının sayfaları bu kapağın ardından gelir.",
+          hint: "Başlığın altında görünür. Her satır ayrı paragraf olur. Boş bırakılırsa bu paragraf yazılmaz." },
       ],
       async run({ files, values, engine, htmlToPdf, assemble, note }) {
         const inputs = files.files || [];
@@ -1647,21 +1650,25 @@
         });
         const english = window.SecuriI18n && window.SecuriI18n.lang === "en";
         const title = (values.coverTitle || "").trim() || (english ? "Portfolio" : "Portföy");
-        const intro = english
-          ? "The pages of each PDF follow this cover."
-          : "PDF dosyalarının sayfaları bu kapağın ardından gelir.";
+        const stockTr = "PDF dosyalarının sayfaları bu kapağın ardından gelir.";
+        const stockEn = "The pages of each PDF follow this cover.";
+        let intro = (values.coverText || "").replace(/\r/g, "").trim();
+        if (!intro) intro = "";
+        else if (english && intro === stockTr) intro = stockEn;
         const extra = others.length
           ? (english
             ? "Files that are not PDFs are attached to this document."
             : "PDF olmayan dosyalar bu belgenin ekindedir.")
           : "";
+        const paragraphs = intro.split("\n").map((line) => line.trim()).filter(Boolean)
+          .map((line) => `<p>${escapeHtml(line)}</p>`).join("");
         const items = inputs.map((file, index) => `<li>${escapeHtml(file.name || ("dosya-" + (index + 1)))}</li>`).join("");
         const html = `<!doctype html><html lang="${english ? "en" : "tr"}"><head><meta charset="utf-8"><style>
           body{margin:0;font-family:"Segoe UI",sans-serif;color:#0f172a;}
           h1{font-size:28px;margin:0 0 12px;}
           p{font-size:14px;line-height:1.45;margin:0 0 8px;}
           ol{font-size:14px;line-height:1.5;padding-left:1.2em;}
-        </style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${extra ? `<p>${escapeHtml(extra)}</p>` : ""}<ol>${items}</ol></body></html>`;
+        </style></head><body><h1>${escapeHtml(title)}</h1>${paragraphs}${extra ? `<p>${escapeHtml(extra)}</p>` : ""}<ol>${items}</ol></body></html>`;
         const cover = await htmlToPdf(html, {
           width: 8.27, height: 11.69, marginTop: 0.7, marginRight: 0.7, marginBottom: 0.7, marginLeft: 0.7, landscape: false,
         });

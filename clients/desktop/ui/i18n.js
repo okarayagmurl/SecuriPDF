@@ -483,6 +483,8 @@
     "Seçilen PDF'lerin sayfalarını bir kapak sayfasının ardına ekler. PDF olmayan dosyalar belgenin ekine konur.": "Places the pages of the selected PDFs after a cover page. Files that are not PDFs are attached to the document.",
     "Dosyalar": "Files",
     "Kapak başlığı": "Cover title",
+    "Kapak metni": "Cover text",
+    "Başlığın altında görünür. Her satır ayrı paragraf olur. Boş bırakılırsa bu paragraf yazılmaz.": "Shown under the title. Each line becomes its own paragraph. Leave it empty to omit this paragraph.",
     "Portföyü düzleştir": "Flatten portfolio",
     "Eski PDF portföyünün kapak sarmalayıcısını kaldırır. Yeni portföy çıktısı sayfaları zaten içerir.": "Removes the cover wrapper of an older PDF portfolio. A newly created portfolio already contains the pages.",
     "Portföy PDF": "Portfolio PDF",

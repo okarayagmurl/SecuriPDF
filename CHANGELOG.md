@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Portföy kapağında başlığın altındaki metin alandan yazılır
 - Üst çubuktan uygulama dili Türkçe veya English seçilir; seçim bu bilgisayarda hatırlanır
 - Portföy, PDF sayfalarını Türkçe veya İngilizce bir kapağın ardına ekler. PDF olmayan dosyalar belgenin ekine konur
 - Boş sayfa ve sayfa ekleme, eksik jpdfium bileşenine takılmadan qpdf ile birleştirilir
