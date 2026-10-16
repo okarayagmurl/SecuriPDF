@@ -143,6 +143,63 @@ fn status_code(out: &str) -> &str {
     }
 }
 
+#[derive(serde::Serialize)]
+pub struct OfficeAvailability {
+    pub word: bool,
+    pub excel: bool,
+    pub powerpoint: bool,
+    pub libre: bool,
+}
+
+/// Tells the tool screen whether Office or LibreOffice is installed. It does not launch either.
+#[tauri::command]
+pub fn office_status() -> OfficeAvailability {
+    #[cfg(windows)]
+    {
+        return OfficeAvailability {
+            word: app_installed("WINWORD.EXE"),
+            excel: app_installed("EXCEL.EXE"),
+            powerpoint: app_installed("POWERPNT.EXE"),
+            libre: libre_installed(),
+        };
+    }
+    #[cfg(not(windows))]
+    OfficeAvailability { word: false, excel: false, powerpoint: false, libre: false }
+}
+
+#[cfg(windows)]
+fn app_installed(exe: &str) -> bool {
+    let path = format!(r"Software\Microsoft\Windows\CurrentVersion\App Paths\{exe}");
+    registry_key_exists(windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE, &path)
+        || registry_key_exists(windows_sys::Win32::System::Registry::HKEY_CURRENT_USER, &path)
+}
+
+#[cfg(windows)]
+fn libre_installed() -> bool {
+    app_installed("soffice.exe")
+        || registry_key_exists(
+            windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE,
+            r"Software\LibreOffice\LibreOffice",
+        )
+}
+
+#[cfg(windows)]
+fn registry_key_exists(root: windows_sys::Win32::System::Registry::HKEY, path: &str) -> bool {
+    use windows_sys::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, HKEY, KEY_READ, KEY_WOW64_32KEY, KEY_WOW64_64KEY,
+    };
+    let path_w: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+    for access in [KEY_READ | KEY_WOW64_64KEY, KEY_READ | KEY_WOW64_32KEY] {
+        let mut key: HKEY = std::ptr::null_mut();
+        let opened = unsafe { RegOpenKeyExW(root, path_w.as_ptr(), 0, access, &mut key) };
+        if opened == 0 {
+            unsafe { RegCloseKey(key) };
+            return true;
+        }
+    }
+    false
+}
+
 /// Office runs outside our process tree, so a stuck instance has to be ended by id.
 fn kill_office(pid_file: &Path) {
     let Ok(text) = std::fs::read_to_string(pid_file) else {

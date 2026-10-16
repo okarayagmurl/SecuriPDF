@@ -40,7 +40,7 @@
     PRINT_TIMEOUT: "PDF oluşturma zaman aşımına uğradı.",
     PRINT_FAILED: "PDF oluşturulamadı.",
     PRINT_BAD_PAGE: "Sayfa boyutu veya kenar boşlukları geçersiz.",
-    OFFICE_MISSING: "Bu dönüşüm için bilgisayarda Microsoft Office (Word, Excel veya PowerPoint) kurulu olmalı.",
+    OFFICE_MISSING: "Bu dönüşüm için Microsoft Office gerekir. Office belgesinden PDF, Office yoksa LibreOffice ile de yapılır. PDF'i Word belgesine çevirmek için Word şarttır.",
     OFFICE_OPEN_FAILED: "Office belgeyi açamadı. Dosya bozuk veya parola korumalı olabilir.",
     OFFICE_EXPORT_FAILED: "Office belgeyi dönüştüremedi.",
     OFFICE_BAD_INPUT: "Bu dosya türü bu dönüşümde desteklenmiyor.",
@@ -477,6 +477,53 @@
     return Boolean(spec.multiple || (state.batch && spec === state.tool.files[0]));
   }
 
+  let officeNoteToken = 0;
+
+  function officeNoteText(kind, status) {
+    const office = Boolean(status.word || status.excel || status.powerpoint);
+    if (kind === "word") {
+      return status.word
+        ? "Bu bilgisayarda Microsoft Word var. Dönüşüm Word ile yapılır."
+        : "Bu bilgisayarda Microsoft Word yok. PDF → Word yalnızca Word ile çalışır; LibreOffice bu aracı karşılamaz.";
+    }
+    if (kind === "ppt") {
+      return status.powerpoint || status.libre
+        ? "Bu bilgisayarda PowerPoint veya LibreOffice var. Metin slayt LibreOffice ile, görsel slayt PowerPoint ile üretilebilir."
+        : "Bu bilgisayarda PowerPoint ve LibreOffice yok. Sayfalar yine de görsel bir sunum olarak kaydedilir.";
+    }
+    if (office) return "Bu bilgisayarda Microsoft Office var. Dönüşüm önce Office ile yapılır.";
+    if (status.libre) return "Microsoft Office yok. Office belgesinden PDF, bu bilgisayardaki LibreOffice ile yapılır. Sayfa düzeni Word kadar sadık olmayabilir.";
+    return "Bu bilgisayarda Microsoft Office da LibreOffice da yok. Office → PDF bu durumda çalışmaz. PDF araçlarının geri kalanı Office istemez.";
+  }
+
+  async function refreshOfficeNote() {
+    const note = $("officeNote");
+    if (!note) return;
+    const id = state.tool && state.tool.id;
+    const kind = id === "office-to-pdf" ? "office" : id === "pdf-to-word" ? "word" : id === "pdf-to-ppt" ? "ppt" : "";
+    if (!kind || !core) {
+      note.hidden = true;
+      note.textContent = "";
+      return;
+    }
+    const token = ++officeNoteToken;
+    note.hidden = false;
+    note.textContent = t("Bu bilgisayarda Office ve LibreOffice denetleniyor…");
+    let status = null;
+    try {
+      status = await core.invoke("office_status");
+    } catch {
+      status = null;
+    }
+    if (token !== officeNoteToken) return;
+    if (!status) {
+      note.hidden = true;
+      note.textContent = "";
+      return;
+    }
+    note.textContent = t(officeNoteText(kind, status));
+  }
+
   function selectTool(id, carry) {
     const tool = tools.find((item) => item.id === id);
     if (!tool) return;
@@ -494,6 +541,7 @@
     $("tool").hidden = false;
     $("toolTitle").textContent = t(tool.title);
     $("toolDescription").textContent = t(tool.description);
+    refreshOfficeNote();
     $("formError").textContent = "";
     $("toolForm").hidden = false;
     renderFields();
@@ -1702,6 +1750,7 @@
     if (!state.tool) return;
     $("toolTitle").textContent = t(state.tool.title);
     $("toolDescription").textContent = t(state.tool.description);
+    refreshOfficeNote();
     renderFields();
     renderFiles();
     updateRunButton();

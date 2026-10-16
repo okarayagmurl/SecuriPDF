@@ -13,6 +13,7 @@ fn main() {
             "unlock_opened_file",
             "html_to_pdf",
             "office_convert",
+            "office_status",
             "repair_pdf",
             "assemble_pdf",
             "add_form_fields",

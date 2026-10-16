@@ -273,7 +273,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textSize.title = "Yazı boyutu (punto)";
   textSize.setAttribute("aria-label", "Yazı boyutu");
   textSize.hidden = true;
-  marks.append(textFont, textSize);
+  const textColor = el("input", "viewer-color");
+  textColor.type = "color";
+  textColor.value = "#111827";
+  textColor.title = "Yazı rengi";
+  textColor.setAttribute("aria-label", "Yazı rengi");
+  textColor.hidden = true;
+  marks.append(textFont, textSize, textColor);
   const replace = button("Metni değiştir", "Seçilen satırı veya hücreyi değiştirir. Sütundaki diğer satırlar olduğu gibi kalır.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
@@ -553,6 +559,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       root.classList.remove("text-placing");
       textFont.hidden = true;
       textSize.hidden = true;
+      textColor.hidden = true;
       activeMark = MARKS[0];
       try { pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.NONE }; } catch { /* ignore */ }
       markButtons.forEach((node) => node.classList.remove("active"));
@@ -578,6 +585,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     color.hidden = !mark.color || placingText;
     textFont.hidden = !placingText;
     textSize.hidden = !placingText;
+    textColor.hidden = !placingText;
     if (!placingText) hideAdd();
     if (mark.mode === pdfjs.AnnotationEditorType.HIGHLIGHT) {
       eventBus.dispatch("switchannotationeditorparams", {
@@ -628,9 +636,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
   sizeInput.placeholder = "pt";
   sizeInput.title = "Yazı boyutu (punto). Boş bırakılırsa belgedeki boyut kalır.";
   sizeInput.setAttribute("aria-label", "Yazı boyutu");
+  const replaceColor = el("input", "viewer-color");
+  replaceColor.type = "color";
+  replaceColor.value = "#111827";
+  replaceColor.title = "Yazı rengi. Değiştirirseniz belgeye bu renk yazılır.";
+  replaceColor.setAttribute("aria-label", "Yazı rengi");
   const applyBtn = button("Uygula", "Değişikliği belgenin yazısına işle", "primary");
   const cancelBtn = button("Vazgeç");
-  actions.append(fontSel, sizeInput, applyBtn, cancelBtn);
+  actions.append(fontSel, sizeInput, replaceColor, applyBtn, cancelBtn);
+  let colorTouched = false;
   root.append(field, actions);
   let pendingReplace = null;
   const covers = [];
@@ -807,8 +821,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.height = Math.max(blockHeight, 36) + "px";
     field.value = found.text;
     field.style.fontSize = Math.round(Math.max(12, first.height * 0.72)) + "px";
-    field.style.color = "#0f172a";
     field.style.lineHeight = "1.25";
+    colorTouched = false;
+    replaceColor.value = "#111827";
     paintReplaceFont();
     field.hidden = false;
     found.pageEl.appendChild(field);
@@ -903,7 +918,23 @@ async function openViewer(source, pageNumber, title, options = {}) {
     });
   };
 
-  const writeLines = (chosen, text) => {
+  const spawnLine = (anchor, line, x, y, size) => ({
+    text: line,
+    fontId: anchor.fontId,
+    fontSize: size,
+    fontMatrixSize: size,
+    fontSizeInPt: size,
+    spaceWidth: size * 0.28,
+    width: Math.max(size, line.length * size * 0.5),
+    height: size * 0.7,
+    zOrder: (Number(anchor.zOrder) || 0) + 1,
+    fillColor: anchor.fillColor,
+    textMatrix: [size, 0, 0, size, x, y],
+  });
+
+  // The selected block keeps its width. Extra lines are new runs under that block;
+  // paragraphs below the selection are left where they are.
+  const writeLines = (page, chosen, text) => {
     const groups = [];
     chosen.forEach((item) => {
       const box = boxOf(item);
@@ -912,12 +943,34 @@ async function openViewer(source, pageNumber, title, options = {}) {
       else groups.push({ y: box.y, items: [item] });
     });
     groups.sort((a, b) => b.y - a.y);
-    const lines = String(text).replace(/\r/g, "").split("\n");
-    if (groups.length === 1) {
-      assignLine(groups[0].items, lines.join(" ").replace(/\s+/g, " ").trim());
-      return;
+    const upright = chosen.every((item) => {
+      const matrix = item.textMatrix || [];
+      return Math.abs(Number(matrix[1]) || 0) < 0.25 && Math.abs(Number(matrix[2]) || 0) < 0.25;
+    });
+    if (!upright) {
+      const lines = String(text).replace(/\r/g, "").split("\n");
+      if (groups.length === 1) assignLine(groups[0].items, lines.join(" ").replace(/\s+/g, " ").trim());
+      else groups.forEach((group, index) => assignLine(group.items, index < lines.length ? lines[index] : ""));
+      return [];
     }
-    groups.forEach((group, index) => assignLine(group.items, index < lines.length ? lines[index] : ""));
+    const typed = Number(sizeInput.value);
+    const fontSize = typed >= 6 && typed <= 72 ? typed : boxOf(chosen[0]).size;
+    const left = Math.min(...chosen.map((item) => boxOf(item).left));
+    const right = Math.max(...chosen.map((item) => boxOf(item).right));
+    const wrapped = wrapPdfLines(text, fontSize, Math.max(40, right - left), chosenReplaceFont());
+    const created = [];
+    groups.forEach((group, index) => assignLine(group.items, index < wrapped.length ? wrapped[index] : ""));
+    if (wrapped.length > groups.length) {
+      const anchor = groups[groups.length - 1].items[0];
+      const base = boxOf(anchor).y;
+      page.textElements = page.textElements || [];
+      wrapped.slice(groups.length).forEach((line, index) => {
+        const element = spawnLine(anchor, line, left, base - fontSize * 1.2 * (index + 1), fontSize);
+        page.textElements.push(element);
+        created.push(element);
+      });
+    }
+    return created;
   };
 
   const chosenReplaceFont = () => TEXT_FONTS.find((font) => font.id === fontSel.value) || TEXT_FONTS[0];
@@ -928,13 +981,32 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.fontWeight = chosen.weight || "500";
     const size = Number(sizeInput.value);
     if (size >= 6 && size <= 72) field.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
+    field.style.color = replaceColor.value || "#111827";
   };
   fontSel.onchange = paintReplaceFont;
   sizeInput.oninput = paintReplaceFont;
+  replaceColor.oninput = () => {
+    colorTouched = true;
+    paintReplaceFont();
+  };
+
+  const fillColorOf = (hex) => {
+    const raw = String(hex || "").replace("#", "");
+    if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null;
+    const value = parseInt(raw, 16);
+    return {
+      colorSpace: "DeviceRGB",
+      components: [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255],
+    };
+  };
 
   const styleRun = (item) => {
     const chosen = chosenReplaceFont();
     if (chosen.stirling) item.fontId = chosen.stirling;
+    if (colorTouched) {
+      const fill = fillColorOf(replaceColor.value);
+      if (fill) item.fillColor = fill;
+    }
     const size = Number(sizeInput.value);
     if (!(size >= 6 && size <= 72)) return;
     const matrix = Array.isArray(item.textMatrix) ? item.textMatrix.slice() : null;
@@ -959,11 +1031,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const chosen = chosenReplaceFont();
     const fontId = chosen.stirling || (page.textElements || []).map((item) => item.fontId).find(Boolean) || "helv";
     const wrapped = wrapPdfLines(text, size, Math.max(40, rect[2] - rect[0] - 4), chosen);
+    const fill = colorTouched ? fillColorOf(replaceColor.value) : null;
     page.annotations = (page.annotations || []).filter((item) => item !== annot);
     page.textElements = page.textElements || [];
     wrapped.forEach((line, index) => {
       const y = rect[3] - size * (index + 1) * 1.2;
-      page.textElements.push({
+      const element = {
         text: line,
         fontId,
         fontSize: size,
@@ -973,7 +1046,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
         height: size * 0.7,
         zOrder: 2000000 + index,
         textMatrix: [size, 0, 0, size, rect[0] + 2, y],
-      });
+      };
+      if (fill) element.fillColor = fill;
+      page.textElements.push(element);
     });
   };
 
@@ -1027,8 +1102,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
         left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
       }, rect)));
       if (picked.length) {
-        writeLines(picked, next);
+        const created = writeLines(page, picked, next);
         picked.forEach(styleRun);
+        created.forEach(styleRun);
       } else if (annot) replaceAnnotation(page, annot, next);
       else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
       if (page.pageNumber == null) page.pageNumber = pageNumber;
@@ -1097,11 +1173,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
     addField.style.fontFamily = chosen.css;
     addField.style.fontWeight = chosen.weight || "500";
     addField.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
-    addField.style.color = "#0f172a";
+    addField.style.color = textColor.value || "#111827";
     addField.style.lineHeight = "1.25";
   };
   textFont.onchange = paintAddFont;
   textSize.oninput = paintAddFont;
+  textColor.oninput = paintAddFont;
 
   hideAdd = () => {
     addField.hidden = true;
@@ -1167,8 +1244,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
       page.textElements = page.textElements || [];
       const lines = next.replace(/\r/g, "").split("\n");
-      lines.forEach((line, index) => {
-        page.textElements.push({
+      const fill = fillColorOf(textColor.value);
+      const width = Math.max(40, 240 / (pdfViewer.currentScale || 1));
+      const wrapped = wrapPdfLines(next, size, width, chosen);
+      wrapped.forEach((line, index) => {
+        const element = {
           text: line,
           fontId: chosen.stirling,
           fontSize: size,
@@ -1179,7 +1259,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
           height: size * 0.7,
           zOrder: 2100000 + index,
           textMatrix: [size, 0, 0, size, x, y - index * size * 1.25],
-        });
+        };
+        if (fill) element.fillColor = fill;
+        page.textElements.push(element);
       });
       if (page.pageNumber == null) page.pageNumber = pageNumber;
       setJobProgress(86, "Yazı belgeye işleniyor…");
@@ -1997,5 +2079,44 @@ async function textBoxes(data, patterns, password) {
   }
 }
 
-window.SecuriPreview = { show, openViewer, closeViewer, countPages, pageInfo, textLines, textBoxes };
+async function exportTables(data, pageSpec, kind, password) {
+  if (!window.SecuriTables) return null;
+  const bytes = await toBytes(data);
+  const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: bytes, password: password || undefined });
+  try {
+    const doc = await task.promise;
+    const pages = window.SecuriTables.pageList(pageSpec, doc.numPages);
+    const sheets = [];
+    for (const number of pages) {
+      const page = await doc.getPage(number);
+      const content = await page.getTextContent();
+      const items = [];
+      for (const item of content.items) {
+        if (!item || typeof item.str !== "string" || !item.str.trim()) continue;
+        items.push({
+          x: item.transform[4],
+          y: item.transform[5],
+          w: item.width || 0,
+          h: Math.hypot(item.transform[2], item.transform[3]) || item.height || 10,
+          text: item.str,
+        });
+      }
+      const tables = window.SecuriTables.gridFromItems(items);
+      tables.forEach((table, index) => {
+        sheets.push({
+          name: tables.length > 1 ? `Sayfa ${number}-${index + 1}` : `Sayfa ${number}`,
+          rows: table.rows,
+          merges: table.merges,
+        });
+      });
+      page.cleanup();
+    }
+    if (!sheets.length) return null;
+    return kind === "csv" ? window.SecuriTables.csvBytes(sheets) : window.SecuriTables.xlsxBytes(sheets);
+  } finally {
+    try { await task.destroy(); } catch { /* already closed */ }
+  }
+}
+
+window.SecuriPreview = { show, openViewer, closeViewer, countPages, pageInfo, textLines, textBoxes, exportTables };
 window.dispatchEvent(new Event("securipreview-ready"));

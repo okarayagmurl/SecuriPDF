@@ -145,6 +145,7 @@ pub fn run() {
             unlock_opened_file,
             print::html_to_pdf,
             office::office_convert,
+            office::office_status,
             qpdf::repair_pdf,
             qpdf::assemble_pdf,
             form_fields::add_form_fields,

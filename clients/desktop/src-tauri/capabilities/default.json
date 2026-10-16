@@ -16,6 +16,7 @@
     "allow-unlock-opened-file",
     "allow-html-to-pdf",
     "allow-office-convert",
+    "allow-office-status",
     "allow-repair-pdf",
     "allow-assemble-pdf",
     "allow-add-form-fields",

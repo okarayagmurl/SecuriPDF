@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Portföy kapağında başlığın altındaki metin alandan yazılır
+- Metin değiştirme ve metin ekleme, seçilen rengi belgenin yazısına işler. Uzun metin seçilen bloğun genişliğine göre satır kırar; alttaki paragraflar yerinde kalır
+- PDF → Excel ve PDF → CSV, hizalı tabloda birleşik hücreyi ve aynı hücredeki alt satırı korur. Izgara yoksa motorun çıktısı kullanılır
+- Office yokken kurulum ve Office, Word, PowerPoint araçları bunu açıkça söyler. Office belgesinden PDF, LibreOffice ile sürdürülebilir; PDF → Word için Word gerekir
 - Üst çubuktan uygulama dili Türkçe veya English seçilir; seçim bu bilgisayarda hatırlanır
 - Portföy, PDF sayfalarını Türkçe veya İngilizce bir kapağın ardına ekler. PDF olmayan dosyalar belgenin ekine konur
 - Boş sayfa ve sayfa ekleme, eksik jpdfium bileşenine takılmadan qpdf ile birleştirilir

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-office-status"
+description = "Enables the office_status command without any pre-configured scope."
+commands.allow = ["office_status"]
+
+[[permission]]
+identifier = "deny-office-status"
+description = "Denies the office_status command without any pre-configured scope."
+commands.deny = ["office_status"]

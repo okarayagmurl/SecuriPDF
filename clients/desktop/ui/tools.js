@@ -998,7 +998,7 @@
       id: "office-to-pdf",
       category: "convert",
       title: "Office → PDF",
-      description: "Word, Excel veya PowerPoint belgesini PDF'e dönüştürün. Önce kurulu Microsoft Office dener; yoksa LibreOffice kullanılır. Makrolar çalıştırılmaz.",
+      description: "Word, Excel veya PowerPoint belgesini PDF'e dönüştürün. Microsoft Office kuruluysa o kullanılır. Office yoksa LibreOffice gerekir. İkisi de yoksa bu dönüşüm yapılmaz. Makrolar çalıştırılmaz.",
       suffix: "",
       files: [{ name: "fileInput", label: "Office belgesi", accept: OFFICE }],
       fields: [
@@ -1043,7 +1043,7 @@
       id: "pdf-to-word",
       category: "convert",
       title: "PDF → Word",
-      description: "PDF'i bilgisayardaki Microsoft Word ile düzenlenebilir Word belgesine (.docx) dönüştürün. Karmaşık sayfa düzenleri birebir korunmayabilir.",
+      description: "PDF'i bu bilgisayardaki Microsoft Word ile düzenlenebilir Word belgesine (.docx) dönüştürün. Word kurulu değilse bu araç çalışmaz; LibreOffice bu dönüşümü yapmaz. Karmaşık sayfa düzenleri birebir korunmayabilir.",
       suffix: "",
       outputExt: "docx",
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
@@ -1054,23 +1054,53 @@
       id: "pdf-to-excel",
       category: "convert",
       title: "PDF → Excel",
-      description: "PDF'teki tabloları Excel çalışma kitabına (.xlsx) aktarın. Karmaşık veya taranmış tablolarda hücre birleşmesi bozulabilir; gerekirse sayfa aralığını küçültün.",
-      apiPath: "/api/v1/convert/pdf/xlsx",
+      description: "PDF'teki tabloları Excel çalışma kitabına (.xlsx) aktarın. Birleşik hücre ve aynı hücredeki alt satır korunur. Izgara bulunamazsa motorun tablosu kullanılır; taranmış sayfada önce OCR gerekir.",
       suffix: "",
       outputExt: "xlsx",
+      usesEngine: true,
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [{ name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint, pagePicker: true }],
+      async run({ files, values, engine, form, note }) {
+        const file = files.fileInput[0];
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (window.SecuriPreview && window.SecuriPreview.exportTables) {
+          try {
+            const made = await window.SecuriPreview.exportTables(bytes, values.pageNumbers, "xlsx", values.password);
+            if (made) {
+              note("Tablolar satır ve sütun hizasından çıkarıldı. Birleşik hücreler ve çok satırlı hücreler korundu.");
+              return made;
+            }
+          } catch { /* motor tablosu */ }
+        }
+        note("Izgara bulunamadı; motorun tablosu kullanıldı. Birleşik hücreler bozulabilir.");
+        return engine("/api/v1/convert/pdf/xlsx", form());
+      },
     },
     {
       id: "pdf-to-csv",
       category: "convert",
       title: "PDF → CSV",
-      description: "PDF'teki tabloları CSV olarak çıkarın.",
-      apiPath: "/api/v1/convert/pdf/csv",
+      description: "PDF'teki tabloları CSV olarak çıkarın. Aynı hücredeki alt satır tırnak içinde kalır. CSV birleşik hücre tutamaz; değer sol üst hücrede durur. Izgara bulunamazsa motorun çıktısı kullanılır.",
       suffix: "",
       outputExt: "csv",
+      usesEngine: true,
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [{ name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint, pagePicker: true }],
+      async run({ files, values, engine, form, note }) {
+        const file = files.fileInput[0];
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (window.SecuriPreview && window.SecuriPreview.exportTables) {
+          try {
+            const made = await window.SecuriPreview.exportTables(bytes, values.pageNumbers, "csv", values.password);
+            if (made) {
+              note("Tablolar satır ve sütun hizasından çıkarıldı. Çok satırlı hücreler tek hücrede kaldı.");
+              return made;
+            }
+          } catch { /* motor tablosu */ }
+        }
+        note("Izgara bulunamadı; motorun CSV çıktısı kullanıldı.");
+        return engine("/api/v1/convert/pdf/csv", form());
+      },
     },
     {
       id: "pdf-to-text",
@@ -1522,7 +1552,7 @@
       id: "pdf-to-ppt",
       category: "convert",
       title: "PDF → PowerPoint",
-      description: "PDF sayfalarını PowerPoint sunumuna (.pptx) dönüştürün. Metin slayt üretilemezse sayfalar görsel slayt olur.",
+      description: "PDF sayfalarını PowerPoint sunumuna (.pptx) dönüştürün. Metin slayt için LibreOffice, görsel slayt için PowerPoint kullanılır. İkisi de yoksa sayfalar yine görsel bir sunum olarak kaydedilir.",
       suffix: "",
       outputExt: "pptx",
       usesEngine: true,
