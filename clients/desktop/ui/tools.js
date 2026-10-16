@@ -174,6 +174,45 @@
     return Math.min(50, Math.max(1, Number(pt) / 72 || 8.27));
   }
 
+  // WebView2'nin bastığı PDF, PDFBox bindirmesinde sık sık 500 veriyor.
+  // Düz renk için motorun okuyabildiği sade bir PDF üretilir.
+  function solidColorPdf(pages, hex) {
+    const color = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#f8fafc";
+    const channels = [1, 3, 5].map((start) => (parseInt(color.slice(start, start + 2), 16) / 255).toFixed(3));
+    const paint = `${channels.join(" ")} rg\n`;
+    const contentIds = [];
+    const pageIds = [];
+    let next = 3;
+    pages.forEach(() => {
+      contentIds.push(next);
+      pageIds.push(next + 1);
+      next += 2;
+    });
+    const chunks = ["%PDF-1.4\n"];
+    const offsets = [0];
+    const add = (body) => {
+      offsets.push(chunks.join("").length);
+      chunks.push(body);
+    };
+    add("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+    add(`2 0 obj\n<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>\nendobj\n`);
+    pages.forEach((page, index) => {
+      const width = Math.max(1, Number(page.width) || 595).toFixed(2);
+      const height = Math.max(1, Number(page.height) || 842).toFixed(2);
+      const stream = `${paint}0 0 ${width} ${height} re\nf\n`;
+      add(`${contentIds[index]} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}endstream\nendobj\n`);
+      add(`${pageIds[index]} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Contents ${contentIds[index]} 0 R >>\nendobj\n`);
+    });
+    const startxref = chunks.join("").length;
+    let xref = `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+    for (let index = 1; index < offsets.length; index++) xref += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
+    chunks.push(`${xref}trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`);
+    const text = chunks.join("");
+    const bytes = new Uint8Array(text.length);
+    for (let index = 0; index < text.length; index++) bytes[index] = text.charCodeAt(index) & 255;
+    return bytes;
+  }
+
   async function extractPages(engine, file, pageNumbers) {
     const form = new FormData();
     form.append("fileInput", file, file.name || "belge.pdf");
@@ -573,10 +612,11 @@
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [
         { name: "stampText", label: "Damga metni", type: "text", required: true, default: "GİZLİ" },
+        // Motor 1'i sol üste koyar. Eski numara düzeni (7 = üst) damgayı ters köşeye basıyordu.
         { name: "position", label: "Konum", type: "pad", default: "5", options: [
-          { value: "7", label: "Üst sol" }, { value: "8", label: "Üst orta" }, { value: "9", label: "Üst sağ" },
+          { value: "1", label: "Üst sol" }, { value: "2", label: "Üst orta" }, { value: "3", label: "Üst sağ" },
           { value: "4", label: "Orta sol" }, { value: "5", label: "Orta" }, { value: "6", label: "Orta sağ" },
-          { value: "1", label: "Alt sol" }, { value: "2", label: "Alt orta" }, { value: "3", label: "Alt sağ" },
+          { value: "7", label: "Alt sol" }, { value: "8", label: "Alt orta" }, { value: "9", label: "Alt sağ" },
         ] },
         { name: "pageNumbers", label: "Sayfalar", type: "text", default: "all", hint: pageHint },
         { name: "fontSize", label: "Yazı boyutu", type: "number", default: 40, min: 4, max: 300 },
@@ -1291,35 +1331,42 @@
         ] },
         { name: "color", label: "Renk", type: "color", default: "#f8fafc", showIf: { kind: "color" } },
       ],
-      async run({ files, values, engine, htmlToPdf }) {
+      httpError: (status, detail) => (status >= 500
+        ? "Arka plan yerleştirilemedi. Sayfa boyutu bu dosyayla uyuşmuyor olabilir." + (detail ? ` (${String(detail).replace(/\s+/g, " ").slice(0, 160)})` : "")
+        : null),
+      async run({ files, values, engine, htmlToPdf, repair }) {
         const dest = files.fileInput[0];
         const info = await window.SecuriPreview.pageInfo(dest);
         if (!info.length) throw new Error("PDF sayfaları okunamadı.");
-        const layers = [];
-        for (const page of info) {
-          const setup = {
-            width: pageInches(page.width),
-            height: pageInches(page.height),
-            marginTop: 0,
-            marginRight: 0,
-            marginBottom: 0,
-            marginLeft: 0,
-            landscape: false,
-          };
-          let html;
-          if (values.kind === "image") {
-            const image = files.bgImage && files.bgImage[0];
-            if (!image) throw new Error("Arka plan görseli seçin.");
-            const url = await fileDataUrl(image);
-            html = `<!doctype html><html><head><style>html,body,img{margin:0;padding:0;width:100%;height:100%;}img{object-fit:cover;display:block;}</style></head><body><img src="${url}" alt=""></body></html>`;
-          } else {
-            const color = /^#[0-9a-fA-F]{6}$/.test(values.color) ? values.color : "#f8fafc";
-            html = `<!doctype html><html><head><style>html,body{margin:0;background:${color};width:100%;height:100%;}</style></head><body></body></html>`;
+        let background;
+        if (values.kind === "image") {
+          const image = files.bgImage && files.bgImage[0];
+          if (!image) throw new Error("Arka plan görseli seçin.");
+          const url = await fileDataUrl(image);
+          const layers = [];
+          for (const page of info) {
+            const setup = {
+              width: pageInches(page.width),
+              height: pageInches(page.height),
+              marginTop: 0,
+              marginRight: 0,
+              marginBottom: 0,
+              marginLeft: 0,
+              landscape: false,
+            };
+            const html = `<!doctype html><html><head><style>html,body{margin:0;padding:0;width:${page.width}pt;height:${page.height}pt;}img{width:100%;height:100%;object-fit:cover;display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style></head><body><img src="${url}" alt=""></body></html>`;
+            let layer = await htmlToPdf(html, setup);
+            if (repair) {
+              try { layer = await repair(pdfFile(layer, `zemin-${page.number}.pdf`)); } catch { /* yazıcı çıktısı olduğu gibi denenir */ }
+            }
+            layers.push(pdfFile(layer, `zemin-${page.number}.pdf`));
           }
-          layers.push(pdfFile(await htmlToPdf(html, setup), `zemin-${page.number}.pdf`));
+          background = layers.length === 1 ? new Uint8Array(await layers[0].arrayBuffer()) : await mergePdfs(engine, layers);
+        } else {
+          const color = /^#[0-9a-fA-F]{6}$/.test(values.color) ? values.color : "#f8fafc";
+          background = solidColorPdf(info, color);
         }
-        const background = layers.length === 1 ? await layers[0].arrayBuffer() : await mergePdfs(engine, layers);
-        return overlayPdfs(engine, new Uint8Array(await dest.arrayBuffer()), new Uint8Array(background), true);
+        return overlayPdfs(engine, new Uint8Array(await dest.arrayBuffer()), background, true);
       },
     },
     {

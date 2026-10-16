@@ -407,12 +407,20 @@
       if (!items.length) return;
       list.appendChild(el("h2", { text: category.title }));
       items.forEach((tool) => {
-        list.appendChild(el("button", {
+        const button = el("button", {
           type: "button",
-          text: tool.title,
           "aria-current": state.tool && state.tool.id === tool.id ? "true" : undefined,
           onclick: () => selectTool(tool.id),
-        }));
+        });
+        const icon = (window.SECURIPDF_MENU_ICONS || {})[tool.id];
+        if (icon) {
+          const mark = document.createElement("span");
+          mark.className = "tool-icon";
+          mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+          button.appendChild(mark);
+        }
+        button.appendChild(el("span", { text: tool.title }));
+        list.appendChild(button);
       });
     });
   }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Masaüstü menüsündeki her aracın yanında ikon var
+- Metin değiştirme sırasında ilerleme çubuğu görünür; işlem bitince sayfa yeniden çizilir. Seçim kutusu yazıyla tam örtüşmezse aynı satırdaki yazı yine bulunur
+- Damga konumu artık seçilen köşeye basılır (üst sol gerçekten üst soldur)
+- Arka plan rengi yazıcı çıktısı yerine sade bir PDF ile yerleştirilir; görsel önce onarılıp bindirilir
+- Kurulum paketi uygulama yoksa kurar, kuruluysa aynı klasörün üzerine yükseltir
 - Masaüstüne Stirling'de olup bizde olmayan araçlar eklendi: içindekiler, ek ekleme ve çıkarma, portföy, otomatik adlandırma, renk değiştirme
 - Metin değiştirme tabloda bütün sütunu tek parça sanıyordu; artık yalnızca seçilen satır veya hücre yazılıyor
 - Metin değiştirme artık beyaz damga basmıyor; seçilen yazıyı Stirling metin düzenleyicisiyle belgenin metnine işliyor. Yorum kutusundaki yazı da aynı yolla değişiyor

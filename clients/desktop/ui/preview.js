@@ -293,7 +293,22 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const statusKeys = el("span", "viewer-status-keys", "Ctrl+S kaydet · Ctrl+F ara · Esc kapat");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
-  root.append(chrome, workspace, status);
+  const jobProgress = el("div", "viewer-progress");
+  jobProgress.hidden = true;
+  const jobTrack = el("div", "progress");
+  const jobBar = el("div", "progress-bar");
+  jobTrack.appendChild(jobBar);
+  const jobLabel = el("span", "viewer-progress-label", "");
+  jobProgress.append(jobTrack, jobLabel);
+  root.append(chrome, workspace, jobProgress, status);
+  const setJobProgress = (percent, label) => {
+    jobProgress.hidden = false;
+    jobBar.classList.remove("indeterminate");
+    jobBar.style.width = Math.max(4, Math.min(100, percent)) + "%";
+    jobLabel.textContent = label;
+    statusMode.textContent = label;
+  };
+  const hideJobProgress = () => { jobProgress.hidden = true; };
   document.body.appendChild(root);
 
   const eventBus = new lib.EventBus();
@@ -761,16 +776,58 @@ async function openViewer(source, pageNumber, title, options = {}) {
     return wrapLines(measure, text, Math.max(40, maxWidth));
   };
 
-  const waitForTextJob = async (jobId) => {
+  const waitForTextJob = async (jobId, onProgress) => {
     for (let attempt = 0; attempt < 80; attempt++) {
-      const status = await options.engineGet(`/api/v1/general/job/${jobId}`);
-      if (status && status.complete) {
-        if (status.error) throw new Error(String(status.error));
+      const job = await options.engineGet(`/api/v1/general/job/${jobId}`);
+      const reported = Number(job && (job.progress ?? job.percent));
+      const fraction = Number.isFinite(reported) && reported > 0
+        ? Math.min(1, reported > 1 ? reported / 100 : reported)
+        : Math.min(1, (attempt + 1) / 20);
+      if (onProgress) onProgress(fraction);
+      if (job && job.complete) {
+        if (job.error) throw new Error(String(job.error));
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, attempt < 6 ? 400 : 900));
     }
     throw new Error("Metin düzenleyici zaman aşımına uğradı.");
+  };
+
+  const showEditedDocument = async (bytes, page, scale) => {
+    const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: bytes, password: options.password || undefined });
+    const nextDoc = await nextTask.promise;
+    if (viewer !== current) { nextTask.destroy(); return false; }
+    current.task.destroy();
+    current.task = nextTask;
+    doc = nextDoc;
+    doc.annotationStorage.onSetModified = () => markDirty(true);
+    doc.annotationStorage.onResetModified = () => markDirty(false);
+    let painted = false;
+    const paintedDone = new Promise((resolve) => {
+      const onPaint = (evt) => {
+        if (evt.pageNumber !== page) return;
+        eventBus.off("pagerendered", onPaint);
+        painted = true;
+        resolve();
+      };
+      eventBus.on("pagerendered", onPaint);
+      setTimeout(() => { eventBus.off("pagerendered", onPaint); resolve(); }, 5000);
+    });
+    restoreView = { page, scale };
+    pdfViewer.setDocument(doc);
+    linkService.setDocument(doc, null);
+    pageTotal.textContent = `/ ${doc.numPages}`;
+    pageInput.max = String(doc.numPages);
+    fillThumbs(doc);
+    await paintedDone;
+    pdfViewer.currentPageNumber = page;
+    const view = pdfViewer.getPageView(page - 1);
+    if (!painted && view && typeof view.reset === "function") {
+      view.reset();
+      pdfViewer.update();
+    }
+    if (view && view.div) view.div.scrollIntoView({ block: "nearest" });
+    return true;
   };
 
   const assignLine = (items, line) => {
@@ -836,44 +893,55 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return;
     }
     const { pageNumber, pdfRects } = pendingReplace;
-    const padded = (pdfRects || []).map((rect) => [rect[0] - 1, rect[1] - 1, rect[2] + 1, rect[3] + 1]);
+    const padded = (pdfRects || []).map((rect) => [rect[0] - 2, rect[1] - 2, rect[2] + 2, rect[3] + 2]);
+    const norm = (value) => String(value || "").replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
+    const wanted = norm(pendingReplace.text);
+    const near = (item) => {
+      const box = boxOf(item);
+      return padded.some((rect) => {
+        const cx = (rect[0] + rect[2]) / 2;
+        const cy = (rect[1] + rect[3]) / 2;
+        const dx = Math.max(box.left - cx, 0, cx - box.right);
+        const dy = Math.max(box.bottom - cy, 0, cy - box.top);
+        return Math.hypot(dx, dy) < Math.max(10, box.size);
+      });
+    };
     applyBtn.disabled = true;
-    statusMode.textContent = "Metin belgenin yazısına işleniyor…";
+    setJobProgress(8, "Belge hazırlanıyor…");
     try {
       const bytes = await doc.saveDocument();
+      setJobProgress(18, "Metin düzenleyiciye gönderiliyor…");
       const form = new FormData();
       form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
       form.append("async", "true");
       form.append("lightweight", "true");
       const started = JSON.parse(new TextDecoder().decode(await options.engine("/api/v1/convert/pdf/text-editor", form)));
       if (!started.jobId) throw new Error("Metin düzenleyici işi başlamadı.");
-      await waitForTextJob(started.jobId);
+      await waitForTextJob(started.jobId, (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
+      setJobProgress(74, "Seçilen yazı bulunuyor…");
       const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
       const elements = page.textElements || [];
-      const picked = elements.filter((item) => String(item.text || "").trim() && padded.some((rect) => overlapsPdf(boxOf(item), rect)));
+      let picked = elements.filter((item) => String(item.text || "").trim() && padded.some((rect) => overlapsPdf(boxOf(item), rect)));
+      if (!picked.length) picked = elements.filter((item) => String(item.text || "").trim() && near(item));
+      if (!picked.length && wanted) {
+        const exact = elements.filter((item) => norm(item.text) === wanted);
+        if (exact.length === 1) picked = exact;
+      }
       const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && padded.some((rect) => overlapsPdf({
         left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
       }, rect)));
       if (picked.length) writeLines(picked, next);
       else if (annot) replaceAnnotation(page, annot, next);
       else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
+      if (page.pageNumber == null) page.pageNumber = pageNumber;
+      setJobProgress(86, "Yazı belgeye işleniyor…");
       const rebuilt = await options.engineJson(`/api/v1/convert/pdf/text-editor/partial/${started.jobId}`, { pages: [page] });
-      restoreView = { page: pdfViewer.currentPageNumber, scale: pdfViewer.currentScaleValue };
-      const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: rebuilt, password: options.password || undefined });
-      const nextDoc = await nextTask.promise;
-      if (viewer !== current) { nextTask.destroy(); return; }
-      current.task.destroy();
-      current.task = nextTask;
-      doc = nextDoc;
-      doc.annotationStorage.onSetModified = () => markDirty(true);
-      doc.annotationStorage.onResetModified = () => markDirty(false);
-      pdfViewer.setDocument(doc);
-      linkService.setDocument(doc, null);
-      pageTotal.textContent = `/ ${doc.numPages}`;
-      pageInput.max = String(doc.numPages);
-      fillThumbs(doc);
+      setJobProgress(94, "Sayfa yenileniyor…");
+      const shown = await showEditedDocument(rebuilt, pageNumber, pdfViewer.currentScaleValue);
+      if (!shown) return;
       markDirty(true);
       hideReplace();
+      setJobProgress(100, "Metin yazıldı");
       statusMode.textContent = "Metin belgenin yazısına işlendi. Kaydet ile dosyaya yazın.";
     } catch (err) {
       hideReplace();
@@ -881,6 +949,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       window.alert(message);
     } finally {
       applyBtn.disabled = false;
+      setTimeout(hideJobProgress, 700);
     }
   };
 

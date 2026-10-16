@@ -198,7 +198,9 @@ body {
   color: #94a3b8;
 }
 .side button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   text-align: left;
   border: 0;
@@ -209,6 +211,14 @@ body {
   color: inherit;
   cursor: pointer;
 }
+.side button .tool-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
+.side button .tool-icon svg { width: 16px; height: 16px; display: block; }
+.side button[aria-current="true"] .tool-icon { color: var(--accent); }
 .side button:hover { background: #f1f5f9; }
 .side button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 
@@ -808,6 +818,18 @@ button:disabled { opacity: 0.55; cursor: default; }
   font-weight: 600;
   pointer-events: none;
 }
+.viewer-progress {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fff;
+  border-top: 1px solid var(--line);
+}
+.viewer-progress[hidden] { display: none; }
+.viewer-progress .progress { flex: 1; }
+.viewer-progress-label { flex: none; max-width: 46%; font-size: 12px; color: var(--muted); }
 .viewer-status {
   flex-shrink: 0;
   display: flex;
