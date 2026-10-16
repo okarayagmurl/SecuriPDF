@@ -295,6 +295,43 @@
         onclick: () => applyToSession(step.id),
       }));
     });
+    const catalog = $("processTools");
+    if (!catalog) return;
+    const home = state.tool && state.tool.id === "open-pdf";
+    catalog.hidden = !home;
+    catalog.replaceChildren();
+    if (!home) return;
+    const shown = new Set(PROCESS_STEPS.concat(PROCESS_MORE).map((step) => step.id));
+    catalog.appendChild(el("p", { class: "process-label", text: "Diğer araçlar" }));
+    categories.forEach((category) => {
+      const items = allowedTools().filter((tool) => tool.category === category.id && tool.id !== "open-pdf" && !shown.has(tool.id));
+      if (!items.length) return;
+      const row = el("div", { class: "process-cat-tools" });
+      items.forEach((tool) => {
+        const spec = tool.files && tool.files[0];
+        const needsPdf = Boolean(spec && acceptsPdf(spec));
+        const optional = tool.id === "merge-pdfs" || tool.id === "office-to-pdf";
+        const button = el("button", {
+          type: "button",
+          title: tool.description || tool.title,
+          disabled: !optional && needsPdf && !file,
+          onclick: () => applyToSession(tool.id),
+        });
+        const icon = (window.SECURIPDF_MENU_ICONS || {})[tool.id];
+        if (icon) {
+          const mark = document.createElement("span");
+          mark.className = "tool-icon";
+          mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+          button.appendChild(mark);
+        }
+        button.appendChild(el("span", { text: tool.title }));
+        row.appendChild(button);
+      });
+      catalog.appendChild(el("section", { class: "process-cat" }, [
+        el("h3", { text: category.title }),
+        row,
+      ]));
+    });
   }
 
   let workTimer = null;

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Belge aç ekranında önerilen sürecin altında diğer araçlar kategorilere göre listelenir; açık PDF bir sonraki araca taşınır
+- Metin değiştirmede ve metin eklemede yazı tipi (Helvetica, Times, Courier ve kalınları) ile punto seçilir; seçim belgenin yazısına işlenir
 - Masaüstü menüsündeki her aracın yanında ikon var
 - Metin değiştirme sırasında ilerleme çubuğu görünür; işlem bitince sayfa yeniden çizilir. Seçim kutusu yazıyla tam örtüşmezse aynı satırdaki yazı yine bulunur
 - Damga konumu artık seçilen köşeye basılır (üst sol gerçekten üst soldur)

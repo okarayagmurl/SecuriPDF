@@ -169,8 +169,19 @@ const MARKS = [
   { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi, gezinme, form doldurma ve satır değiştirme" },
   { mode: pdfjs.AnnotationEditorType.HIGHLIGHT, label: "Vurgula", title: "Metni seçerek vurgulayın veya yorum bırakın", color: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_COLOR, initial: "#ffff98" },
   { mode: pdfjs.AnnotationEditorType.INK, label: "Çiz", title: "Serbest çizim", color: pdfjs.AnnotationEditorParamsType.INK_COLOR, initial: "#e11d48" },
-  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Sayfaya tıklayıp yeni metin yazın", color: pdfjs.AnnotationEditorParamsType.FREETEXT_COLOR, initial: "#1d4ed8" },
+  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Yazı tipini seçin, sayfaya tıklayıp metin yazın" },
   { mode: pdfjs.AnnotationEditorType.STAMP, label: "Görsel", title: "Sayfaya görsel ekleyin; sürükleyerek taşıyın" },
+];
+
+// Stirling writes these fallback faces into the page. "Belgedeki" keeps the run's own fontId.
+const TEXT_FONTS = [
+  { id: "", label: "Belgedeki", css: "\"Segoe UI\", sans-serif", weight: "500", stirling: "" },
+  { id: "helvetica", label: "Helvetica", css: "Arial, Helvetica, sans-serif", weight: "500", stirling: "fallback-liberation-sans" },
+  { id: "helvetica-bold", label: "Helvetica Kalın", css: "Arial, Helvetica, sans-serif", weight: "700", stirling: "fallback-liberation-sans-bold" },
+  { id: "times", label: "Times", css: "\"Times New Roman\", Times, serif", weight: "500", stirling: "fallback-liberation-serif" },
+  { id: "times-bold", label: "Times Kalın", css: "\"Times New Roman\", Times, serif", weight: "700", stirling: "fallback-liberation-serif-bold" },
+  { id: "courier", label: "Courier", css: "\"Courier New\", Courier, monospace", weight: "500", stirling: "fallback-liberation-mono" },
+  { id: "courier-bold", label: "Courier Kalın", css: "\"Courier New\", Courier, monospace", weight: "700", stirling: "fallback-liberation-mono-bold" },
 ];
 
 /**
@@ -238,6 +249,26 @@ async function openViewer(source, pageNumber, title, options = {}) {
   color.title = "Renk";
   color.hidden = true;
   marks.appendChild(color);
+  const textFont = el("select", "viewer-font");
+  textFont.title = "Yazı tipi";
+  textFont.hidden = true;
+  textFont.setAttribute("aria-label", "Yazı tipi");
+  TEXT_FONTS.filter((font) => font.stirling).forEach((font) => {
+    const option = el("option", null, font.label);
+    option.value = font.id;
+    option.style.fontFamily = font.css;
+    textFont.appendChild(option);
+  });
+  textFont.value = "helvetica";
+  const textSize = el("input", "viewer-size");
+  textSize.type = "number";
+  textSize.min = "6";
+  textSize.max = "72";
+  textSize.value = "14";
+  textSize.title = "Yazı boyutu (punto)";
+  textSize.setAttribute("aria-label", "Yazı boyutu");
+  textSize.hidden = true;
+  marks.append(textFont, textSize);
   const replace = button("Metni değiştir", "Seçilen satırı veya hücreyi değiştirir. Sütundaki diğer satırlar olduğu gibi kalır.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
@@ -331,6 +362,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let dirty = false;
   let formMode = false;
   let hideFormDraft = () => {};
+  let hideAdd = () => {};
   let setFormMode = () => {};
   let printDocument = () => {};
   const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: await toBytes(source), password: options.password || undefined });
@@ -512,6 +544,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     root.classList.toggle("form-placing", on);
     if (on) {
       hideFormDraft();
+      hideAdd();
+      root.classList.remove("text-placing");
+      textFont.hidden = true;
+      textSize.hidden = true;
+      activeMark = MARKS[0];
       try { pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.NONE }; } catch { /* ignore */ }
       markButtons.forEach((node) => node.classList.remove("active"));
       statusMode.textContent = "Sayfada sürükleyerek form alanı çizin. Metin, onay kutusu veya liste eklenir.";
@@ -524,14 +561,19 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   const setMark = (mark) => {
     if (formMode) setFormMode(false);
+    const placingText = mark.mode === pdfjs.AnnotationEditorType.FREETEXT;
     try {
-      pdfViewer.annotationEditorMode = { mode: mark.mode };
+      pdfViewer.annotationEditorMode = { mode: placingText ? pdfjs.AnnotationEditorType.NONE : mark.mode };
     } catch {
       return;
     }
+    root.classList.toggle("text-placing", placingText);
     markButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === String(mark.mode)));
     statusMode.textContent = mark.title;
-    color.hidden = !mark.color;
+    color.hidden = !mark.color || placingText;
+    textFont.hidden = !placingText;
+    textSize.hidden = !placingText;
+    if (!placingText) hideAdd();
     if (mark.mode === pdfjs.AnnotationEditorType.HIGHLIGHT) {
       eventBus.dispatch("switchannotationeditorparams", {
         source: color,
@@ -554,7 +596,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   // Toolbar clicks would clear the text selection; keep it so "Metni değiştir" can read it.
   chrome.addEventListener("mousedown", (event) => {
-    if (event.target.closest("input, textarea, [contenteditable=true]")) return;
+    if (event.target.closest("input, textarea, select, [contenteditable=true]")) return;
     event.preventDefault();
   });
 
@@ -565,9 +607,25 @@ async function openViewer(source, pageNumber, title, options = {}) {
   field.setAttribute("spellcheck", "false");
   const actions = el("div", "replace-actions");
   actions.hidden = true;
+  const fontSel = el("select", "replace-font");
+  fontSel.title = "Yazı tipi. Belgedeki, satırın kendi yazı tipini korur.";
+  fontSel.setAttribute("aria-label", "Yazı tipi");
+  TEXT_FONTS.forEach((font) => {
+    const option = el("option", null, font.label);
+    option.value = font.id;
+    option.style.fontFamily = font.css;
+    fontSel.appendChild(option);
+  });
+  const sizeInput = el("input", "replace-size");
+  sizeInput.type = "number";
+  sizeInput.min = "6";
+  sizeInput.max = "72";
+  sizeInput.placeholder = "pt";
+  sizeInput.title = "Yazı boyutu (punto). Boş bırakılırsa belgedeki boyut kalır.";
+  sizeInput.setAttribute("aria-label", "Yazı boyutu");
   const applyBtn = button("Uygula", "Değişikliği belgenin yazısına işle", "primary");
   const cancelBtn = button("Vazgeç");
-  actions.append(applyBtn, cancelBtn);
+  actions.append(fontSel, sizeInput, applyBtn, cancelBtn);
   root.append(field, actions);
   let pendingReplace = null;
   const covers = [];
@@ -744,9 +802,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.height = Math.max(blockHeight, 36) + "px";
     field.value = found.text;
     field.style.fontSize = Math.round(Math.max(12, first.height * 0.72)) + "px";
-    field.style.fontFamily = "Segoe UI, sans-serif";
     field.style.color = "#0f172a";
     field.style.lineHeight = "1.25";
+    paintReplaceFont();
     field.hidden = false;
     found.pageEl.appendChild(field);
     actions.style.left = (first.left - pageBox.left) + "px";
@@ -770,9 +828,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   const overlapsPdf = (box, rect) => box.left < rect[2] && box.right > rect[0] && box.bottom < rect[3] && box.top > rect[1];
 
-  const wrapPdfLines = (text, fontSize, maxWidth) => {
+  const wrapPdfLines = (text, fontSize, maxWidth, face) => {
     const measure = document.createElement("canvas").getContext("2d");
-    measure.font = `${fontSize}px sans-serif`;
+    const chosen = face || { css: "sans-serif", weight: "500" };
+    measure.font = `${chosen.weight || 500} ${fontSize}px ${chosen.css || "sans-serif"}`;
     return wrapLines(measure, text, Math.max(40, maxWidth));
   };
 
@@ -856,13 +915,45 @@ async function openViewer(source, pageNumber, title, options = {}) {
     groups.forEach((group, index) => assignLine(group.items, index < lines.length ? lines[index] : ""));
   };
 
+  const chosenReplaceFont = () => TEXT_FONTS.find((font) => font.id === fontSel.value) || TEXT_FONTS[0];
+
+  const paintReplaceFont = () => {
+    const chosen = chosenReplaceFont();
+    field.style.fontFamily = chosen.css;
+    field.style.fontWeight = chosen.weight || "500";
+    const size = Number(sizeInput.value);
+    if (size >= 6 && size <= 72) field.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
+  };
+  fontSel.onchange = paintReplaceFont;
+  sizeInput.oninput = paintReplaceFont;
+
+  const styleRun = (item) => {
+    const chosen = chosenReplaceFont();
+    if (chosen.stirling) item.fontId = chosen.stirling;
+    const size = Number(sizeInput.value);
+    if (!(size >= 6 && size <= 72)) return;
+    const matrix = Array.isArray(item.textMatrix) ? item.textMatrix.slice() : null;
+    const current = matrix
+      ? (Math.hypot(Number(matrix[0]) || 0, Number(matrix[1]) || 0) || Number(item.fontSize) || size)
+      : (Number(item.fontSize) || size);
+    const scale = current > 0 ? size / current : 1;
+    item.fontSize = size;
+    item.fontMatrixSize = size;
+    item.fontSizeInPt = size;
+    if (matrix && matrix.length >= 6 && Number.isFinite(scale) && scale > 0) {
+      item.textMatrix = [matrix[0] * scale, matrix[1] * scale, matrix[2] * scale, matrix[3] * scale, matrix[4], matrix[5]];
+    }
+  };
+
   const replaceAnnotation = (page, annot, text) => {
     const rect = annot.rect;
     const contents = String(annot.contents || "");
     const lineCount = Math.max(1, contents.split(/\n/).filter((line) => line.trim()).length);
-    const size = Math.max(9, Math.min(16, (rect[3] - rect[1]) / lineCount * 0.72));
-    const fontId = (page.textElements || []).map((item) => item.fontId).find(Boolean) || "helv";
-    const wrapped = wrapPdfLines(text, size, Math.max(40, rect[2] - rect[0] - 4));
+    const typed = Number(sizeInput.value);
+    const size = typed >= 6 && typed <= 72 ? typed : Math.max(9, Math.min(16, (rect[3] - rect[1]) / lineCount * 0.72));
+    const chosen = chosenReplaceFont();
+    const fontId = chosen.stirling || (page.textElements || []).map((item) => item.fontId).find(Boolean) || "helv";
+    const wrapped = wrapPdfLines(text, size, Math.max(40, rect[2] - rect[0] - 4), chosen);
     page.annotations = (page.annotations || []).filter((item) => item !== annot);
     page.textElements = page.textElements || [];
     wrapped.forEach((line, index) => {
@@ -930,8 +1021,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && padded.some((rect) => overlapsPdf({
         left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
       }, rect)));
-      if (picked.length) writeLines(picked, next);
-      else if (annot) replaceAnnotation(page, annot, next);
+      if (picked.length) {
+        writeLines(picked, next);
+        picked.forEach(styleRun);
+      } else if (annot) replaceAnnotation(page, annot, next);
       else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
       if (page.pageNumber == null) page.pageNumber = pageNumber;
       setJobProgress(86, "Yazı belgeye işleniyor…");
@@ -972,6 +1065,149 @@ async function openViewer(source, pageNumber, title, options = {}) {
   field.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
+  });
+
+  const addField = el("textarea", "replace-field");
+  addField.hidden = true;
+  addField.rows = 2;
+  addField.placeholder = "Metin";
+  addField.setAttribute("aria-label", "Eklenecek metin");
+  addField.setAttribute("spellcheck", "false");
+  const addActions = el("div", "replace-actions");
+  addActions.hidden = true;
+  const addApply = button("Uygula", "Metni seçilen yazı tipiyle sayfaya yaz", "primary");
+  const addCancel = button("Vazgeç");
+  addActions.append(addApply, addCancel);
+  root.append(addField, addActions);
+  let addDraft = null;
+
+  const chosenAddFont = () => TEXT_FONTS.find((font) => font.id === textFont.value) || TEXT_FONTS.find((font) => font.stirling);
+  const chosenAddSize = () => {
+    const size = Number(textSize.value);
+    return size >= 6 && size <= 72 ? size : 14;
+  };
+  const paintAddFont = () => {
+    const chosen = chosenAddFont();
+    const size = chosenAddSize();
+    addField.style.fontFamily = chosen.css;
+    addField.style.fontWeight = chosen.weight || "500";
+    addField.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
+    addField.style.color = "#0f172a";
+    addField.style.lineHeight = "1.25";
+  };
+  textFont.onchange = paintAddFont;
+  textSize.oninput = paintAddFont;
+
+  hideAdd = () => {
+    addField.hidden = true;
+    addActions.hidden = true;
+    addField.value = "";
+    root.append(addField, addActions);
+    addDraft = null;
+  };
+
+  const openAddText = (pageEl, clientX, clientY) => {
+    hideReplace();
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    const view = pdfViewer.getPageView(pageNumber - 1);
+    if (!pageNumber || !view || !view.getPagePoint) return;
+    const originEl = pageEl.querySelector(".canvasWrapper") || pageEl.querySelector("canvas") || pageEl;
+    const origin = originEl.getBoundingClientRect();
+    const point = view.getPagePoint(clientX - origin.left, clientY - origin.top);
+    const size = chosenAddSize();
+    addDraft = { pageNumber, x: point[0], y: point[1] - size * 0.8 };
+    const pageBox = pageEl.getBoundingClientRect();
+    const height = Math.max(36, size * (pdfViewer.currentScale || 1) * 1.8);
+    addField.style.left = (clientX - pageBox.left) + "px";
+    addField.style.top = (clientY - pageBox.top) + "px";
+    addField.style.width = "240px";
+    addField.style.height = height + "px";
+    paintAddFont();
+    addField.hidden = false;
+    pageEl.appendChild(addField);
+    addActions.style.left = addField.style.left;
+    addActions.style.top = (clientY - pageBox.top + height + 6) + "px";
+    addActions.hidden = false;
+    pageEl.appendChild(addActions);
+    addField.focus();
+  };
+
+  const applyAdd = async () => {
+    if (!addDraft) return;
+    const next = addField.value.replace(/\s+$/g, "");
+    if (!next.trim()) {
+      hideAdd();
+      return;
+    }
+    if (!options.engine || !options.engineGet || !options.engineJson) {
+      window.alert("Metin eklemek için yerel motor hazır olmalı.");
+      return;
+    }
+    const { pageNumber, x, y } = addDraft;
+    const chosen = chosenAddFont();
+    const size = chosenAddSize();
+    addApply.disabled = true;
+    setJobProgress(8, "Belge hazırlanıyor…");
+    try {
+      const bytes = await doc.saveDocument();
+      setJobProgress(18, "Metin düzenleyiciye gönderiliyor…");
+      const form = new FormData();
+      form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
+      form.append("async", "true");
+      form.append("lightweight", "true");
+      const started = JSON.parse(new TextDecoder().decode(await options.engine("/api/v1/convert/pdf/text-editor", form)));
+      if (!started.jobId) throw new Error("Metin düzenleyici işi başlamadı.");
+      await waitForTextJob(started.jobId, (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
+      setJobProgress(74, "Metin ekleniyor…");
+      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
+      page.textElements = page.textElements || [];
+      const lines = next.replace(/\r/g, "").split("\n");
+      lines.forEach((line, index) => {
+        page.textElements.push({
+          text: line,
+          fontId: chosen.stirling,
+          fontSize: size,
+          fontMatrixSize: size,
+          fontSizeInPt: size,
+          spaceWidth: size * 0.28,
+          width: Math.max(size, line.length * size * 0.52),
+          height: size * 0.7,
+          zOrder: 2100000 + index,
+          textMatrix: [size, 0, 0, size, x, y - index * size * 1.25],
+        });
+      });
+      if (page.pageNumber == null) page.pageNumber = pageNumber;
+      setJobProgress(86, "Yazı belgeye işleniyor…");
+      const rebuilt = await options.engineJson(`/api/v1/convert/pdf/text-editor/partial/${started.jobId}`, { pages: [page] });
+      setJobProgress(94, "Sayfa yenileniyor…");
+      const shown = await showEditedDocument(rebuilt, pageNumber, pdfViewer.currentScaleValue);
+      if (!shown) return;
+      markDirty(true);
+      hideAdd();
+      setJobProgress(100, "Metin eklendi");
+      statusMode.textContent = "Metin seçilen yazı tipiyle sayfaya yazıldı. Kaydet ile dosyaya yazın.";
+    } catch (err) {
+      const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin eklenemedi.");
+      window.alert(message);
+    } finally {
+      addApply.disabled = false;
+      setTimeout(hideJobProgress, 700);
+    }
+  };
+
+  stage.addEventListener("mousedown", (event) => {
+    if (activeMark.mode !== pdfjs.AnnotationEditorType.FREETEXT || event.button !== 0) return;
+    if (event.target.closest && event.target.closest("textarea, .replace-actions, .form-actions, .form-draft")) return;
+    const pageEl = event.target.closest && event.target.closest(".page");
+    if (!pageEl || !root.contains(pageEl)) return;
+    event.preventDefault();
+    openAddText(pageEl, event.clientX, event.clientY);
+  });
+  addApply.onclick = () => applyAdd();
+  addCancel.onclick = () => hideAdd();
+  addField.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyAdd(); }
+    if (event.key === "Escape") { event.preventDefault(); hideAdd(); }
   });
 
   const draftBox = el("div", "form-draft");
