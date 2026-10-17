@@ -934,7 +934,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   // The selected block keeps its width. Extra lines are new runs under that block;
   // paragraphs below the selection are left where they are.
-  const writeLines = (page, chosen, text) => {
+  const writeLines = (page, chosen, text, bandCount, targetYs) => {
     const groups = [];
     chosen.forEach((item) => {
       const box = boxOf(item);
@@ -943,6 +943,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
       else groups.push({ y: box.y, items: [item] });
     });
     groups.sort((a, b) => b.y - a.y);
+    if (bandCount && groups.length > bandCount) {
+      const targets = targetYs && targetYs.length ? targetYs : groups.map((group) => group.y);
+      const distance = (group) => Math.min(...targets.map((y) => Math.abs(group.y - y)));
+      groups.sort((a, b) => distance(a) - distance(b));
+      groups.length = bandCount;
+      groups.sort((a, b) => b.y - a.y);
+    }
     const upright = chosen.every((item) => {
       const matrix = item.textMatrix || [];
       return Math.abs(Number(matrix[1]) || 0) < 0.25 && Math.abs(Number(matrix[2]) || 0) < 0.25;
@@ -951,26 +958,46 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const lines = String(text).replace(/\r/g, "").split("\n");
       if (groups.length === 1) assignLine(groups[0].items, lines.join(" ").replace(/\s+/g, " ").trim());
       else groups.forEach((group, index) => assignLine(group.items, index < lines.length ? lines[index] : ""));
-      return [];
+      return { created: [], touched: groups.flatMap((group) => group.items) };
     }
     const typed = Number(sizeInput.value);
-    const fontSize = typed >= 6 && typed <= 72 ? typed : boxOf(chosen[0]).size;
-    const left = Math.min(...chosen.map((item) => boxOf(item).left));
-    const right = Math.max(...chosen.map((item) => boxOf(item).right));
+    const span = groups.flatMap((group) => group.items);
+    const fontSize = typed >= 6 && typed <= 72 ? typed : boxOf(span[0]).size;
+    const left = Math.min(...span.map((item) => boxOf(item).left));
+    const right = Math.max(...span.map((item) => boxOf(item).right));
     const wrapped = wrapPdfLines(text, fontSize, Math.max(40, right - left), chosenReplaceFont());
     const created = [];
-    groups.forEach((group, index) => assignLine(group.items, index < wrapped.length ? wrapped[index] : ""));
-    if (wrapped.length > groups.length) {
+    const kept = new Set(groups.flatMap((group) => group.items));
+    const occupied = (y) => (page.textElements || []).some((item) => {
+      if (kept.has(item) || created.includes(item)) return false;
+      return Math.abs(boxOf(item).y - y) < Math.max(fontSize * 0.85, 3);
+    });
+    let pending = [];
+    let blocked = false;
+    wrapped.forEach((line, index) => {
+      if (index < groups.length) {
+        assignLine(groups[index].items, line);
+        return;
+      }
       const anchor = groups[groups.length - 1].items[0];
-      const base = boxOf(anchor).y;
+      const y = boxOf(anchor).y - fontSize * 1.2 * (created.length + 1);
+      if (blocked || occupied(y)) {
+        blocked = true;
+        pending.push(line);
+        return;
+      }
+      const element = spawnLine(anchor, line, left, y, fontSize);
       page.textElements = page.textElements || [];
-      wrapped.slice(groups.length).forEach((line, index) => {
-        const element = spawnLine(anchor, line, left, base - fontSize * 1.2 * (index + 1), fontSize);
-        page.textElements.push(element);
-        created.push(element);
-      });
+      page.textElements.push(element);
+      created.push(element);
+    });
+    groups.slice(wrapped.length).forEach((group) => assignLine(group.items, ""));
+    if (pending.length) {
+      const last = created.length ? created[created.length - 1] : groups[Math.min(wrapped.length, groups.length) - 1].items[0];
+      last.text = [last.text, ...pending].filter(Boolean).join(" ");
+      last.width = Math.max(fontSize, last.text.length * fontSize * 0.5);
     }
-    return created;
+    return { created, touched: groups.flatMap((group) => group.items) };
   };
 
   const chosenReplaceFont = () => TEXT_FONTS.find((font) => font.id === fontSel.value) || TEXT_FONTS[0];
@@ -1064,18 +1091,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return;
     }
     const { pageNumber, pdfRects } = pendingReplace;
-    const padded = (pdfRects || []).map((rect) => [rect[0] - 2, rect[1] - 2, rect[2] + 2, rect[3] + 2]);
     const norm = (value) => String(value || "").replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
     const wanted = norm(pendingReplace.text);
-    const near = (item) => {
+    const onBaseline = (item, rect) => {
       const box = boxOf(item);
-      return padded.some((rect) => {
-        const cx = (rect[0] + rect[2]) / 2;
-        const cy = (rect[1] + rect[3]) / 2;
-        const dx = Math.max(box.left - cx, 0, cx - box.right);
-        const dy = Math.max(box.bottom - cy, 0, cy - box.top);
-        return Math.hypot(dx, dy) < Math.max(10, box.size);
-      });
+      const padX = Math.max(1.5, box.size * 0.2);
+      const padY = Math.max(1.2, box.size * 0.2);
+      const x = box.left + Math.min(box.size, Math.max(0, box.right - box.left) / 2);
+      return x >= rect[0] - padX && x <= rect[2] + padX && box.y >= rect[1] - padY && box.y <= rect[3] + padY;
     };
     applyBtn.disabled = true;
     setJobProgress(8, "Belge hazırlanıyor…");
@@ -1092,19 +1115,31 @@ async function openViewer(source, pageNumber, title, options = {}) {
       setJobProgress(74, "Seçilen yazı bulunuyor…");
       const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
       const elements = page.textElements || [];
-      let picked = elements.filter((item) => String(item.text || "").trim() && padded.some((rect) => overlapsPdf(boxOf(item), rect)));
-      if (!picked.length) picked = elements.filter((item) => String(item.text || "").trim() && near(item));
+      const readable = elements.filter((item) => String(item.text || "").trim());
+      let picked = readable.filter((item) => (pdfRects || []).some((rect) => onBaseline(item, rect)));
+      if (!picked.length && (pdfRects || []).length) {
+        const targetY = pdfRects.reduce((sum, rect) => sum + (rect[1] + rect[3]) / 2, 0) / pdfRects.length;
+        const overlapping = readable.filter((item) => pdfRects.some((rect) => overlapsPdf(boxOf(item), rect)));
+        const pool = overlapping.length ? overlapping : readable;
+        const closest = pool.reduce((best, item) => (Math.abs(boxOf(item).y - targetY) < Math.abs(boxOf(best).y - targetY) ? item : best));
+        const band = Math.max(2.5, boxOf(closest).size * 0.35);
+        picked = pool.filter((item) => Math.abs(boxOf(item).y - boxOf(closest).y) <= band && pdfRects.some((rect) => {
+          const box = boxOf(item);
+          return box.right > rect[0] - 4 && box.left < rect[2] + 4;
+        }));
+      }
       if (!picked.length && wanted) {
-        const exact = elements.filter((item) => norm(item.text) === wanted);
+        const exact = readable.filter((item) => norm(item.text) === wanted);
         if (exact.length === 1) picked = exact;
       }
-      const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && padded.some((rect) => overlapsPdf({
+      const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && (pdfRects || []).some((rect) => overlapsPdf({
         left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
       }, rect)));
       if (picked.length) {
-        const created = writeLines(page, picked, next);
-        picked.forEach(styleRun);
-        created.forEach(styleRun);
+        const targets = (pdfRects || []).map((rect) => (rect[1] + rect[3]) / 2);
+        const written = writeLines(page, picked, next, (pendingReplace.boxes || []).length, targets);
+        written.touched.forEach(styleRun);
+        written.created.forEach(styleRun);
       } else if (annot) replaceAnnotation(page, annot, next);
       else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
       if (page.pageNumber == null) page.pageNumber = pageNumber;

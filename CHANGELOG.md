@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Metin değiştirme yalnızca seçilen satırı yazar; alttaki satır silinmez. Sığmayan satır, altta başka yazı varsa onun üzerine binmez
+- Kurulum Office veya LibreOffice uyarısı göstermez. Araç ekranındaki açıklama durur
 - Metin değiştirme ve metin ekleme, seçilen rengi belgenin yazısına işler. Uzun metin seçilen bloğun genişliğine göre satır kırar; alttaki paragraflar yerinde kalır
 - PDF → Excel ve PDF → CSV, hizalı tabloda birleşik hücreyi ve aynı hücredeki alt satırı korur. Izgara yoksa motorun çıktısı kullanılır
 - Office yokken kurulum ve Office, Word, PowerPoint araçları bunu açıkça söyler. Office belgesinden PDF, LibreOffice ile sürdürülebilir; PDF → Word için Word gerekir

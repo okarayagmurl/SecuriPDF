@@ -5,21 +5,6 @@
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\SecuriPDF"
 !macroend
 
-!macro SECURIPDF_APP_PATH EXE
-  StrCpy $R8 ""
-  ClearErrors
-  ReadRegStr $R8 HKLM "Software\Microsoft\Windows\CurrentVersion\App Paths\${EXE}" ""
-  StrCmp $R8 "" 0 securipdf_skip_office
-  StrCpy $R8 ""
-  ClearErrors
-  ReadRegStr $R8 HKLM "Software\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\${EXE}" ""
-  StrCmp $R8 "" 0 securipdf_skip_office
-  StrCpy $R8 ""
-  ClearErrors
-  ReadRegStr $R8 HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\${EXE}" ""
-  StrCmp $R8 "" 0 securipdf_skip_office
-!macroend
-
 ; Tauri 2 always inserts these four names from installerHooks.
 !macro NSIS_HOOK_PREINSTALL
 !macroend
@@ -34,26 +19,6 @@
     CreateDirectory "$COMMONAPPDATA\Entera\SecuriPDF"
     CopyFiles /SILENT "$R9" "$COMMONAPPDATA\Entera\SecuriPDF\license.lic"
   securipdf_skip_license:
-  IfSilent securipdf_skip_office
-  StrCmp $PassiveMode "1" securipdf_skip_office
-  !insertmacro SECURIPDF_APP_PATH "WINWORD.EXE"
-  !insertmacro SECURIPDF_APP_PATH "EXCEL.EXE"
-  !insertmacro SECURIPDF_APP_PATH "POWERPNT.EXE"
-  !insertmacro SECURIPDF_APP_PATH "soffice.exe"
-  StrCpy $R8 ""
-  ClearErrors
-  EnumRegKey $R8 HKLM "Software\LibreOffice\LibreOffice" 0
-  IfErrors 0 securipdf_skip_office
-  StrCpy $R8 ""
-  ClearErrors
-  EnumRegKey $R8 HKLM "Software\Wow6432Node\LibreOffice\LibreOffice" 0
-  IfErrors 0 securipdf_skip_office
-  StrCmp $LANGUAGE "1055" 0 securipdf_office_en
-    MessageBox MB_OK|MB_ICONINFORMATION "Word, Excel ve PowerPoint dönüşümü için Microsoft Office gerekir. Office yoksa Office belgesinden PDF, kurulu LibreOffice ile yapılır. İkisi de yoksa bu dönüşümler çalışmaz. PDF'i Word belgesine çevirmek için Word şarttır. Diğer PDF araçları Office istemez."
-    Goto securipdf_skip_office
-  securipdf_office_en:
-    MessageBox MB_OK|MB_ICONINFORMATION "Word, Excel and PowerPoint conversion needs Microsoft Office. Without Office, an Office document can still become a PDF through LibreOffice. If neither is installed, those conversions do not run. Turning a PDF into Word requires Word. The other PDF tools do not need Office."
-  securipdf_skip_office:
 !macroend
 !macro NSIS_HOOK_PREUNINSTALL
 !macroend
