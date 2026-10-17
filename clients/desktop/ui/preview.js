@@ -174,20 +174,42 @@ const MARKS = [
   { mode: pdfjs.AnnotationEditorType.NONE, label: "Seç", title: "Metin seçimi, gezinme, form doldurma ve satır değiştirme" },
   { mode: pdfjs.AnnotationEditorType.HIGHLIGHT, label: "Vurgula", title: "Metni seçerek vurgulayın veya yorum bırakın", color: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_COLOR, initial: "#ffff98" },
   { mode: pdfjs.AnnotationEditorType.INK, label: "Çiz", title: "Serbest çizim", color: pdfjs.AnnotationEditorParamsType.INK_COLOR, initial: "#e11d48" },
-  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Yazı tipini seçin, sayfaya tıklayıp metin yazın" },
+  { mode: pdfjs.AnnotationEditorType.FREETEXT, label: "Metin", title: "Yazı tipini, kalın veya italik seçin, sayfaya tıklayıp metin yazın" },
   { mode: pdfjs.AnnotationEditorType.STAMP, label: "Görsel", title: "Sayfaya görsel ekleyin; sürükleyerek taşıyın" },
 ];
 
-// Stirling writes these fallback faces into the page. "Belgedeki" keeps the run's own fontId.
+// Stirling writes these fallback faces into the page. "Belgedeki" keeps the run's own fontId
+// until bold or italic asks for a face that can carry that style.
 const TEXT_FONTS = [
-  { id: "", label: "Belgedeki", css: "\"Segoe UI\", sans-serif", weight: "500", stirling: "" },
-  { id: "helvetica", label: "Helvetica", css: "Arial, Helvetica, sans-serif", weight: "500", stirling: "fallback-liberation-sans" },
-  { id: "helvetica-bold", label: "Helvetica Kalın", css: "Arial, Helvetica, sans-serif", weight: "700", stirling: "fallback-liberation-sans-bold" },
-  { id: "times", label: "Times", css: "\"Times New Roman\", Times, serif", weight: "500", stirling: "fallback-liberation-serif" },
-  { id: "times-bold", label: "Times Kalın", css: "\"Times New Roman\", Times, serif", weight: "700", stirling: "fallback-liberation-serif-bold" },
-  { id: "courier", label: "Courier", css: "\"Courier New\", Courier, monospace", weight: "500", stirling: "fallback-liberation-mono" },
-  { id: "courier-bold", label: "Courier Kalın", css: "\"Courier New\", Courier, monospace", weight: "700", stirling: "fallback-liberation-mono-bold" },
+  { id: "", label: "Belgedeki", css: "\"Segoe UI\", sans-serif", face: "" },
+  { id: "helvetica", label: "Helvetica", css: "Arial, Helvetica, sans-serif", face: "sans" },
+  { id: "times", label: "Times", css: "\"Times New Roman\", Times, serif", face: "serif" },
+  { id: "courier", label: "Courier", css: "\"Courier New\", Courier, monospace", face: "mono" },
 ];
+
+const liberationId = (face, bold, italic) => {
+  const family = face === "mono" ? "mono" : face === "serif" ? "serif" : "sans";
+  const suffix = bold && italic ? "-bolditalic" : bold ? "-bold" : italic ? "-italic" : "";
+  return `fallback-liberation-${family}${suffix}`;
+};
+
+const faceFromFontId = (fontId) => {
+  const id = String(fontId || "").toLowerCase();
+  if (/mono|courier|cour/.test(id)) return "mono";
+  if (/serif|times|roman/.test(id)) return "serif";
+  return "sans";
+};
+
+const fontChoice = (familyId, bold, italic, currentFontId) => {
+  const family = TEXT_FONTS.find((font) => font.id === familyId) || TEXT_FONTS[0];
+  const face = family.face || ((bold || italic) ? faceFromFontId(currentFontId) : "");
+  return {
+    css: family.css,
+    weight: bold ? "700" : "500",
+    style: italic ? "italic" : "normal",
+    stirling: face ? liberationId(face, bold, italic) : "",
+  };
+};
 
 /**
  * Opens `source` in a scrolling viewer with search, zoom and markup tools.
@@ -258,13 +280,33 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textFont.title = "Yazı tipi";
   textFont.hidden = true;
   textFont.setAttribute("aria-label", "Yazı tipi");
-  TEXT_FONTS.filter((font) => font.stirling).forEach((font) => {
+  TEXT_FONTS.filter((font) => font.face).forEach((font) => {
     const option = el("option", null, t(font.label));
     option.value = font.id;
     option.style.fontFamily = font.css;
     textFont.appendChild(option);
   });
   textFont.value = "helvetica";
+  const styleToggle = (label, title) => {
+    const node = button(label, title);
+    node.classList.add("style-toggle");
+    node.setAttribute("aria-pressed", "false");
+    return node;
+  };
+  const bindToggle = (node, onChange) => {
+    node.onclick = () => {
+      const on = !node.classList.contains("on");
+      node.classList.toggle("on", on);
+      node.setAttribute("aria-pressed", on ? "true" : "false");
+      onChange();
+    };
+  };
+  const textBold = styleToggle("B", "Kalın");
+  textBold.style.fontWeight = "700";
+  textBold.hidden = true;
+  const textItalic = styleToggle("I", "İtalik");
+  textItalic.style.fontStyle = "italic";
+  textItalic.hidden = true;
   const textSize = el("input", "viewer-size");
   textSize.type = "number";
   textSize.min = "6";
@@ -279,7 +321,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textColor.title = "Yazı rengi";
   textColor.setAttribute("aria-label", "Yazı rengi");
   textColor.hidden = true;
-  marks.append(textFont, textSize, textColor);
+  marks.append(textFont, textBold, textItalic, textSize, textColor);
   const replace = button("Metni değiştir", "Seçilen satırı veya hücreyi değiştirir. Sütundaki diğer satırlar olduğu gibi kalır.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
@@ -558,6 +600,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
       hideAdd();
       root.classList.remove("text-placing");
       textFont.hidden = true;
+      textBold.hidden = true;
+      textItalic.hidden = true;
       textSize.hidden = true;
       textColor.hidden = true;
       activeMark = MARKS[0];
@@ -584,6 +628,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     statusMode.textContent = t(mark.title);
     color.hidden = !mark.color || placingText;
     textFont.hidden = !placingText;
+    textBold.hidden = !placingText;
+    textItalic.hidden = !placingText;
     textSize.hidden = !placingText;
     textColor.hidden = !placingText;
     if (!placingText) hideAdd();
@@ -641,9 +687,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
   replaceColor.value = "#111827";
   replaceColor.title = "Yazı rengi. Değiştirirseniz belgeye bu renk yazılır.";
   replaceColor.setAttribute("aria-label", "Yazı rengi");
+  const boldBtn = styleToggle("B", "Kalın");
+  boldBtn.style.fontWeight = "700";
+  const italicBtn = styleToggle("I", "İtalik");
+  italicBtn.style.fontStyle = "italic";
   const applyBtn = button("Uygula", "Değişikliği belgenin yazısına işle", "primary");
   const cancelBtn = button("Vazgeç");
-  actions.append(fontSel, sizeInput, replaceColor, applyBtn, cancelBtn);
+  actions.append(fontSel, boldBtn, italicBtn, sizeInput, replaceColor, applyBtn, cancelBtn);
   let colorTouched = false;
   root.append(field, actions);
   let pendingReplace = null;
@@ -824,6 +874,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.lineHeight = "1.25";
     colorTouched = false;
     replaceColor.value = "#111827";
+    boldBtn.classList.remove("on");
+    italicBtn.classList.remove("on");
+    boldBtn.setAttribute("aria-pressed", "false");
+    italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
     field.hidden = false;
     found.pageEl.appendChild(field);
@@ -851,7 +905,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const wrapPdfLines = (text, fontSize, maxWidth, face) => {
     const measure = document.createElement("canvas").getContext("2d");
     const chosen = face || { css: "sans-serif", weight: "500" };
-    measure.font = `${chosen.weight || 500} ${fontSize}px ${chosen.css || "sans-serif"}`;
+    measure.font = `${chosen.style || "normal"} ${chosen.weight || 500} ${fontSize}px ${chosen.css || "sans-serif"}`;
     return wrapLines(measure, text, Math.max(40, maxWidth));
   };
 
@@ -1000,18 +1054,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
     return { created, touched: groups.flatMap((group) => group.items) };
   };
 
-  const chosenReplaceFont = () => TEXT_FONTS.find((font) => font.id === fontSel.value) || TEXT_FONTS[0];
+  const chosenReplaceFont = (currentFontId) => fontChoice(fontSel.value, boldBtn.classList.contains("on"), italicBtn.classList.contains("on"), currentFontId);
 
   const paintReplaceFont = () => {
     const chosen = chosenReplaceFont();
     field.style.fontFamily = chosen.css;
-    field.style.fontWeight = chosen.weight || "500";
+    field.style.fontWeight = chosen.weight;
+    field.style.fontStyle = chosen.style;
     const size = Number(sizeInput.value);
     if (size >= 6 && size <= 72) field.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
     field.style.color = replaceColor.value || "#111827";
   };
   fontSel.onchange = paintReplaceFont;
   sizeInput.oninput = paintReplaceFont;
+  bindToggle(boldBtn, paintReplaceFont);
+  bindToggle(italicBtn, paintReplaceFont);
   replaceColor.oninput = () => {
     colorTouched = true;
     paintReplaceFont();
@@ -1028,7 +1085,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
 
   const styleRun = (item) => {
-    const chosen = chosenReplaceFont();
+    const chosen = chosenReplaceFont(item.fontId);
     if (chosen.stirling) item.fontId = chosen.stirling;
     if (colorTouched) {
       const fill = fillColorOf(replaceColor.value);
@@ -1197,7 +1254,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   root.append(addField, addActions);
   let addDraft = null;
 
-  const chosenAddFont = () => TEXT_FONTS.find((font) => font.id === textFont.value) || TEXT_FONTS.find((font) => font.stirling);
+  const chosenAddFont = () => fontChoice(textFont.value, textBold.classList.contains("on"), textItalic.classList.contains("on"));
   const chosenAddSize = () => {
     const size = Number(textSize.value);
     return size >= 6 && size <= 72 ? size : 14;
@@ -1206,7 +1263,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const chosen = chosenAddFont();
     const size = chosenAddSize();
     addField.style.fontFamily = chosen.css;
-    addField.style.fontWeight = chosen.weight || "500";
+    addField.style.fontWeight = chosen.weight;
+    addField.style.fontStyle = chosen.style;
     addField.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
     addField.style.color = textColor.value || "#111827";
     addField.style.lineHeight = "1.25";
@@ -1214,6 +1272,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textFont.onchange = paintAddFont;
   textSize.oninput = paintAddFont;
   textColor.oninput = paintAddFont;
+  bindToggle(textBold, paintAddFont);
+  bindToggle(textItalic, paintAddFont);
 
   hideAdd = () => {
     addField.hidden = true;

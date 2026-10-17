@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Ayarlar sayfasında uygulama dili, Gezgin sağ tık menüsü ve ana sayfada üstte duran sık kullanılan araçlar seçilir
+- Sağ tık menüsü uygulamanın dilinde yazılır. Ana sayfadaki belge yükleme alanı da seçilen dile uyar
+- Metin değiştirme ve metin eklemede kalın, italik ve ikisi birlikte seçilir; seçim belgenin yazısına işlenir
 - Metin değiştirme yalnızca seçilen satırı yazar; alttaki satır silinmez. Sığmayan satır, altta başka yazı varsa onun üzerine binmez
 - Kurulum Office veya LibreOffice uyarısı göstermez. Araç ekranındaki açıklama durur
 - Metin değiştirme ve metin ekleme, seçilen rengi belgenin yazısına işler. Uzun metin seçilen bloğun genişliğine göre satır kırar; alttaki paragraflar yerinde kalır

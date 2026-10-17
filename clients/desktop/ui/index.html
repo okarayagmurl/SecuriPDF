@@ -55,6 +55,7 @@
     <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
     <button type="button" class="open-file" id="openFile" data-tr="Belge aç">Belge aç</button>
     <div class="top-end">
+      <button type="button" class="secondary settings-open" id="settingsBtn" data-tr="Ayarlar">Ayarlar</button>
       <label class="lang" for="lang">
         <select id="lang" data-tr-aria="Uygulama dili">
           <option value="tr">Türkçe</option>
@@ -117,6 +118,30 @@
         </div>
       </aside>
     </main>
+  </div>
+  <div class="dialog" id="settingsDialog" hidden>
+    <div class="dialog-card" role="dialog" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle" data-tr="Ayarlar">Ayarlar</h2>
+      <label>
+        <span data-tr="Uygulama dili">Uygulama dili</span>
+        <select id="settingsLang">
+          <option value="tr">Türkçe</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settingsShell">
+        <span data-tr="Gezgin sağ tık menüsü">Gezgin sağ tık menüsü</span>
+      </label>
+      <p class="hint" data-tr="Sağ tık menüsü seçilen dilde yazılır. PDF, Office ve UDF dosyalarında çıkar.">Sağ tık menüsü seçilen dilde yazılır. PDF, Office ve UDF dosyalarında çıkar.</p>
+      <h3 data-tr="Sık kullanılan araçlar">Sık kullanılan araçlar</h3>
+      <p class="hint" data-tr="Seçilen araçlar ana sayfanın üstünde durur.">Seçilen araçlar ana sayfanın üstünde durur.</p>
+      <div id="settingsFavorites" class="favorite-list"></div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" id="settingsClose" data-tr="Kapat">Kapat</button>
+      </div>
+      <p class="error" id="settingsError" role="alert"></p>
+    </div>
   </div>
   <div class="dialog" id="licenseDialog" hidden>
     <div class="dialog-card" role="dialog" aria-labelledby="licenseTitle">

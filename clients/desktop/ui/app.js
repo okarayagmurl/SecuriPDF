@@ -304,36 +304,52 @@
     catalog.replaceChildren();
     if (!home) return;
     const shown = new Set(PROCESS_STEPS.concat(PROCESS_MORE).map((step) => step.id));
-    catalog.appendChild(el("p", { class: "process-label", text: "Diğer araçlar" }));
+    const toolButton = (tool) => {
+      const spec = tool.files && tool.files[0];
+      const needsPdf = Boolean(spec && acceptsPdf(spec));
+      const optional = tool.id === "merge-pdfs" || tool.id === "office-to-pdf";
+      const button = el("button", {
+        type: "button",
+        title: tool.description || tool.title,
+        disabled: !optional && needsPdf && !file,
+        onclick: () => applyToSession(tool.id),
+      });
+      const icon = (window.SECURIPDF_MENU_ICONS || {})[tool.id];
+      if (icon) {
+        const mark = document.createElement("span");
+        mark.className = "tool-icon";
+        mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+        button.appendChild(mark);
+      }
+      button.appendChild(el("span", { text: tool.title }));
+      return button;
+    };
+    const favorites = readFavorites().filter((id) => allowed.has(id) && id !== "open-pdf");
+    if (favorites.length) {
+      catalog.appendChild(el("p", { class: "process-label", text: "Sık kullanılanlar" }));
+      const row = el("div", { class: "process-cat-tools" });
+      favorites.forEach((id) => {
+        const tool = allowedTools().find((item) => item.id === id);
+        if (tool) row.appendChild(toolButton(tool));
+      });
+      catalog.appendChild(row);
+    }
+    const favoriteIds = new Set(favorites);
+    const sections = [];
     categories.forEach((category) => {
-      const items = allowedTools().filter((tool) => tool.category === category.id && tool.id !== "open-pdf" && !shown.has(tool.id));
+      const items = allowedTools().filter((tool) => tool.category === category.id && tool.id !== "open-pdf" && !shown.has(tool.id) && !favoriteIds.has(tool.id));
       if (!items.length) return;
       const row = el("div", { class: "process-cat-tools" });
-      items.forEach((tool) => {
-        const spec = tool.files && tool.files[0];
-        const needsPdf = Boolean(spec && acceptsPdf(spec));
-        const optional = tool.id === "merge-pdfs" || tool.id === "office-to-pdf";
-        const button = el("button", {
-          type: "button",
-          title: tool.description || tool.title,
-          disabled: !optional && needsPdf && !file,
-          onclick: () => applyToSession(tool.id),
-        });
-        const icon = (window.SECURIPDF_MENU_ICONS || {})[tool.id];
-        if (icon) {
-          const mark = document.createElement("span");
-          mark.className = "tool-icon";
-          mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
-          button.appendChild(mark);
-        }
-        button.appendChild(el("span", { text: tool.title }));
-        row.appendChild(button);
-      });
-      catalog.appendChild(el("section", { class: "process-cat" }, [
+      items.forEach((tool) => row.appendChild(toolButton(tool)));
+      sections.push(el("section", { class: "process-cat" }, [
         el("h3", { text: category.title }),
         row,
       ]));
     });
+    if (sections.length) {
+      catalog.appendChild(el("p", { class: "process-label", text: "Diğer araçlar" }));
+      sections.forEach((section) => catalog.appendChild(section));
+    }
   }
 
   let workTimer = null;
@@ -568,7 +584,7 @@
     const all = Array.from(fileList);
     const accepted = all.filter((file) => matchesAccept(file, spec.accept));
     $("formError").textContent = accepted.length < all.length
-      ? "Bazı dosyalar bu araç için uygun değil ve eklenmedi."
+      ? t("Bazı dosyalar bu araç için uygun değil ve eklenmedi.")
       : "";
     if (!accepted.length) return;
     state.files[spec.name] = isMultiple(spec) ? state.files[spec.name].concat(accepted) : [accepted[0]];
@@ -609,9 +625,13 @@
         el("button", { type: "button", title: "Kaldır", text: "✕", onclick: () => removeFile(spec, index) }),
       ]));
       const home = state.tool && state.tool.id === "open-pdf";
+      const dropTitle = document.createElement("strong");
+      dropTitle.textContent = home
+        ? t("PDF belgesini açın")
+        : t(spec.label) + (multiple && !spec.multiple ? " " + t("(her biri ayrı işlenir)") : "");
       const drop = el("div", { class: "drop", "data-files": spec.name, hidden: !isVisible(spec, readValues()) }, [
         el("div", { class: "drop-head" }, [
-          el("strong", { text: home ? "PDF belgesini açın" : spec.label + (multiple && !spec.multiple ? " (her biri ayrı işlenir)" : "") }),
+          dropTitle,
           el("button", { type: "button", class: "secondary", text: multiple ? "Dosya ekle" : "Dosya seç", onclick: () => picker.click() }),
         ]),
         el("p", { class: "drop-hint", text: home
@@ -1684,31 +1704,119 @@
 
   // ---- Explorer right-click menu ----
 
+  const FAVORITES_KEY = "securipdf-favorites";
+
+  function readFavorites() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+      return Array.isArray(stored) ? stored.filter((id) => typeof id === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeFavorites(ids) {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
+  }
+
+  async function writeShellMenu(enabled) {
+    const lang = window.SecuriI18n ? window.SecuriI18n.lang : "tr";
+    return core.invoke("shell_menu_set", { enabled, lang });
+  }
+
+  function syncShellChecks(enabled, locked) {
+    ["shellMenu", "settingsShell"].forEach((id) => {
+      const box = $(id);
+      if (!box) return;
+      box.checked = enabled;
+      box.disabled = !!locked;
+    });
+  }
+
   async function initShellMenu() {
     const box = $("shellMenu");
     const label = box.closest(".shell-menu");
-    box.checked = await core.invoke("shell_menu_status").catch(() => false);
+    let enabled = await core.invoke("shell_menu_status").catch(() => false);
     const locked = state.policy && state.policy.shellMenu != null;
-    if (locked) {
-      box.checked = !!state.policy.shellMenu;
-      box.disabled = true;
-      if (label) {
-        label.classList.add("is-locked");
-        label.title = "Gezgin menüsü kurum ilkesiyle kilitli.";
-      }
-      return;
+    if (locked) enabled = !!state.policy.shellMenu;
+    syncShellChecks(enabled, locked);
+    if (locked && label) {
+      label.classList.add("is-locked");
+      label.title = t("Gezgin menüsü kurum ilkesiyle kilitli.");
     }
-    box.addEventListener("change", async () => {
-      box.disabled = true;
+    if (enabled) {
+      try { enabled = await writeShellMenu(enabled); } catch { /* keep the stored menu */ }
+      syncShellChecks(enabled, locked);
+    }
+    const onToggle = async (source) => {
+      source.disabled = true;
       try {
-        box.checked = await core.invoke("shell_menu_set", { enabled: box.checked });
+        const next = await writeShellMenu(source.checked);
+        syncShellChecks(next, false);
       } catch (err) {
-        box.checked = !box.checked;
-        $("formError").textContent = errorText(err);
+        syncShellChecks(!source.checked, false);
+        const message = errorText(err);
+        $("formError").textContent = message;
+        const settingsError = $("settingsError");
+        if (settingsError) settingsError.textContent = message;
       } finally {
-        box.disabled = false;
+        source.disabled = false;
       }
+    };
+    if (!locked) box.addEventListener("change", () => onToggle(box));
+    const settingsShell = $("settingsShell");
+    if (settingsShell && !locked) settingsShell.addEventListener("change", () => onToggle(settingsShell));
+  }
+
+  function renderFavoriteChoices() {
+    const host = $("settingsFavorites");
+    if (!host) return;
+    const selected = new Set(readFavorites());
+    host.replaceChildren();
+    allowedTools().filter((tool) => tool.id !== "open-pdf").forEach((tool) => {
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = selected.has(tool.id);
+      box.addEventListener("change", () => {
+        const ids = readFavorites().filter((id) => id !== tool.id);
+        if (box.checked) ids.push(tool.id);
+        writeFavorites(ids);
+        renderProcess();
+      });
+      const label = document.createElement("label");
+      label.append(box, document.createTextNode(t(tool.title)));
+      host.appendChild(label);
     });
+  }
+
+  function initSettings() {
+    const dialog = $("settingsDialog");
+    const open = $("settingsBtn");
+    const close = $("settingsClose");
+    const lang = $("settingsLang");
+    if (!dialog || !open) return;
+    const show = (visible) => {
+      dialog.hidden = !visible;
+      if (!visible) return;
+      if (lang && window.SecuriI18n) lang.value = window.SecuriI18n.lang;
+      const shell = $("shellMenu");
+      if (shell) syncShellChecks(shell.checked, shell.disabled);
+      renderFavoriteChoices();
+      const settingsError = $("settingsError");
+      if (settingsError) settingsError.textContent = "";
+    };
+    open.addEventListener("click", () => show(true));
+    if (close) close.addEventListener("click", () => show(false));
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) show(false); });
+    if (lang) {
+      lang.addEventListener("change", () => {
+        if (!window.SecuriI18n) return;
+        window.SecuriI18n.set(lang.value);
+        const header = $("lang");
+        if (header) header.value = lang.value;
+        refreshLanguage();
+      });
+    }
   }
 
   async function initPolicy() {
@@ -1753,6 +1861,12 @@
     refreshOfficeNote();
     renderFields();
     renderFiles();
+    renderProcess();
+    renderFavoriteChoices();
+    const shell = $("shellMenu");
+    if (shell && shell.checked) writeShellMenu(true).catch(() => {});
+    const settingsLang = $("settingsLang");
+    if (settingsLang && window.SecuriI18n) settingsLang.value = window.SecuriI18n.lang;
     updateRunButton();
   }
   const langBox = $("lang");
@@ -1765,6 +1879,7 @@
     window.SecuriI18n.apply();
   }
 
+  initSettings();
   selectTool("open-pdf");
   (async () => {
     const job = core ? await core.invoke("cli_job").catch(() => null) : null;

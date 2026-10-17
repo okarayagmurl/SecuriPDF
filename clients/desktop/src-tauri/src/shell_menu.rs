@@ -13,20 +13,32 @@ const OFFICE: &[&str] = &[".doc", ".docx", ".rtf", ".odt", ".xls", ".xlsx", ".od
 
 struct Entry {
     verb: &'static str,
-    label: &'static str,
     tool: &'static str,
+}
+
+fn entry_label(tool: &str, lang: &str) -> &'static str {
+    let english = lang == "en";
+    match tool {
+        "ocr-pdf" => if english { "Recognize text (OCR)" } else { "Metin tanıma (OCR)" },
+        "pdf-to-word" => if english { "Convert to Word" } else { "Word'e dönüştür" },
+        "pdf-to-udf" => if english { "Convert to UDF" } else { "UDF'e dönüştür" },
+        "compress-pdf" => if english { "Compress" } else { "Sıkıştır" },
+        "pdf-to-pdfa" => if english { "Convert to PDF/A" } else { "PDF/A'ya dönüştür" },
+        "office-to-pdf" | "udf-to-pdf" => if english { "Convert to PDF" } else { "PDF'e dönüştür" },
+        _ => "",
+    }
 }
 
 fn entries(ext: &str) -> &'static [Entry] {
     const PDF: &[Entry] = &[
-        Entry { verb: "10ocr", label: "Metin tanıma (OCR)", tool: "ocr-pdf" },
-        Entry { verb: "20word", label: "Word'e dönüştür", tool: "pdf-to-word" },
-        Entry { verb: "30udf", label: "UDF'e dönüştür", tool: "pdf-to-udf" },
-        Entry { verb: "40compress", label: "Sıkıştır", tool: "compress-pdf" },
-        Entry { verb: "50pdfa", label: "PDF/A'ya dönüştür", tool: "pdf-to-pdfa" },
+        Entry { verb: "10ocr", tool: "ocr-pdf" },
+        Entry { verb: "20word", tool: "pdf-to-word" },
+        Entry { verb: "30udf", tool: "pdf-to-udf" },
+        Entry { verb: "40compress", tool: "compress-pdf" },
+        Entry { verb: "50pdfa", tool: "pdf-to-pdfa" },
     ];
-    const TO_PDF_OFFICE: &[Entry] = &[Entry { verb: "10pdf", label: "PDF'e dönüştür", tool: "office-to-pdf" }];
-    const TO_PDF_UDF: &[Entry] = &[Entry { verb: "10pdf", label: "PDF'e dönüştür", tool: "udf-to-pdf" }];
+    const TO_PDF_OFFICE: &[Entry] = &[Entry { verb: "10pdf", tool: "office-to-pdf" }];
+    const TO_PDF_UDF: &[Entry] = &[Entry { verb: "10pdf", tool: "udf-to-pdf" }];
     match ext {
         ".pdf" => PDF,
         ".udf" => TO_PDF_UDF,
@@ -40,7 +52,7 @@ fn extensions() -> impl Iterator<Item = &'static str> {
 }
 
 /// (subkey, value name, data) for one file type; `None` is the key's default value.
-fn plan(ext: &str, exe: &str) -> Vec<(String, Option<&'static str>, String)> {
+fn plan(ext: &str, exe: &str, lang: &str) -> Vec<(String, Option<&'static str>, String)> {
     let menu = format!(r"{ROOT}\{ext}\shell\{MENU_KEY}");
     let mut values = vec![
         (menu.clone(), Some("MUIVerb"), "SecuriPDF".to_string()),
@@ -49,7 +61,7 @@ fn plan(ext: &str, exe: &str) -> Vec<(String, Option<&'static str>, String)> {
     ];
     for entry in entries(ext) {
         let verb = format!(r"{menu}\shell\{}", entry.verb);
-        values.push((verb.clone(), Some("MUIVerb"), entry.label.to_string()));
+        values.push((verb.clone(), Some("MUIVerb"), entry_label(entry.tool, lang).to_string()));
         values.push((format!(r"{verb}\command"), None, format!("\"{exe}\" --tool {} \"%1\"", entry.tool)));
     }
     values
@@ -109,7 +121,7 @@ fn menu_key(ext: &str) -> String {
 
 pub fn apply_policy() {
     if let Some(forced) = crate::policy::load().shell_menu {
-        let _ = shell_menu_set(forced);
+        let _ = shell_menu_set(forced, None);
     }
 }
 
@@ -119,7 +131,7 @@ pub fn shell_menu_status() -> bool {
 }
 
 #[tauri::command]
-pub fn shell_menu_set(enabled: bool) -> Result<bool, String> {
+pub fn shell_menu_set(enabled: bool, lang: Option<String>) -> Result<bool, String> {
     if let Some(forced) = crate::policy::load().shell_menu {
         if enabled != forced {
             return Err("POLICY_SHELL".into());
@@ -133,8 +145,12 @@ pub fn shell_menu_set(enabled: bool) -> Result<bool, String> {
     }
     let exe = std::env::current_exe().map_err(|err| err.to_string())?;
     let exe = crate::engine::plain_path(&exe).display().to_string();
+    let lang = match lang.as_deref() {
+        Some("en") => "en",
+        _ => "tr",
+    };
     for ext in extensions() {
-        for (subkey, name, data) in plan(ext, &exe) {
+        for (subkey, name, data) in plan(ext, &exe, lang) {
             set_value(&subkey, name, &data)?;
         }
     }
@@ -147,7 +163,7 @@ mod tests {
 
     #[test]
     fn pdf_menu_runs_the_command_line_per_file() {
-        let values = plan(".pdf", r"C:\Program Files\SecuriPDF\securipdf-desktop.exe");
+        let values = plan(".pdf", r"C:\Program Files\SecuriPDF\securipdf-desktop.exe", "tr");
         let command = values
             .iter()
             .find(|(key, name, _)| key.ends_with(r"10ocr\command") && name.is_none())
@@ -159,7 +175,7 @@ mod tests {
     #[test]
     fn every_registered_type_has_an_entry() {
         for ext in extensions() {
-            assert!(plan(ext, "x.exe").len() > 3, "{ext} has no menu entries");
+            assert!(plan(ext, "x.exe", "tr").len() > 3, "{ext} has no menu entries");
         }
     }
 
@@ -173,5 +189,16 @@ mod tests {
             assert!(hooks.contains(&format!("!macro {name}")), "hooks.nsh missing {name}");
         }
         assert!(hooks.contains("SECURIPDF_LICENSE"), "hooks.nsh must copy a deployed license");
+    }
+
+    #[test]
+    fn menu_labels_follow_the_language() {
+        let turkish = plan(".pdf", "x.exe", "tr");
+        let english = plan(".pdf", "x.exe", "en");
+        let label = |values: &[(String, Option<&str>, String)]| -> Option<String> {
+            values.iter().find(|(key, name, _)| key.ends_with(r"\10ocr") && *name == Some("MUIVerb")).map(|(_, _, data)| data.clone())
+        };
+        assert_eq!(label(&turkish).as_deref(), Some("Metin tanıma (OCR)"));
+        assert_eq!(label(&english).as_deref(), Some("Recognize text (OCR)"));
     }
 }
