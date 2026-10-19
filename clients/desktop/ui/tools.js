@@ -233,6 +233,91 @@
     return engine("/api/v1/general/merge-pdfs", form);
   }
 
+  async function deflateBytes(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  function concatBytes(parts) {
+    const size = parts.reduce((sum, part) => sum + part.length, 0);
+    const out = new Uint8Array(size);
+    let offset = 0;
+    parts.forEach((part) => {
+      out.set(part, offset);
+      offset += part.length;
+    });
+    return out;
+  }
+
+  const pdfText = (value) => new TextEncoder().encode(value);
+
+  const pdfNum = (value) => (Math.round(Number(value) * 100) / 100).toFixed(2);
+
+  // A printed HTML page is an opaque sheet, so overlaying it hides the document
+  // and PDFBox often rejects the print file. This page draws only the image.
+  async function imageLayerPdf(page, file, x, yTop, widthPt) {
+    const source = await createImageBitmap(file);
+    try {
+      const drawWidth = Math.max(4, Number(widthPt) || 4);
+      const drawHeight = Math.max(4, drawWidth * source.height / Math.max(1, source.width));
+      const longest = Math.max(drawWidth, drawHeight);
+      const pixelScale = Math.min(2, 1400 / longest);
+      const pixelWidth = Math.max(1, Math.round(drawWidth * pixelScale));
+      const pixelHeight = Math.max(1, Math.round(drawHeight * pixelScale));
+      const canvas = document.createElement("canvas");
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+      ctx.drawImage(source, 0, 0, pixelWidth, pixelHeight);
+      const pixels = ctx.getImageData(0, 0, pixelWidth, pixelHeight).data;
+      const rgb = new Uint8Array(pixelWidth * pixelHeight * 3);
+      const alpha = new Uint8Array(pixelWidth * pixelHeight);
+      for (let index = 0, pixel = 0; index < pixels.length; index += 4, pixel += 1) {
+        rgb[pixel * 3] = pixels[index];
+        rgb[pixel * 3 + 1] = pixels[index + 1];
+        rgb[pixel * 3 + 2] = pixels[index + 2];
+        alpha[pixel] = pixels[index + 3];
+      }
+      const [rgbDeflated, alphaDeflated] = await Promise.all([deflateBytes(rgb), deflateBytes(alpha)]);
+      const pageWidth = Math.max(1, Number(page.width) || 595);
+      const pageHeight = Math.max(1, Number(page.height) || 842);
+      const left = Math.max(0, Number(x) || 0);
+      const top = Math.max(0, Number(yTop) || 0);
+      const bottom = pageHeight - top - drawHeight;
+      const content = `q\n${pdfNum(drawWidth)} 0 0 ${pdfNum(drawHeight)} ${pdfNum(left)} ${pdfNum(bottom)} cm\n/Im0 Do\nQ\n`;
+      const objects = [
+        pdfText("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"),
+        pdfText("2 0 obj\n<< /Type /Pages /Kids [6 0 R] /Count 1 >>\nendobj\n"),
+        pdfText(`3 0 obj\n<< /Length ${content.length} >>\nstream\n${content}endstream\nendobj\n`),
+        concatBytes([
+          pdfText(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pixelWidth} /Height ${pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length ${rgbDeflated.length} /SMask 5 0 R >>\nstream\n`),
+          rgbDeflated,
+          pdfText("\nendstream\nendobj\n"),
+        ]),
+        concatBytes([
+          pdfText(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pixelWidth} /Height ${pixelHeight} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${alphaDeflated.length} >>\nstream\n`),
+          alphaDeflated,
+          pdfText("\nendstream\nendobj\n"),
+        ]),
+        pdfText(`6 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pdfNum(pageWidth)} ${pdfNum(pageHeight)}] /Contents 3 0 R /Resources << /XObject << /Im0 4 0 R >> >> >>\nendobj\n`),
+      ];
+      const header = pdfText("%PDF-1.4\n");
+      let offset = header.length;
+      const offsets = [0];
+      objects.forEach((body) => {
+        offsets.push(offset);
+        offset += body.length;
+      });
+      let xref = `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+      for (let index = 1; index < offsets.length; index += 1) xref += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
+      const trailer = pdfText(`${xref}trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${offset}\n%%EOF\n`);
+      return concatBytes([header, ...objects, trailer]);
+    } finally {
+      source.close();
+    }
+  }
+
   async function overlayPdfs(engine, base, overlay, behind) {
     const form = new FormData();
     form.append("fileInput", pdfFile(base, "ana.pdf"), "ana.pdf");
@@ -1399,7 +1484,7 @@
       id: "add-image",
       category: "edit",
       title: "Görsel Ekle",
-      description: "Seçilen sayfaya veya tüm sayfalara görsel yerleştirin. Görüntüleyicide Görsel aracıyla da ekleyip sürükleyerek taşıyabilirsiniz.",
+      description: "Seçilen sayfaya veya tüm sayfalara görsel yerleştirin. Belgenin yazısı durur; görsel seçilen noktaya biner. Görüntüleyicide Görsel aracıyla da ekleyip sürükleyerek taşıyabilirsiniz.",
       suffix: "gorsel-eklendi",
       usesEngine: true,
       files: [
@@ -1413,13 +1498,16 @@
         { name: "y", label: "Y (punto, üstten)", type: "number", default: 40, min: 0 },
         { name: "imageScalePercent", label: "Genişlik (sayfanın %)", type: "range", default: 30, min: 5, max: 100, unit: "%" },
       ],
-      async run({ files, values, engine, htmlToPdf }) {
+      httpError: (status, detail) => (status >= 500
+        ? "Görsel sayfaya yerleştirilemedi." + (detail ? ` (${String(detail).replace(/\s+/g, " ").slice(0, 160)})` : "")
+        : null),
+      async run({ files, values, engine }) {
         const dest = files.fileInput[0];
         const image = files.imageFile[0];
+        if (!image) throw new Error("Görsel seçin.");
         const info = await window.SecuriPreview.pageInfo(dest);
         if (!info.length) throw new Error("PDF sayfaları okunamadı.");
         const target = Math.max(1, Math.min(info.length, Number(values.pageNumber) || 1));
-        const url = await fileDataUrl(image);
         const scale = Math.max(5, Number(values.imageScalePercent) || 30) / 100;
         const x = Math.max(0, Number(values.x) || 0);
         const y = Math.max(0, Number(values.y) || 0);
@@ -1427,20 +1515,13 @@
         const overlays = [];
         for (const page of pages) {
           const width = Math.max(20, page.width * scale);
-          const setup = {
-            width: pageInches(page.width),
-            height: pageInches(page.height),
-            marginTop: 0,
-            marginRight: 0,
-            marginBottom: 0,
-            marginLeft: 0,
-            landscape: false,
-          };
-          const html = `<!doctype html><html><head><style>
-            html,body{margin:0;width:${page.width}pt;height:${page.height}pt;}
-            img{position:absolute;left:${x}pt;top:${y}pt;width:${width}pt;height:auto;}
-          </style></head><body><img src="${url}" alt=""></body></html>`;
-          overlays.push(pdfFile(await htmlToPdf(html, setup), `gorsel-${page.number}.pdf`));
+          let layer;
+          try {
+            layer = await imageLayerPdf(page, image, x, y, width);
+          } catch {
+            throw new Error("Görsel açılamadı. PNG, JPEG veya WebP deneyin.");
+          }
+          overlays.push(pdfFile(layer, `gorsel-${page.number}.pdf`));
         }
         if (values.everyPage) {
           const layer = overlays.length === 1 ? await overlays[0].arrayBuffer() : await mergePdfs(engine, overlays);

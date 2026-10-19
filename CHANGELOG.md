@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Görsel ekleme, belgenin üstünü beyaz sayfayla kapatmaz; görsel seçilen noktaya biner ve yazı durur
+- Web arayüzünde görsel ekleme önizlemesi tıklanacak sayfanın üstünde boş kutu bırakmaz
 - Ayarlar sayfasında uygulama dili, Gezgin sağ tık menüsü ve ana sayfada üstte duran sık kullanılan araçlar seçilir
 - Sağ tık menüsü uygulamanın dilinde yazılır. Ana sayfadaki belge yükleme alanı da seçilen dile uyar
 - Metin değiştirme ve metin eklemede kalın, italik ve ikisi birlikte seçilir; seçim belgenin yazısına işlenir

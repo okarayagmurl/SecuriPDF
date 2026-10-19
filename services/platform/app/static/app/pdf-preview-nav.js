@@ -17,7 +17,7 @@
 
     var wrap = document.createElement('div');
     wrap.className = 'ui-pdf-preview-wrap';
-    if (minHeight) wrap.style.minHeight = minHeight + 'px';
+    if (minHeight != null) wrap.style.minHeight = minHeight + 'px';
 
     var nav = null;
     var pageNum = 1;
