@@ -95,6 +95,8 @@
     "Önerilen süreç": "Suggested process",
     "Görüntüle": "View",
     "Düzenle": "Edit",
+    "Düzenleme": "Edit",
+    "Değiştirilebilir alanları kesik çizgiyle gösterir. Taranmış sayfada önce yazıyı tanır.": "Shows editable regions with a dashed outline. A scanned page is recognized first.",
     "Alanlar": "Regions",
     "Düzenlenebilir yazı alanlarını kesik çizgiyle gösterir. Taranmış sayfada önce yazıyı tanır.": "Shows editable text regions with a dashed outline. A scanned page is recognized first.",
     "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.": "Click a dashed region to change the text.",

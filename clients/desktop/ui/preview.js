@@ -385,8 +385,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textColor.setAttribute("aria-label", "Yazı rengi");
   textColor.hidden = true;
   marks.append(textFont, textBold, textItalic, textSize, textColor);
-  const regionsBtn = button("Alanlar", "Düzenlenebilir yazı alanlarını kesik çizgiyle gösterir. Taranmış sayfada önce yazıyı tanır.", "tool", ICONS.edit);
-  const replace = button("Metni değiştir", "Seçilen satırı veya hücreyi değiştirir. Sütundaki diğer satırlar olduğu gibi kalır.", "tool", ICONS.edit);
+  const editBtn = button("Düzenleme", "Değiştirilebilir alanları kesik çizgiyle gösterir. Taranmış sayfada önce yazıyı tanır.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
     : null;
@@ -412,7 +411,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     group("Sayfa", prev, pageBox, next),
     group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
     group("İşaretle", marks),
-    group("Düzenle", regionsBtn, replace, formBtn),
+    group("Düzenleme", editBtn, formBtn),
     processBtns.length ? group("İşle", ...processBtns) : null,
   ].filter(Boolean));
   chrome.append(top, ribbon);
@@ -655,7 +654,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   eventBus.on("updatefindmatchescount", showCount);
   eventBus.on("updatefindcontrolstate", showCount);
 
+  let leaveRegions = () => {};
   setFormMode = (on) => {
+    if (on) leaveRegions();
     formMode = on;
     if (formBtn) formBtn.classList.toggle("active", on);
     root.classList.toggle("form-placing", on);
@@ -680,6 +681,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     }
   };
   const setMark = (mark) => {
+    leaveRegions();
     if (formMode) setFormMode(false);
     const placingText = mark.mode === pdfjs.AnnotationEditorType.FREETEXT;
     try {
@@ -1296,8 +1298,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const found = captureSelection();
     if (found) pendingReplace = found;
   });
-  replace.onclick = () => openReplace();
-
   let regionMode = false;
   let regionOcrTried = false;
   let regionBusy = false;
@@ -1396,8 +1396,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
     return showEditedDocument(recognized, pageNumber, pdfViewer.currentScaleValue);
   };
   const enterRegions = async () => {
+    if (formMode) setFormMode(false);
+    hideAdd();
+    root.classList.remove("text-placing");
+    try { pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.NONE }; } catch { /* ignore */ }
+    markButtons.forEach((node) => node.classList.remove("active"));
+    textFont.hidden = true;
+    textBold.hidden = true;
+    textItalic.hidden = true;
+    textSize.hidden = true;
+    textColor.hidden = true;
     regionMode = true;
-    regionsBtn.classList.add("active");
+    editBtn.classList.add("active");
     const pageNumber = pdfViewer.currentPageNumber || 1;
     const pageEl = stage.querySelector(`.page[data-page-number="${pageNumber}"]`);
     const chars = pageEl ? textSpans(pageEl).reduce((sum, span) => sum + span.text.trim().length, 0) : 0;
@@ -1429,22 +1439,27 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (regionNodes.length) statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
     else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
   };
-  regionsBtn.onclick = async () => {
+  leaveRegions = () => {
+    if (!regionMode) return;
+    regionMode = false;
+    editBtn.classList.remove("active");
+    clearRegions();
+    hideReplace();
+  };
+  editBtn.onclick = async () => {
     if (regionBusy) return;
     if (regionMode) {
-      regionMode = false;
-      regionsBtn.classList.remove("active");
-      clearRegions();
+      leaveRegions();
       statusMode.textContent = t(MARKS[0].title);
       return;
     }
     regionBusy = true;
-    regionsBtn.disabled = true;
+    editBtn.disabled = true;
     try {
       await enterRegions();
     } finally {
       regionBusy = false;
-      regionsBtn.disabled = false;
+      editBtn.disabled = false;
     }
   };
   eventBus.on("textlayerrendered", () => {
