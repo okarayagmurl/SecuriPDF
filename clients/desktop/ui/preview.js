@@ -387,10 +387,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textColor.setAttribute("aria-label", "Yazı rengi");
   textColor.hidden = true;
   marks.append(textFont, textBold, textItalic, textSize, textColor);
-  const editBtn = button("Düzenleme", "Değiştirilebilir alanları kesik çizgiyle gösterir. Taranmış sayfada önce yazıyı tanır.", "tool", ICONS.edit);
-  const formBtn = options.addFormFields
-    ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
-    : null;
   const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
   const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
   const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
@@ -409,15 +405,37 @@ async function openViewer(source, pageNumber, title, options = {}) {
     processBtns[1].onclick = () => options.onProcess("redact");
     processBtns[2].onclick = () => options.onProcess("cert-sign");
   }
-  ribbon.append(...[
-    group("Sayfa", prev, pageBox, next),
-    group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
-    group("İşaretle", marks),
-    group("Düzenleme", editBtn, formBtn),
-    processBtns.length ? group("İşle", ...processBtns) : null,
-  ].filter(Boolean));
-  chrome.append(top, ribbon);
+  const pageGroup = group("Sayfa", prev, pageBox, next);
+  const viewGroup = group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate);
+  const markGroup = group("Açıklama", marks);
+  const editHint = el("p", "viewer-ribbon-hint", t("Kesik çizgili alanlara tıklayın. Yazı tipi sağdaki Metin Stilleri panelindedir."));
+  const formHint = el("p", "viewer-ribbon-hint", t("Sayfada sürükleyerek metin, onay kutusu veya liste alanı çizin."));
+  const processGroup = processBtns.length ? group("İşle", ...processBtns) : null;
+  ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, processGroup].filter(Boolean));
+  const tabBar = el("div", "viewer-tabs");
+  const tabItems = [["view", "Görünüm"], ["edit", "Düzenleme"], ["note", "Açıklama"]];
+  if (options.addFormFields) tabItems.push(["form", "Formlar"]);
+  if (processGroup) tabItems.push(["process", "İşle"]);
+  const tabButtons = tabItems.map(([id, label]) => {
+    const node = el("button", "viewer-tab", t(label));
+    node.type = "button";
+    node.dataset.mode = id;
+    tabBar.appendChild(node);
+    return node;
+  });
+  chrome.append(top, tabBar, ribbon);
   const workspace = el("div", "viewer-workspace");
+  const side = el("aside", "viewer-side");
+  side.hidden = true;
+  const sideTitle = el("h2", "viewer-side-title", t("Metin Stilleri"));
+  const stylePane = el("div", "viewer-style");
+  const formPane = el("div", "viewer-form-pane");
+  const formList = el("ul", "viewer-form-items");
+  const formEmpty = el("div", "viewer-form-empty");
+  formEmpty.innerHTML = svgIcon(ICONS.form);
+  formEmpty.appendChild(el("p", null, t("Bu belgede form alanı yok")));
+  formPane.append(formList, formEmpty);
+  side.append(sideTitle, stylePane, formPane);
   const thumbs = el("aside", "viewer-thumbs");
   const thumbsHead = el("div", "viewer-thumbs-head");
   const thumbsTitle = el("strong", null, "Sayfalar");
@@ -435,7 +453,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const loading = el("p", "viewer-loading", "Belge açılıyor…");
   stage.appendChild(pages);
   body.append(stage, loading);
-  workspace.append(thumbs, body);
+  workspace.append(thumbs, body, side);
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
@@ -479,6 +497,25 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   let dirty = false;
   let formMode = false;
+  let viewerMode = "view";
+  let pendingViewerMode = null;
+  let setViewerMode = (mode) => { pendingViewerMode = mode; };
+  const applyViewerChrome = (mode) => {
+    viewerMode = mode;
+    tabButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === mode));
+    viewGroup.hidden = mode !== "view";
+    markGroup.hidden = mode !== "note";
+    editHint.hidden = mode !== "edit";
+    formHint.hidden = mode !== "form";
+    if (processGroup) processGroup.hidden = mode !== "process";
+    const showSide = mode === "edit" || mode === "form";
+    side.hidden = !showSide;
+    stylePane.hidden = mode !== "edit";
+    formPane.hidden = mode !== "form";
+    sideTitle.textContent = mode === "form" ? t("Form Alanı Listesi") : t("Metin Stilleri");
+  };
+  applyViewerChrome("view");
+  tabButtons.forEach((node) => { node.onclick = () => setViewerMode(node.dataset.mode); });
   let hideFormDraft = () => {};
   let hideAdd = () => {};
   let setFormMode = () => {};
@@ -503,7 +540,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       event.preventDefault();
       pdfViewer.previousPage();
     } else if (event.key === "Escape" && !typing) {
-      if (formMode) { event.preventDefault(); setFormMode(false); hideFormDraft(); return; }
+      if (viewerMode !== "view") { event.preventDefault(); setViewerMode("view"); return; }
       closeViewer(false);
     }
   };
@@ -660,7 +697,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
   setFormMode = (on) => {
     if (on) leaveRegions();
     formMode = on;
-    if (formBtn) formBtn.classList.toggle("active", on);
     root.classList.toggle("form-placing", on);
     if (on) {
       hideFormDraft();
@@ -732,8 +768,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
   field.rows = 2;
   field.setAttribute("aria-label", "Yeni metin");
   field.setAttribute("spellcheck", "false");
-  const actions = el("div", "replace-actions");
-  actions.hidden = true;
   const fontSel = el("select", "replace-font");
   fontSel.title = "Yazı tipi. Belgedeki, satırın kendi yazı tipini korur.";
   fontSel.setAttribute("aria-label", "Yazı tipi");
@@ -761,9 +795,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
   italicBtn.style.fontStyle = "italic";
   const applyBtn = button("Uygula", "Değişikliği belgenin yazısına işle", "primary");
   const cancelBtn = button("Vazgeç");
-  actions.append(fontSel, boldBtn, italicBtn, sizeInput, replaceColor, applyBtn, cancelBtn);
+  applyBtn.disabled = true;
+  const fontLabel = el("label", "viewer-side-label", t("Yazı tipi"));
+  const styleRow = el("div", "viewer-style-row");
+  styleRow.append(boldBtn, italicBtn, sizeInput, replaceColor);
+  const styleNote = el("p", "viewer-side-note", t("Kesik çizgili bir alana tıklayın."));
+  const applyRow = el("div", "viewer-style-row");
+  applyRow.append(applyBtn, cancelBtn);
+  stylePane.append(fontLabel, fontSel, styleRow, styleNote, applyRow);
   let colorTouched = false;
-  root.append(field, actions);
+  root.append(field);
   let pendingReplace = null;
   const covers = [];
 
@@ -773,8 +814,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   const hideReplace = () => {
     field.hidden = true;
-    actions.hidden = true;
-    root.append(field, actions);
+    root.appendChild(field);
+    applyBtn.disabled = true;
+    styleNote.textContent = t("Kesik çizgili bir alana tıklayın.");
+    stage.querySelectorAll(".edit-region.selected").forEach((node) => node.classList.remove("selected"));
     clearCovers();
     pendingReplace = null;
   };
@@ -947,12 +990,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
+    styleNote.textContent = found.text.replace(/\s+/g, " ").trim() || t("Kesik çizgili bir alana tıklayın.");
+    applyBtn.disabled = false;
     field.hidden = false;
     found.pageEl.appendChild(field);
-    actions.style.left = (first.left - pageBox.left) + "px";
-    actions.style.top = (last.bottom - pageBox.top + 6) + "px";
-    actions.hidden = false;
-    found.pageEl.appendChild(actions);
     field.focus();
     field.select();
     window.getSelection().removeAllRanges();
@@ -1317,7 +1358,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin yazılamadı.");
       window.alert(message);
     } finally {
-      applyBtn.disabled = false;
+      applyBtn.disabled = !pendingReplace;
       setTimeout(hideJobProgress, 700);
     }
   };
@@ -1447,7 +1488,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
     textSize.hidden = true;
     textColor.hidden = true;
     regionMode = true;
-    editBtn.classList.add("active");
     paintRegions();
     if (regionNodes.length) {
       statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
@@ -1507,26 +1547,63 @@ async function openViewer(source, pageNumber, title, options = {}) {
   leaveRegions = () => {
     if (!regionMode) return;
     regionMode = false;
-    editBtn.classList.remove("active");
     clearRegions();
     hideReplace();
   };
-  editBtn.onclick = async () => {
-    if (regionBusy) return;
-    if (regionMode) {
-      leaveRegions();
-      statusMode.textContent = t(MARKS[0].title);
+  let formListToken = 0;
+  const fieldKindLabel = (kind) => ({
+    text: "Metin", checkbox: "Onay", radiobutton: "Seçim", combobox: "Liste", listbox: "Liste", button: "Düğme", signature: "İmza",
+  }[String(kind || "").toLowerCase()] || "Alan");
+  const refreshFormList = async () => {
+    const token = ++formListToken;
+    formList.replaceChildren(el("li", "viewer-form-wait", t("Alanlar okunuyor…")));
+    formEmpty.hidden = true;
+    const rows = [];
+    try {
+      for (let number = 1; number <= doc.numPages; number += 1) {
+        const page = await doc.getPage(number);
+        const annots = await page.getAnnotations();
+        annots.forEach((ann) => {
+          if (!ann.fieldName) return;
+          rows.push({ name: ann.fieldName, page: number, kind: fieldKindLabel(ann.fieldType) });
+        });
+      }
+    } catch { /* the empty state stays */ }
+    if (token !== formListToken || viewerMode !== "form") return;
+    sideTitle.textContent = `${t("Form Alanı Listesi")} (${rows.length})`;
+    formList.replaceChildren();
+    formEmpty.hidden = rows.length > 0;
+    rows.forEach((row) => {
+      const item = el("li", "viewer-form-item");
+      item.append(el("strong", null, row.name), el("span", null, `${row.kind} · ${row.page}`));
+      formList.appendChild(item);
+    });
+  };
+  setViewerMode = async (mode) => {
+    if (regionBusy && mode === "edit") return;
+    applyViewerChrome(mode);
+    if (mode === "edit") {
+      if (formMode) setFormMode(false);
+      regionBusy = true;
+      try { await enterRegions(); } finally { regionBusy = false; }
       return;
     }
-    regionBusy = true;
-    editBtn.disabled = true;
-    try {
-      await enterRegions();
-    } finally {
-      regionBusy = false;
-      editBtn.disabled = false;
+    if (mode === "form") {
+      leaveRegions();
+      setFormMode(true);
+      refreshFormList();
+      return;
     }
+    if (formMode) setFormMode(false);
+    leaveRegions();
+    if (mode === "note" && markButtons.some((node) => node.classList.contains("active"))) return;
+    setMark(MARKS[0]);
   };
+  if (pendingViewerMode) {
+    const queued = pendingViewerMode;
+    pendingViewerMode = null;
+    setViewerMode(queued);
+  }
   eventBus.on("textlayerrendered", () => {
     if (!regionMode) return;
     paintRegions();
@@ -1696,7 +1773,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
   keepPopupClick(addField);
   keepPopupClick(addActions);
   keepPopupClick(field);
-  keepPopupClick(actions);
   addApply.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1855,6 +1931,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       fillThumbs(doc);
       markDirty(true);
       hideFormDraft();
+      refreshFormList();
       statusMode.textContent = `"${fieldName}" alanı eklendi. Kaydet ile PDF'e yazın.`;
     } catch (err) {
       window.alert(String(err && err.message || err || "Form alanı eklenemedi."));
@@ -1863,13 +1940,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       addFieldBtn.disabled = false;
     }
   };
-  if (formBtn) {
-    formBtn.onclick = () => {
-      hideReplace();
-      setFormMode(!formMode);
-    };
-  }
-  if (options.formDesign && formBtn) setFormMode(true);
+  if (options.formDesign && options.addFormFields) setViewerMode("form");
 
   save.onclick = async () => {
     if (!options.onSave) return;
