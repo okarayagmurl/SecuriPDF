@@ -200,6 +200,69 @@ const faceFromFontId = (fontId) => {
   return "sans";
 };
 
+function bandsOverlap(a, b) {
+  const overlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  return overlap > Math.min(a.height, b.height) * 0.45;
+}
+
+function unionSpan(items) {
+  const left = Math.min(...items.map((item) => item.left));
+  const top = Math.min(...items.map((item) => item.top));
+  const right = Math.max(...items.map((item) => item.right));
+  const bottom = Math.max(...items.map((item) => item.bottom));
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+/** Groups text runs into the dashed edit regions Acrobat shows before an edit. */
+function clusterTextBlocks(spans) {
+  const runs = [];
+  spans.slice().sort((a, b) => a.top - b.top || a.left - b.left).forEach((span) => {
+    const run = runs.find((entry) => {
+      if (!bandsOverlap(entry, span)) return false;
+      const gap = span.left >= entry.right ? span.left - entry.right : entry.left - span.right;
+      return gap < Math.max(8, span.height * 0.8);
+    });
+    if (!run) {
+      runs.push({ spans: [span], ...unionSpan([span]) });
+      return;
+    }
+    run.spans.push(span);
+    Object.assign(run, unionSpan(run.spans));
+  });
+  const blocks = runs.map((run) => ({ spans: run.spans.slice(), ...unionSpan(run.spans) }));
+  const beside = (block, other) => {
+    if (!bandsOverlap(block, other)) return false;
+    return other.right < block.left - 8 || other.left > block.right + 8;
+  };
+  let merged = true;
+  while (merged) {
+    merged = false;
+    for (let i = 0; i < blocks.length; i++) {
+      for (let j = i + 1; j < blocks.length; j++) {
+        const a = blocks[i];
+        const b = blocks[j];
+        if (blocks.some((other) => other !== a && other !== b && (beside(a, other) || beside(b, other)))) continue;
+        const upper = a.top <= b.top ? a : b;
+        const lower = upper === a ? b : a;
+        const gap = lower.top - upper.bottom;
+        const height = Math.max(8, a.height, b.height);
+        if (gap > height * 0.7 || gap < -height * 0.25) continue;
+        const overlap = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const narrow = Math.min(a.width, b.width);
+        const aligned = Math.abs(a.left - b.left) < height;
+        if (overlap < narrow * 0.4 && !aligned) continue;
+        a.spans.push(...b.spans);
+        Object.assign(a, unionSpan(a.spans));
+        blocks.splice(j, 1);
+        merged = true;
+        break;
+      }
+      if (merged) break;
+    }
+  }
+  return blocks.filter((block) => block.width > 4 && block.height > 4 && block.spans.some((span) => span.text.trim()));
+}
+
 const fontChoice = (familyId, bold, italic, currentFontId) => {
   const family = TEXT_FONTS.find((font) => font.id === familyId) || TEXT_FONTS[0];
   const face = family.face || ((bold || italic) ? faceFromFontId(currentFontId) : "");
@@ -322,6 +385,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textColor.setAttribute("aria-label", "Yazı rengi");
   textColor.hidden = true;
   marks.append(textFont, textBold, textItalic, textSize, textColor);
+  const regionsBtn = button("Alanlar", "Düzenlenebilir yazı alanlarını kesik çizgiyle gösterir. Taranmış sayfada önce yazıyı tanır.", "tool", ICONS.edit);
   const replace = button("Metni değiştir", "Seçilen satırı veya hücreyi değiştirir. Sütundaki diğer satırlar olduğu gibi kalır.", "tool", ICONS.edit);
   const formBtn = options.addFormFields
     ? button("Form", "Sayfada sürükleyerek metin, onay kutusu veya liste alanı ekleyin.", "tool", ICONS.form)
@@ -348,7 +412,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     group("Sayfa", prev, pageBox, next),
     group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate),
     group("İşaretle", marks),
-    group("Düzenle", replace, formBtn),
+    group("Düzenle", regionsBtn, replace, formBtn),
     processBtns.length ? group("İşle", ...processBtns) : null,
   ].filter(Boolean));
   chrome.append(top, ribbon);
@@ -1233,6 +1297,161 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (found) pendingReplace = found;
   });
   replace.onclick = () => openReplace();
+
+  let regionMode = false;
+  let regionOcrTried = false;
+  let regionBusy = false;
+  const regionNodes = [];
+  const clearRegions = () => {
+    regionNodes.splice(0).forEach((node) => node.remove());
+  };
+  const foundFromSpans = (pageEl, spans) => {
+    if (!spans.length) return null;
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    const view = pdfViewer.getPageView(pageNumber - 1);
+    if (!pageNumber || !view || !view.getPagePoint) return null;
+    const originEl = pageEl.querySelector(".canvasWrapper") || pageEl.querySelector("canvas") || pageEl;
+    const origin = originEl.getBoundingClientRect();
+    const lines = [];
+    spans.slice().sort((a, b) => a.top - b.top || a.left - b.left).forEach((span) => {
+      const line = lines.find((entry) => sameBand(entry[0], span));
+      if (line) line.push(span);
+      else lines.push([span]);
+    });
+    lines.forEach((line) => line.sort((a, b) => a.left - b.left));
+    const pad = Math.max(2, (spans[0].height || 12) * 0.12);
+    const boxes = lines.map((line) => padBox(unionSpan(line), pad));
+    const value = lines.map((line) => line.map((item) => item.text).join("")).join("\n").trim();
+    if (!value) return null;
+    const toPdf = (x, y) => view.getPagePoint(x - origin.left, y - origin.top);
+    const pdfOf = (box) => {
+      const a = toPdf(box.left, box.top);
+      const b = toPdf(box.right, box.bottom);
+      return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+    };
+    return {
+      text: value,
+      pageNumber,
+      pageEl,
+      originEl,
+      view,
+      boxes,
+      pdfRects: boxes.map(pdfOf),
+      wrapWidth: Math.max(...boxes.map((box) => box.width)),
+    };
+  };
+  const paintRegions = () => {
+    clearRegions();
+    if (!regionMode) return;
+    stage.querySelectorAll(".page").forEach((pageEl) => {
+      const pageBox = pageEl.getBoundingClientRect();
+      if (pageBox.width < 8) return;
+      clusterTextBlocks(textSpans(pageEl)).forEach((block) => {
+        const node = document.createElement("div");
+        node.className = "edit-region";
+        node.style.left = (block.left - pageBox.left) + "px";
+        node.style.top = (block.top - pageBox.top) + "px";
+        node.style.width = block.width + "px";
+        node.style.height = block.height + "px";
+        node.title = block.spans.map((span) => span.text).join(" ").replace(/\s+/g, " ").trim();
+        const open = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const current = pageEl.getBoundingClientRect();
+          const box = {
+            left: current.left + parseFloat(node.style.left),
+            top: current.top + parseFloat(node.style.top),
+            width: parseFloat(node.style.width),
+            height: parseFloat(node.style.height),
+          };
+          box.right = box.left + box.width;
+          box.bottom = box.top + box.height;
+          const inside = textSpans(pageEl).filter((span) =>
+            span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top);
+          const found = foundFromSpans(pageEl, inside.length ? inside : block.spans);
+          if (found) showReplace(found);
+        };
+        node.addEventListener("mousedown", open);
+        node.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); });
+        pageEl.appendChild(node);
+        regionNodes.push(node);
+      });
+    });
+  };
+  const recognizePage = async (pageNumber) => {
+    const bytes = await doc.saveDocument();
+    const form = new FormData();
+    form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
+    form.append("languages", "tur");
+    form.append("languages", "eng");
+    form.append("ocrType", "skip-text");
+    form.append("rotatePages", "true");
+    form.append("ocrRenderType", "hocr");
+    form.append("deskew", "false");
+    form.append("clean", "false");
+    form.append("cleanFinal", "false");
+    form.append("sidecar", "false");
+    form.append("removeImagesAfter", "false");
+    const recognized = await options.engine("/api/v1/misc/ocr-pdf", form);
+    return showEditedDocument(recognized, pageNumber, pdfViewer.currentScaleValue);
+  };
+  const enterRegions = async () => {
+    regionMode = true;
+    regionsBtn.classList.add("active");
+    const pageNumber = pdfViewer.currentPageNumber || 1;
+    const pageEl = stage.querySelector(`.page[data-page-number="${pageNumber}"]`);
+    const chars = pageEl ? textSpans(pageEl).reduce((sum, span) => sum + span.text.trim().length, 0) : 0;
+    let noted = false;
+    if (pageEl && chars < 24 && !regionOcrTried) {
+      if (!options.engine) {
+        noted = true;
+        statusMode.textContent = "Bu sayfada seçilebilir yazı yok. Tanıma için yerel motor hazır olmalı.";
+      } else {
+        regionOcrTried = true;
+        setJobProgress(12, "Taranmış sayfa tanınıyor…");
+        try {
+          const shown = await recognizePage(pageNumber);
+          if (shown) {
+            markDirty(true);
+            setJobProgress(100, "Yazı tanındı");
+          }
+        } catch (err) {
+          regionOcrTried = false;
+          noted = true;
+          const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Yazı tanınamadı.");
+          statusMode.textContent = message;
+        } finally {
+          setTimeout(hideJobProgress, 700);
+        }
+      }
+    }
+    paintRegions();
+    if (regionNodes.length) statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+    else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
+  };
+  regionsBtn.onclick = async () => {
+    if (regionBusy) return;
+    if (regionMode) {
+      regionMode = false;
+      regionsBtn.classList.remove("active");
+      clearRegions();
+      statusMode.textContent = t(MARKS[0].title);
+      return;
+    }
+    regionBusy = true;
+    regionsBtn.disabled = true;
+    try {
+      await enterRegions();
+    } finally {
+      regionBusy = false;
+      regionsBtn.disabled = false;
+    }
+  };
+  eventBus.on("textlayerrendered", () => {
+    if (!regionMode) return;
+    paintRegions();
+    if (regionNodes.length) statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+  });
   applyBtn.onclick = () => applyReplace();
   cancelBtn.onclick = hideReplace;
   field.addEventListener("keydown", (event) => {

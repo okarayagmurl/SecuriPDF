@@ -934,6 +934,19 @@ button:disabled { opacity: 0.55; cursor: default; }
   background: #fff;
   pointer-events: none;
 }
+.edit-region {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  border: 1.5px dashed #1d4ed8;
+  border-radius: 2px;
+  background: rgba(37, 99, 235, 0.06);
+  cursor: text;
+}
+.edit-region:hover {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: #1e3a8a;
+}
 .replace-field {
   position: absolute;
   z-index: 30;

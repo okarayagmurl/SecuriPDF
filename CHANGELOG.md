@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Düzenlemeden önce taranmış sayfa tanınır; yazı alanları kesik çizgiyle işaretlenir ve tıklanınca değiştirilir
 - Metin ekleme kutusu sayfanın içinde kalır; Uygula tıklanınca yazı belgeye işlenir ve kutu kapanır
 - PDF birleştirme ve sayfa keserek bölme qpdf ile yapılır; eksik jpdfium yüzünden işlem tamamlanamadı hatası kalkar
 - Görsel ekleme, belgenin üstünü beyaz sayfayla kapatmaz; görsel seçilen noktaya biner ve yazı durur
