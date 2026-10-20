@@ -213,8 +213,8 @@ function unionSpan(items) {
   return { left, top, right, bottom, width: right - left, height: bottom - top };
 }
 
-/** Groups text runs into the dashed edit regions Acrobat shows before an edit. */
-function clusterTextBlocks(spans) {
+/** Groups text runs into dashed edit regions. mergeLines keeps a paragraph together; a table cell stays separate. */
+function clusterTextBlocks(spans, mergeLines = true) {
   const runs = [];
   spans.slice().sort((a, b) => a.top - b.top || a.left - b.left).forEach((span) => {
     const run = runs.find((entry) => {
@@ -230,6 +230,8 @@ function clusterTextBlocks(spans) {
     Object.assign(run, unionSpan(run.spans));
   });
   const blocks = runs.map((run) => ({ spans: run.spans.slice(), ...unionSpan(run.spans) }));
+  const visible = (list) => list.filter((block) => block.width > 4 && block.height > 4 && block.spans.some((span) => span.text.trim()));
+  if (!mergeLines) return visible(blocks);
   const beside = (block, other) => {
     if (!bandsOverlap(block, other)) return false;
     return other.right < block.left - 8 || other.left > block.right + 8;
@@ -260,7 +262,7 @@ function clusterTextBlocks(spans) {
       if (merged) break;
     }
   }
-  return blocks.filter((block) => block.width > 4 && block.height > 4 && block.spans.some((span) => span.text.trim()));
+  return visible(blocks);
 }
 
 const fontChoice = (familyId, bold, italic, currentFontId) => {
@@ -1202,6 +1204,46 @@ async function openViewer(source, pageNumber, title, options = {}) {
     });
   };
 
+  let editorSig = "";
+  let editorTask = null;
+  let editorReady = false;
+  const postEditor = options.engineQuiet || options.engine;
+  const writeEditor = options.engineJsonQuiet || options.engineJson;
+  const byteSig = (bytes) => {
+    const count = bytes.length;
+    let hash = count >>> 0;
+    const step = Math.max(1, Math.floor(count / 48));
+    for (let index = 0; index < count; index += step) hash = (Math.imul(hash, 33) + bytes[index]) >>> 0;
+    return count + ":" + hash;
+  };
+  const ensureEditorJob = (bytes, onProgress) => {
+    const sig = byteSig(bytes);
+    if (!(editorTask && editorSig === sig)) {
+      editorSig = sig;
+      editorReady = false;
+      const task = (async () => {
+        const form = new FormData();
+        form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
+        form.append("async", "true");
+        form.append("lightweight", "true");
+        const started = JSON.parse(new TextDecoder().decode(await postEditor("/api/v1/convert/pdf/text-editor", form)));
+        if (!started.jobId) throw new Error("Metin düzenleyici işi başlamadı.");
+        await waitForTextJob(started.jobId, onProgress);
+        if (editorSig === sig) editorReady = true;
+        return started.jobId;
+      })();
+      editorTask = task.catch((err) => {
+        if (editorSig === sig) { editorTask = null; editorSig = ""; editorReady = false; }
+        throw err;
+      });
+    }
+    return editorTask;
+  };
+  const warmEditor = () => {
+    if (!postEditor) return;
+    doc.saveDocument().then((raw) => ensureEditorJob(new Uint8Array(raw))).catch(() => {});
+  };
+
   const applyReplace = async () => {
     if (!pendingReplace) return;
     const next = field.value;
@@ -1224,19 +1266,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return x >= rect[0] - padX && x <= rect[2] + padX && box.y >= rect[1] - padY && box.y <= rect[3] + padY;
     };
     applyBtn.disabled = true;
-    setJobProgress(8, "Belge hazırlanıyor…");
     try {
       const bytes = await doc.saveDocument();
-      setJobProgress(18, "Metin düzenleyiciye gönderiliyor…");
-      const form = new FormData();
-      form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
-      form.append("async", "true");
-      form.append("lightweight", "true");
-      const started = JSON.parse(new TextDecoder().decode(await options.engine("/api/v1/convert/pdf/text-editor", form)));
-      if (!started.jobId) throw new Error("Metin düzenleyici işi başlamadı.");
-      await waitForTextJob(started.jobId, (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
+      const ready = editorReady && editorTask && editorSig === byteSig(bytes);
+      if (!ready) setJobProgress(18, "Sayfa hazırlanıyor…");
+      const jobId = await ensureEditorJob(bytes, ready ? null : (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
       setJobProgress(74, "Seçilen yazı bulunuyor…");
-      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
+      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${jobId}/${pageNumber}`);
       const elements = page.textElements || [];
       const readable = elements.filter((item) => String(item.text || "").trim());
       let picked = readable.filter((item) => (pdfRects || []).some((rect) => onBaseline(item, rect)));
@@ -1267,12 +1303,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
       else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
       if (page.pageNumber == null) page.pageNumber = pageNumber;
       setJobProgress(86, "Yazı belgeye işleniyor…");
-      const rebuilt = await options.engineJson(`/api/v1/convert/pdf/text-editor/partial/${started.jobId}`, { pages: [page] });
+      const rebuilt = await writeEditor(`/api/v1/convert/pdf/text-editor/partial/${jobId}`, { pages: [page] });
       setJobProgress(94, "Sayfa yenileniyor…");
       const shown = await showEditedDocument(rebuilt, pageNumber, pdfViewer.currentScaleValue);
       if (!shown) return;
       markDirty(true);
       hideReplace();
+      warmEditor();
       setJobProgress(100, "Metin yazıldı");
       statusMode.textContent = "Metin belgenin yazısına işlendi. Kaydet ile dosyaya yazın.";
     } catch (err) {
@@ -1346,7 +1383,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     stage.querySelectorAll(".page").forEach((pageEl) => {
       const pageBox = pageEl.getBoundingClientRect();
       if (pageBox.width < 8) return;
-      clusterTextBlocks(textSpans(pageEl)).forEach((block) => {
+      clusterTextBlocks(textSpans(pageEl), false).forEach((block) => {
         const node = document.createElement("div");
         node.className = "edit-region";
         node.style.left = (block.left - pageBox.left) + "px";
@@ -1369,7 +1406,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
           const inside = textSpans(pageEl).filter((span) =>
             span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top);
           const found = foundFromSpans(pageEl, inside.length ? inside : block.spans);
-          if (found) showReplace(found);
+          if (!found) return;
+          regionNodes.forEach((item) => item.classList.remove("selected"));
+          node.classList.add("selected");
+          showReplace(found);
         };
         node.addEventListener("mousedown", open);
         node.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); });
@@ -1392,7 +1432,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     form.append("cleanFinal", "false");
     form.append("sidecar", "false");
     form.append("removeImagesAfter", "false");
-    const recognized = await options.engine("/api/v1/misc/ocr-pdf", form);
+    const recognized = await (options.engineQuiet || options.engine)("/api/v1/misc/ocr-pdf", form);
     return showEditedDocument(recognized, pageNumber, pdfViewer.currentScaleValue);
   };
   const enterRegions = async () => {
@@ -1408,11 +1448,34 @@ async function openViewer(source, pageNumber, title, options = {}) {
     textColor.hidden = true;
     regionMode = true;
     editBtn.classList.add("active");
+    paintRegions();
+    if (regionNodes.length) {
+      statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+      warmEditor();
+      return;
+    }
+    await new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        eventBus.off("textlayerrendered", finish);
+        resolve();
+      };
+      eventBus.on("textlayerrendered", finish);
+      setTimeout(finish, 900);
+    });
+    if (!regionMode) return;
+    paintRegions();
+    if (regionNodes.length) {
+      statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+      warmEditor();
+      return;
+    }
     const pageNumber = pdfViewer.currentPageNumber || 1;
     const pageEl = stage.querySelector(`.page[data-page-number="${pageNumber}"]`);
-    const chars = pageEl ? textSpans(pageEl).reduce((sum, span) => sum + span.text.trim().length, 0) : 0;
     let noted = false;
-    if (pageEl && chars < 24 && !regionOcrTried) {
+    if (pageEl && !regionOcrTried) {
       if (!options.engine) {
         noted = true;
         statusMode.textContent = "Bu sayfada seçilebilir yazı yok. Tanıma için yerel motor hazır olmalı.";
@@ -1436,8 +1499,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
       }
     }
     paintRegions();
-    if (regionNodes.length) statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
-    else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
+    if (regionNodes.length) {
+      statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+      warmEditor();
+    } else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
   };
   leaveRegions = () => {
     if (!regionMode) return;
@@ -1567,19 +1632,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const size = chosenAddSize();
     addBusy = true;
     addApply.disabled = true;
-    setJobProgress(8, "Belge hazırlanıyor…");
     try {
       const bytes = await doc.saveDocument();
-      setJobProgress(18, "Metin düzenleyiciye gönderiliyor…");
-      const form = new FormData();
-      form.append("fileInput", new File([bytes], "belge.pdf", { type: "application/pdf" }));
-      form.append("async", "true");
-      form.append("lightweight", "true");
-      const started = JSON.parse(new TextDecoder().decode(await options.engine("/api/v1/convert/pdf/text-editor", form)));
-      if (!started.jobId) throw new Error("Metin düzenleyici işi başlamadı.");
-      await waitForTextJob(started.jobId, (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
+      const ready = editorReady && editorTask && editorSig === byteSig(bytes);
+      if (!ready) setJobProgress(18, "Sayfa hazırlanıyor…");
+      const jobId = await ensureEditorJob(bytes, ready ? null : (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
       setJobProgress(74, "Metin ekleniyor…");
-      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${started.jobId}/${pageNumber}`);
+      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${jobId}/${pageNumber}`);
       page.textElements = page.textElements || [];
       const lines = next.replace(/\r/g, "").split("\n");
       const fill = fillColorOf(textColor.value);
@@ -1603,12 +1662,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
       });
       if (page.pageNumber == null) page.pageNumber = pageNumber;
       setJobProgress(86, "Yazı belgeye işleniyor…");
-      const rebuilt = await options.engineJson(`/api/v1/convert/pdf/text-editor/partial/${started.jobId}`, { pages: [page] });
+      const rebuilt = await writeEditor(`/api/v1/convert/pdf/text-editor/partial/${jobId}`, { pages: [page] });
       setJobProgress(94, "Sayfa yenileniyor…");
       const shown = await showEditedDocument(rebuilt, pageNumber, pdfViewer.currentScaleValue);
       if (!shown) return;
       markDirty(true);
       hideAdd();
+      warmEditor();
       setJobProgress(100, "Metin eklendi");
       statusMode.textContent = "Metin seçilen yazı tipiyle sayfaya yazıldı. Kaydet ile dosyaya yazın.";
     } catch (err) {

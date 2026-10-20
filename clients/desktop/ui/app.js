@@ -1058,8 +1058,8 @@
     $("tabResult").setAttribute("aria-selected", "false");
   }
 
-  async function callEngine(apiPath, form) {
-    return withWork("İşleniyor…", async () => {
+  async function callEngine(apiPath, form, quiet) {
+    const run = async () => {
       const request = new Request("http://local.invalid/", { method: "POST", body: form });
       const body = new Uint8Array(await request.arrayBuffer());
       const output = await core.invoke("run_local_tool", body, {
@@ -1069,15 +1069,16 @@
         },
       });
       return new Uint8Array(output);
-    });
+    };
+    return quiet ? run() : withWork("İşleniyor…", run);
   }
 
   async function engineGet(apiPath) {
     return JSON.parse(await core.invoke("local_engine_get", { apiPath }));
   }
 
-  async function callEngineJson(apiPath, payload) {
-    return withWork("İşleniyor…", async () => {
+  async function callEngineJson(apiPath, payload, quiet) {
+    const run = async () => {
       const body = new TextEncoder().encode(JSON.stringify(payload));
       const output = await core.invoke("run_local_tool", body, {
         headers: {
@@ -1086,7 +1087,8 @@
         },
       });
       return new Uint8Array(output);
-    });
+    };
+    return quiet ? run() : withWork("İşleniyor…", run);
   }
 
   async function htmlToPdf(html, page) {
@@ -1249,8 +1251,10 @@
         formDesign: state.tool && state.tool.id === "add-form-fields",
         addFormFields,
         engine: callEngine,
+        engineQuiet: (path, form) => callEngine(path, form, true),
         engineGet,
         engineJson: callEngineJson,
+        engineJsonQuiet: (path, payload) => callEngineJson(path, payload, true),
         errorText,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
         onToWord: () => selectTool("pdf-to-word", [source]),
