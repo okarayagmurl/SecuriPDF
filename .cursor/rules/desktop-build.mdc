@@ -1,0 +1,19 @@
+---
+description: Masaüstü derlemesinde kurulum paketi oluşturma
+alwaysApply: true
+---
+
+# Masaüstü derlemesi
+
+Kod değişince masaüstü uygulamasını derle. NSIS ve MSI kurulum paketini yalnızca kullanıcı açıkça istediğinde oluştur.
+
+Paket istenmediğinde:
+
+```
+cargo clean -p securipdf-desktop --release
+cargo tauri build --no-bundle
+```
+
+Çalışan `securipdf-desktop` sürecini derlemeden önce durdur. Günlükte `Compiling securipdf-desktop` satırını doğrula. Kurulum dosyasını masaüstüne kopyalama.
+
+Kullanıcı paket, kurulum, setup veya MSI isterse `cargo tauri build` çalıştır ve oluşan setup ile MSI dosyasını `OneDrive - Entera\Desktop` klasörüne kopyala.
