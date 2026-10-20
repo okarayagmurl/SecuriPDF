@@ -1293,24 +1293,32 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const point = view.getPagePoint(clientX - origin.left, clientY - origin.top);
     const size = chosenAddSize();
     addDraft = { pageNumber, x: point[0], y: point[1] - size * 0.8 };
-    const pageBox = pageEl.getBoundingClientRect();
     const height = Math.max(36, size * (pdfViewer.currentScale || 1) * 1.8);
-    addField.style.left = (clientX - pageBox.left) + "px";
-    addField.style.top = (clientY - pageBox.top) + "px";
-    addField.style.width = "240px";
+    const width = 240;
+    const margin = 8;
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - height - 56);
+    addField.style.position = "fixed";
+    addActions.style.position = "fixed";
+    addField.style.left = Math.min(Math.max(margin, clientX), maxLeft) + "px";
+    addField.style.top = Math.min(Math.max(margin, clientY), maxTop) + "px";
+    addField.style.width = width + "px";
     addField.style.height = height + "px";
+    addField.style.zIndex = "80";
     paintAddFont();
     addField.hidden = false;
-    pageEl.appendChild(addField);
+    document.body.appendChild(addField);
     addActions.style.left = addField.style.left;
-    addActions.style.top = (clientY - pageBox.top + height + 6) + "px";
+    addActions.style.top = (parseFloat(addField.style.top) + height + 6) + "px";
+    addActions.style.zIndex = "80";
     addActions.hidden = false;
-    pageEl.appendChild(addActions);
+    document.body.appendChild(addActions);
     addField.focus();
   };
 
+  let addBusy = false;
   const applyAdd = async () => {
-    if (!addDraft) return;
+    if (addBusy || !addDraft) return;
     const next = addField.value.replace(/\s+$/g, "");
     if (!next.trim()) {
       hideAdd();
@@ -1323,6 +1331,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const { pageNumber, x, y } = addDraft;
     const chosen = chosenAddFont();
     const size = chosenAddSize();
+    addBusy = true;
     addApply.disabled = true;
     setJobProgress(8, "Belge hazırlanıyor…");
     try {
@@ -1372,6 +1381,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin eklenemedi.");
       window.alert(message);
     } finally {
+      addBusy = false;
       addApply.disabled = false;
       setTimeout(hideJobProgress, 700);
     }
@@ -1379,13 +1389,25 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   stage.addEventListener("mousedown", (event) => {
     if (activeMark.mode !== pdfjs.AnnotationEditorType.FREETEXT || event.button !== 0) return;
-    if (event.target.closest && event.target.closest("textarea, .replace-actions, .form-actions, .form-draft")) return;
+    if (event.target.closest && event.target.closest("textarea, button, .replace-actions, .form-actions, .form-draft")) return;
     const pageEl = event.target.closest && event.target.closest(".page");
     if (!pageEl || !root.contains(pageEl)) return;
     event.preventDefault();
     openAddText(pageEl, event.clientX, event.clientY);
   });
-  addApply.onclick = () => applyAdd();
+  const keepPopupClick = (node) => {
+    node.addEventListener("mousedown", (event) => event.stopPropagation());
+    node.addEventListener("pointerdown", (event) => event.stopPropagation());
+  };
+  keepPopupClick(addField);
+  keepPopupClick(addActions);
+  keepPopupClick(field);
+  keepPopupClick(actions);
+  addApply.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    applyAdd();
+  });
   addCancel.onclick = () => hideAdd();
   addField.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyAdd(); }

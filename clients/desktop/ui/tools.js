@@ -365,6 +365,117 @@
     }
   }
 
+  /** Pages after which the file is cut. "2,5" → after 2 and 5. "5-7" cuts after each of those pages. */
+  function splitAfterPoints(spec, pageCount) {
+    const text = String(spec || "").replace(/\s+/g, "").toLowerCase();
+    if (!text || pageCount < 2) return [];
+    const points = new Set();
+    const add = (page) => {
+      const number = Number(page);
+      if (number >= 1 && number < pageCount) points.add(number);
+    };
+    if (text === "all") {
+      for (let page = 1; page < pageCount; page++) points.add(page);
+      return [...points];
+    }
+    const series = /^(\d+)n(?:\+(\d+)|-(\d+))?$/.exec(text);
+    if (series) {
+      const step = Number(series[1]);
+      const offset = series[2] ? Number(series[2]) : series[3] ? -Number(series[3]) : 0;
+      if (step > 0) {
+        for (let n = 0; n <= pageCount; n++) {
+          const page = step * n + offset;
+          if (page >= pageCount) break;
+          if (page >= 1) points.add(page);
+        }
+      }
+      return [...points].sort((a, b) => a - b);
+    }
+    text.split(",").forEach((part) => {
+      const range = /^(\d+)-(\d+)$/.exec(part);
+      if (range) {
+        const low = Math.min(Number(range[1]), Number(range[2]));
+        const high = Math.max(Number(range[1]), Number(range[2]));
+        for (let page = low; page <= high; page++) add(page);
+        return;
+      }
+      add(part);
+    });
+    return [...points].sort((a, b) => a - b);
+  }
+
+  function rangesFromCuts(points, pageCount) {
+    const cuts = [0, ...points, pageCount];
+    const ranges = [];
+    for (let index = 0; index < cuts.length - 1; index++) {
+      const start = cuts[index] + 1;
+      const end = cuts[index + 1];
+      if (start > end) continue;
+      ranges.push(start === end ? String(start) : `${start}-${end}`);
+    }
+    return ranges;
+  }
+
+  function countRanges(pageCount, splitType, splitValue, byteLength) {
+    const raw = String(splitValue || "").trim();
+    if (String(splitType) === "0") {
+      const mb = Number(raw.replace(/mb/i, "").replace(",", "."));
+      if (!mb || mb <= 0) return [];
+      const perPage = Math.max(1, byteLength / pageCount);
+      const perPart = Math.max(1, Math.floor((mb * 1024 * 1024) / perPage));
+      const points = [];
+      for (let page = perPart; page < pageCount; page += perPart) points.push(page);
+      return rangesFromCuts(points, pageCount);
+    }
+    const count = Math.max(1, Math.floor(Number(raw) || 0));
+    if (!count) return [];
+    if (String(splitType) === "2") {
+      const groups = Math.max(1, Math.min(pageCount, count));
+      const base = Math.floor(pageCount / groups);
+      const extra = pageCount % groups;
+      const ranges = [];
+      let cursor = 0;
+      for (let index = 0; index < groups; index++) {
+        const length = base + (index < extra ? 1 : 0);
+        if (!length) continue;
+        const start = cursor + 1;
+        const end = cursor + length;
+        ranges.push(start === end ? String(start) : `${start}-${end}`);
+        cursor = end;
+      }
+      return ranges;
+    }
+    const points = [];
+    for (let page = count; page < pageCount; page += count) points.push(page);
+    return rangesFromCuts(points, pageCount);
+  }
+
+  async function joinParts(assemble, parts) {
+    let current = parts;
+    while (current.length > 40) {
+      const next = [];
+      for (let index = 0; index < current.length; index += 40) {
+        next.push({ bytes: await assemble(current.slice(index, index + 40)), pages: "1-z" });
+      }
+      current = next;
+    }
+    if (current.length === 1 && current[0].pages === "1-z") return current[0].bytes;
+    return assemble(current);
+  }
+
+  async function pdfTitle(engine, file) {
+    try {
+      const info = await pdfInfo(engine, file);
+      const piles = [info, info && info.metadata, info && info.info, info && info.documentInfo];
+      for (const pile of piles) {
+        if (!pile || typeof pile !== "object") continue;
+        const found = pile.Title || pile.title;
+        if (found && !/untitled|anonymous/i.test(String(found))) return String(found);
+      }
+    } catch { /* başlık okunamadı */ }
+    return file.name || "";
+  }
+
   window.SECURIPDF_CATEGORIES = [
     { id: "view", title: "Görüntüle" },
     { id: "edit", title: "Düzenle" },
@@ -395,8 +506,8 @@
       category: "edit",
       title: "PDF Birleştir",
       description: "Birden fazla PDF dosyasını tek belgede birleştirin. Dosyalar listedeki sırayla eklenir.",
-      apiPath: "/api/v1/general/merge-pdfs",
       suffix: "birlesik",
+      usesEngine: true,
       files: [{ name: "fileInput", label: "PDF dosyaları", accept: PDF, multiple: true, min: 2 }],
       fields: [
         { name: "sortType", label: "Sıralama", type: "select", default: "orderProvided", options: [
@@ -409,18 +520,47 @@
         { name: "removeCertSign", label: "Sertifika imzalarını kaldır", type: "checkbox", default: true },
         { name: "generateToc", label: "İçindekiler sayfası oluştur", type: "checkbox", default: false },
       ],
+      async run({ files, values, assemble, engine, htmlToPdf, note }) {
+        const list = files.fileInput.slice();
+        if (list.length < 2) throw new Error("En az iki PDF seçin.");
+        if (values.sortType === "byFileName") list.sort((a, b) => a.name.localeCompare(b.name, "tr"));
+        else if (values.sortType === "byDateModified" || values.sortType === "byDateCreated") {
+          list.sort((a, b) => a.lastModified - b.lastModified);
+        } else if (values.sortType === "byPDFTitle") {
+          const titles = new Map();
+          for (const file of list) titles.set(file, await pdfTitle(engine, file));
+          list.sort((a, b) => titles.get(a).localeCompare(titles.get(b), "tr"));
+        }
+        const parts = [];
+        for (const file of list) parts.push({ bytes: new Uint8Array(await file.arrayBuffer()), pages: "1-z" });
+        if (values.generateToc) {
+          const english = window.SecuriI18n && window.SecuriI18n.lang === "en";
+          const items = list.map((file) => `<li>${escapeHtml(file.name || "PDF")}</li>`).join("");
+          const html = `<!doctype html><html lang="${english ? "en" : "tr"}"><head><meta charset="utf-8"><style>
+            body{margin:0;font-family:"Segoe UI",sans-serif;color:#0f172a;}
+            h1{font-size:28px;margin:0 0 16px;} ol{font-size:14px;line-height:1.5;}
+          </style></head><body><h1>${english ? "Contents" : "İçindekiler"}</h1><ol>${items}</ol></body></html>`;
+          const cover = await htmlToPdf(html, {
+            width: 8.27, height: 11.69, marginTop: 0.7, marginRight: 0.7, marginBottom: 0.7, marginLeft: 0.7, landscape: false,
+          });
+          parts.unshift({ bytes: cover, pages: "1-z" });
+        }
+        if (!values.removeCertSign) {
+          const english = window.SecuriI18n && window.SecuriI18n.lang === "en";
+          note(english
+            ? "The merged file is a new document; source signatures are not valid in this copy."
+            : "Birleşen dosya yeni bir belgedir; kaynak imzalar bu kopyada geçerli kalmaz.");
+        }
+        return joinParts(assemble, parts);
+      },
     },
     {
       id: "split-pages",
       category: "edit",
       title: "PDF Böl",
       description: "PDF'i sayfa numarasına, sayfa sayısına, boyuta veya sayfa bölümlerine göre ayırın. Birden çok parça ZIP olarak kaydedilir.",
-      apiPath: (v) => ({
-        pages: "/api/v1/general/split-pages",
-        count: "/api/v1/general/split-by-size-or-count",
-        sections: "/api/v1/general/split-pdf-by-sections",
-      })[v.mode],
       suffix: "bolunmus",
+      usesEngine: true,
       files: [{ name: "fileInput", label: "PDF dosyası", accept: PDF }],
       fields: [
         { name: "mode", label: "Bölme şekli", type: "select", local: true, default: "pages", options: [
@@ -443,6 +583,30 @@
         { name: "merge", label: "Parçaları tek PDF'te birleştir", type: "checkbox", default: true, showIf: { mode: "sections" } },
       ],
       constants: (v) => (v.mode === "sections" ? { pageNumbers: "all", splitMode: "SPLIT_ALL" } : {}),
+      httpError: (status) => (status >= 500
+        ? "Sayfa parçalama tamamlanamadı. Sayfa numarasına veya sayfa sayısına göre bölmeyi deneyin."
+        : null),
+      async run({ files, values, assemble, engine, form }) {
+        if (values.mode === "sections") return engine("/api/v1/general/split-pdf-by-sections", form());
+        const file = files.fileInput[0];
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const pageCount = await window.SecuriPreview.countPages(bytes);
+        if (!pageCount) throw new Error("PDF sayfaları okunamadı. Dosya şifreli veya bozuk olabilir.");
+        const ranges = values.mode === "count"
+          ? countRanges(pageCount, values.splitType, values.splitValue, bytes.length)
+          : rangesFromCuts(splitAfterPoints(values.pageNumbers, pageCount), pageCount);
+        if (ranges.length < 2) throw new Error("Bu ayar belgeyi bölmüyor. Kesim, son sayfadan önce olmalı.");
+        if (ranges.length > 200) throw new Error("Çok fazla parça oluşuyor. Daha az kesim noktası seçin.");
+        const stem = safeFileName((file.name || "belge").replace(/\.pdf$/i, "")) || "belge";
+        const pieces = [];
+        for (const range of ranges) {
+          pieces.push({
+            name: `${stem}_${range.replace(/-/g, "_")}.pdf`,
+            data: await assemble([{ bytes, pages: range }]),
+          });
+        }
+        return window.SecuriFormats.zipStore(pieces);
+      },
     },
     {
       id: "ocr-pdf",

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Metin ekleme kutusu sayfanın içinde kalır; Uygula tıklanınca yazı belgeye işlenir ve kutu kapanır
+- PDF birleştirme ve sayfa keserek bölme qpdf ile yapılır; eksik jpdfium yüzünden işlem tamamlanamadı hatası kalkar
 - Görsel ekleme, belgenin üstünü beyaz sayfayla kapatmaz; görsel seçilen noktaya biner ve yazı durur
 - Web arayüzünde görsel ekleme önizlemesi tıklanacak sayfanın üstünde boş kutu bırakmaz
 - Ayarlar sayfasında uygulama dili, Gezgin sağ tık menüsü ve ana sayfada üstte duran sık kullanılan araçlar seçilir

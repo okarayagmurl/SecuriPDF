@@ -936,7 +936,7 @@ button:disabled { opacity: 0.55; cursor: default; }
 }
 .replace-field {
   position: absolute;
-  z-index: 3;
+  z-index: 30;
   margin: 0;
   border: 2px solid #2563eb;
   border-radius: 4px;
@@ -953,7 +953,7 @@ button:disabled { opacity: 0.55; cursor: default; }
 .replace-field[hidden], .replace-actions[hidden] { display: none; }
 .replace-actions {
   position: absolute;
-  z-index: 3;
+  z-index: 30;
   display: flex;
   gap: 6px;
   align-items: center;
