@@ -20,6 +20,7 @@
     "allow-repair-pdf",
     "allow-assemble-pdf",
     "allow-add-form-fields",
+    "allow-add-shapes",
     "allow-scan-file",
     "allow-make-qr",
     "allow-license-status",

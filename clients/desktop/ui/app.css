@@ -710,6 +710,30 @@ html.has-doc-tabs .viewer { top: 40px; }
 }
 .viewer-tab:hover { color: #1d4ed8; }
 .viewer-tab.active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+.viewer-sep {
+  width: 1px;
+  align-self: center;
+  height: 22px;
+  margin: 0 4px;
+  background: #e2e8f0;
+}
+.viewer-shape-tool { color: #e11d48; }
+.viewer-shape-tool.active {
+  color: #e11d48;
+  background: #fff;
+  box-shadow: inset 0 0 0 1.5px #2563eb;
+}
+.viewer.is-shaping .viewer-stage { cursor: crosshair; }
+.viewer.is-erasing .viewer-stage { cursor: cell; }
+.shape-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
 .viewer-group[hidden],
 .viewer-ribbon-hint[hidden],
 .viewer-side[hidden],

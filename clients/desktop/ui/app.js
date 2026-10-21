@@ -927,6 +927,7 @@
       name: source.name,
       password: values.password || undefined,
       onSave: (bytes) => saveBytes(bytes, (source.name.replace(/\.[^.]+$/, "") || "belge") + "_isaretli.pdf"),
+      addShapes,
     };
     if (pick) {
       options.pick = {
@@ -1145,6 +1146,13 @@
     return new Uint8Array(await core.invoke("make_qr", { text }));
   }
 
+  async function addShapes(bytes, shapes) {
+    const output = await core.invoke("add_shapes", bytes, {
+      headers: { "x-securipdf-shapes": encodeURIComponent(JSON.stringify(shapes)) },
+    });
+    return new Uint8Array(output);
+  }
+
   async function addFormFields(bytes, fields) {
     return withWork("Form alanı ekleniyor…", async () => {
       const output = await core.invoke("add_form_fields", bytes, {
@@ -1262,6 +1270,7 @@
         engineJsonQuiet: (path, payload) => callEngineJson(path, payload, true),
         errorText,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
+        addShapes,
         onToWord: () => selectTool("pdf-to-word", [source]),
         onProcess: (toolId) => {
           if (!window.SecuriPreview.closeViewer(false)) return;

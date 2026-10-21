@@ -193,6 +193,17 @@ const ICONS = {
   pages: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="16.65" y1="16.65" x2="21" y2="21"/>',
   form: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+  rect: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+  ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
+  curve: '<path d="M4 16c4-9 12-9 16 0"/>',
+  pentagon: '<path d="M12 3.5l7.6 5.5-2.9 8.5H7.3L4.4 9z"/>',
+  cloud: '<path d="M7 17h10a3.5 3.5 0 0 0 .4-7 4.5 4.5 0 0 0-8.6-1.5A3.4 3.4 0 0 0 7 17z"/>',
+  line: '<line x1="5" y1="19" x2="19" y2="5"/>',
+  zigzag: '<polyline points="3 16 7 8 11 16 15 8 19 16"/>',
+  arrow: '<line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/>',
+  undo: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-5a6 6 0 0 0-6-6H4"/>',
+  redo: '<polyline points="15 14 20 9 15 4"/><path d="M4 20v-5a6 6 0 0 1 6-6h10"/>',
+  eraser: '<path d="M20 20H9L3.5 14.5a2 2 0 0 1 0-2.8L12 3.2a2 2 0 0 1 2.8 0L20 8.4"/><path d="M7 13l6 6"/>',
 };
 
 function svgIcon(inner) {
@@ -337,6 +348,125 @@ const fontChoice = (familyId, bold, italic, currentFontId) => {
     stirling: face ? liberationId(face, bold, italic) : "",
   };
 };
+
+const SHAPE_STROKE = 1.6;
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** Screen-space outline for a drag from `a` to `b`. Closed shapes use the bounding box. */
+function shapePaths(kind, a, b) {
+  const left = Math.min(a.x, b.x);
+  const right = Math.max(a.x, b.x);
+  const top = Math.min(a.y, b.y);
+  const bottom = Math.max(a.y, b.y);
+  const box = (pts, close, fill) => [{ points: pts, close, fill }];
+  if (kind === "rect") {
+    return box([{ x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom }], true, false);
+  }
+  if (kind === "ellipse") {
+    const cx = (left + right) / 2;
+    const cy = (top + bottom) / 2;
+    const rx = Math.max(1, (right - left) / 2);
+    const ry = Math.max(1, (bottom - top) / 2);
+    const pts = [];
+    for (let i = 0; i < 40; i += 1) {
+      const ang = (i / 40) * Math.PI * 2;
+      pts.push({ x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) });
+    }
+    return box(pts, true, false);
+  }
+  if (kind === "pentagon") {
+    const cx = (left + right) / 2;
+    const cy = (top + bottom) / 2;
+    const rx = Math.max(1, (right - left) / 2);
+    const ry = Math.max(1, (bottom - top) / 2);
+    const pts = [];
+    for (let i = 0; i < 5; i += 1) {
+      const ang = -Math.PI / 2 + i * Math.PI * 2 / 5;
+      pts.push({ x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) });
+    }
+    return box(pts, true, false);
+  }
+  if (kind === "cloud") {
+    const w = Math.max(1, right - left);
+    const h = Math.max(1, bottom - top);
+    const bump = Math.max(8, Math.min(w, h) / 5);
+    const edges = [
+      [left, top, right, top, 0, -1],
+      [right, top, right, bottom, 1, 0],
+      [right, bottom, left, bottom, 0, 1],
+      [left, bottom, left, top, -1, 0],
+    ];
+    const pts = [];
+    edges.forEach(([x0, y0, x1, y1, nx, ny]) => {
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      const count = Math.max(1, Math.round(len / (bump * 2)));
+      for (let i = 0; i < count; i += 1) {
+        const t0 = i / count;
+        const t1 = (i + 0.5) / count;
+        pts.push({ x: x0 + (x1 - x0) * t0, y: y0 + (y1 - y0) * t0 });
+        pts.push({
+          x: x0 + (x1 - x0) * t1 + nx * bump * 0.7,
+          y: y0 + (y1 - y0) * t1 + ny * bump * 0.7,
+        });
+      }
+    });
+    return box(pts, true, false);
+  }
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  if (kind === "curve") {
+    const ox = -dy * 0.35;
+    const oy = dx * 0.35;
+    const c = { x: (a.x + b.x) / 2 + ox, y: (a.y + b.y) / 2 + oy };
+    const pts = [];
+    for (let i = 0; i <= 24; i += 1) {
+      const t = i / 24;
+      const u = 1 - t;
+      pts.push({
+        x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+        y: u * u * a.y + 2 * u * t * c.y + t * t * b.y,
+      });
+    }
+    return box(pts, false, false);
+  }
+  if (kind === "zigzag") {
+    const nx = -dy / len;
+    const ny = dx / len;
+    const amp = Math.min(16, len * 0.12);
+    const steps = 8;
+    const pts = [{ x: a.x, y: a.y }];
+    for (let i = 1; i < steps; i += 1) {
+      const t = i / steps;
+      const sign = i % 2 ? 1 : -1;
+      pts.push({ x: a.x + dx * t + nx * amp * sign, y: a.y + dy * t + ny * amp * sign });
+    }
+    pts.push({ x: b.x, y: b.y });
+    return box(pts, false, false);
+  }
+  if (kind === "arrow") {
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const head = Math.min(18, len * 0.28);
+    const base = { x: b.x - ux * head, y: b.y - uy * head };
+    const wing = head * 0.55;
+    return [
+      { points: [{ x: a.x, y: a.y }, base], close: false, fill: false },
+      {
+        points: [
+          { x: b.x, y: b.y },
+          { x: base.x + px * wing, y: base.y + py * wing },
+          { x: base.x - px * wing, y: base.y - py * wing },
+        ],
+        close: true,
+        fill: true,
+      },
+    ];
+  }
+  return box([{ x: a.x, y: a.y }, { x: b.x, y: b.y }], false, false);
+}
 
 /**
  * Opens `source` in a scrolling viewer with search, zoom and markup tools.
@@ -485,9 +615,47 @@ async function openViewer(source, pageNumber, title, options = {}) {
     ? button("Dönüştür", "Belgeyi başka bir biçime çevirin", "tool", ICONS.word)
     : null;
   const convertGroup = convertBtn ? group(t("Dönüştür"), convertBtn) : null;
-  ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, processGroup, convertGroup].filter(Boolean));
+  const shapeKinds = [
+    ["rect", "Dikdörtgen", "Dikdörtgen çizin", ICONS.rect],
+    ["ellipse", "Elips", "Elips çizin", ICONS.ellipse],
+    ["curve", "Eğri", "Eğri çizin", ICONS.curve],
+    ["pentagon", "Beşgen", "Beşgen çizin", ICONS.pentagon],
+    ["cloud", "Bulut", "Bulut çizin", ICONS.cloud],
+    ["line", "Çizgi", "Düz çizgi çizin", ICONS.line],
+    ["zigzag", "Zikzak", "Zikzak çizin", ICONS.zigzag],
+    ["arrow", "Ok", "Ok çizin", ICONS.arrow],
+  ];
+  let shapeTool = "rect";
+  let shapeColorValue = "#e11d48";
+  let chooseShape = (id) => { shapeTool = id; };
+  let undoShape = () => {};
+  let redoShape = () => {};
+  const shapeButtons = shapeKinds.map(([id, label, title, icon]) => {
+    const node = button("", title, "icon", icon);
+    node.classList.add("viewer-shape-tool");
+    node.setAttribute("aria-label", t(label));
+    node.classList.toggle("active", id === shapeTool);
+    node.onclick = () => chooseShape(id);
+    return node;
+  });
+  const shapeColor = el("input", "viewer-color");
+  shapeColor.type = "color";
+  shapeColor.value = shapeColorValue;
+  shapeColor.title = t("Şekil rengi");
+  shapeColor.setAttribute("aria-label", t("Şekil rengi"));
+  shapeColor.oninput = () => { shapeColorValue = shapeColor.value; };
+  const shapeSep = () => el("span", "viewer-sep");
+  const shapeUndoBtn = button("", "Geri al", "icon", ICONS.undo);
+  const shapeRedoBtn = button("", "Yinele", "icon", ICONS.redo);
+  const shapeEraseBtn = button("", "Silgi", "icon", ICONS.eraser);
+  shapeEraseBtn.classList.add("viewer-shape-tool");
+  shapeUndoBtn.onclick = () => undoShape();
+  shapeRedoBtn.onclick = () => redoShape();
+  shapeEraseBtn.onclick = () => chooseShape("eraser");
+  const shapeGroup = group(t("Şekiller"), ...shapeButtons, shapeSep(), shapeColor, shapeSep(), shapeUndoBtn, shapeRedoBtn, shapeEraseBtn);
+  ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, shapeGroup, processGroup, convertGroup].filter(Boolean));
   const tabBar = el("div", "viewer-tabs");
-  const tabItems = [["view", "Görünüm"], ["edit", "Düzenleme"], ["note", "Açıklama"]];
+  const tabItems = [["view", "Görünüm"], ["edit", "Düzenleme"], ["note", "Açıklama"], ["shapes", "Şekiller"]];
   if (options.addFormFields) tabItems.push(["form", "Formlar"]);
   if (processGroup) tabItems.push(["process", "İşle"]);
   const tabButtons = tabItems.map(([id, label]) => {
@@ -583,6 +751,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     viewerMode = mode;
     tabButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === mode));
     markGroup.hidden = mode !== "note";
+    shapeGroup.hidden = mode !== "shapes";
     editHint.hidden = mode !== "edit";
     formHint.hidden = mode !== "form";
     if (processGroup) processGroup.hidden = mode !== "process";
@@ -611,6 +780,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       save.click();
+    } else if (!typing && viewerMode === "shapes" && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) redoShape();
+      else undoShape();
+    } else if (!typing && viewerMode === "shapes" && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {
+      event.preventDefault();
+      redoShape();
     } else if (!typing && (event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "+" || event.key === "=" || event.key === "Add" || event.code === "NumpadAdd")) {
       event.preventDefault();
       pdfViewer.increaseScale();
@@ -1809,6 +1985,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
       refreshFormList();
       return;
     }
+    if (mode === "shapes") {
+      if (formMode) setFormMode(false);
+      leaveRegions();
+      try { pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.NONE }; } catch { /* ignore */ }
+      markButtons.forEach((node) => node.classList.remove("active"));
+      root.classList.add("is-shaping");
+      root.classList.toggle("is-erasing", shapeTool === "eraser");
+      statusMode.textContent = t("Şekli sürükleyerek çizin. Silgi kaldırır. Kaydet ile PDF'e yazılır.");
+      return;
+    }
+    root.classList.remove("is-shaping", "is-erasing");
     if (formMode) setFormMode(false);
     leaveRegions();
     if (mode === "note" && markButtons.some((node) => node.classList.contains("active"))) return;
@@ -2288,11 +2475,191 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   document.addEventListener("mousemove", onFormMove, true);
   document.addEventListener("mouseup", onFormUp, true);
+
+  const shapes = [];
+  let shapeSeq = 1;
+  const shapeUndo = [];
+  const shapeRedo = [];
+  let shapeDrag = null;
+  let shapeDraft = null;
+  const shapeStatus = "Şekli sürükleyerek çizin. Silgi kaldırır. Kaydet ile PDF'e yazılır.";
+  const snapshotShapes = () => JSON.stringify(shapes);
+  const restoreShapes = (raw) => {
+    shapes.splice(0, shapes.length, ...JSON.parse(raw));
+  };
+  const rememberShapes = () => {
+    shapeUndo.push(snapshotShapes());
+    if (shapeUndo.length > 50) shapeUndo.shift();
+    shapeRedo.length = 0;
+    markDirty(true);
+  };
+  undoShape = () => {
+    if (!shapeUndo.length) return;
+    shapeRedo.push(snapshotShapes());
+    restoreShapes(shapeUndo.pop());
+    paintShapes();
+    markDirty(true);
+  };
+  redoShape = () => {
+    if (!shapeRedo.length) return;
+    shapeUndo.push(snapshotShapes());
+    restoreShapes(shapeRedo.pop());
+    paintShapes();
+    markDirty(true);
+  };
+  chooseShape = (id) => {
+    shapeTool = id;
+    shapeButtons.forEach((node, index) => node.classList.toggle("active", shapeKinds[index][0] === id));
+    shapeEraseBtn.classList.toggle("active", id === "eraser");
+    root.classList.toggle("is-erasing", viewerMode === "shapes" && id === "eraser");
+    if (viewerMode === "shapes") statusMode.textContent = t(shapeStatus);
+  };
+  const pagePdfPoint = (pageEl, clientX, clientY) => {
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    const view = pdfViewer.getPageView(pageNumber - 1);
+    if (!view || !view.getPagePoint) return null;
+    const originEl = pageEl.querySelector(".canvasWrapper") || pageEl.querySelector("canvas") || pageEl;
+    const origin = originEl.getBoundingClientRect();
+    const point = view.getPagePoint(clientX - origin.left, clientY - origin.top);
+    if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return null;
+    return { page: pageNumber, x: point[0], y: point[1] };
+  };
+  const paintShapes = () => {
+    stage.querySelectorAll(".page").forEach((pageEl) => {
+      let layer = pageEl.querySelector(":scope > .shape-layer");
+      if (!layer) {
+        layer = document.createElementNS(SVG_NS, "svg");
+        layer.classList.add("shape-layer");
+        pageEl.appendChild(layer);
+      }
+      const pageNumber = Number(pageEl.dataset.pageNumber);
+      const view = pdfViewer.getPageView(pageNumber - 1);
+      const canvas = pageEl.querySelector("canvas");
+      const pageBox = pageEl.getBoundingClientRect();
+      layer.setAttribute("viewBox", `0 0 ${Math.max(1, pageBox.width)} ${Math.max(1, pageBox.height)}`);
+      layer.replaceChildren();
+      if (!view || !view.viewport || !canvas || pageBox.width < 8) return;
+      const canvasBox = canvas.getBoundingClientRect();
+      const ox = canvasBox.left - pageBox.left;
+      const oy = canvasBox.top - pageBox.top;
+      const strokePx = SHAPE_STROKE * (canvasBox.width / Math.max(1, view.viewport.width));
+      const draw = (points, color, width, close, fill, id) => {
+        if (!points || points.length < 2) return;
+        const node = document.createElementNS(SVG_NS, fill || close ? "polygon" : "polyline");
+        node.setAttribute("points", points.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(" "));
+        node.setAttribute("fill", fill ? color : "none");
+        node.setAttribute("stroke", color);
+        node.setAttribute("stroke-width", String(Math.max(1.25, width)));
+        node.setAttribute("stroke-linejoin", "round");
+        node.setAttribute("stroke-linecap", "round");
+        node.style.pointerEvents = fill ? "all" : "stroke";
+        if (id != null) node.dataset.shape = String(id);
+        layer.appendChild(node);
+      };
+      shapes.filter((shape) => shape.page === pageNumber).forEach((shape) => {
+        shape.paths.forEach((path) => {
+          const pts = [];
+          for (let i = 0; i + 1 < path.points.length; i += 2) {
+            const vp = view.viewport.convertToViewportPoint(path.points[i], path.points[i + 1]);
+            pts.push([ox + vp[0], oy + vp[1]]);
+          }
+          draw(pts, shape.color, strokePx, path.close, path.fill, shape.id);
+        });
+      });
+      if (shapeDraft && shapeDraft.page === pageNumber) {
+        shapeDraft.paths.forEach((path) => {
+          draw(path.points.map((point) => [point.x - pageBox.left, point.y - pageBox.top]), shapeColorValue, Math.max(1.25, strokePx), path.close, path.fill, null);
+        });
+      }
+    });
+  };
+  const onShapeDown = (event) => {
+    if (viewerMode !== "shapes" || event.button !== 0) return;
+    if (event.target.closest && event.target.closest("button, input, textarea, select, .viewer-menu, .viewer-chrome")) return;
+    const pageEl = event.target.closest && event.target.closest(".page");
+    if (!pageEl || !root.contains(pageEl)) return;
+    if (shapeTool === "eraser") {
+      const hit = event.target.closest && event.target.closest("[data-shape]");
+      if (!hit) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const id = Number(hit.dataset.shape);
+      const index = shapes.findIndex((shape) => shape.id === id);
+      if (index < 0) return;
+      rememberShapes();
+      shapes.splice(index, 1);
+      paintShapes();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    shapeDrag = { pageEl, x: event.clientX, y: event.clientY, pointer: event.pointerId };
+    try { pageEl.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+  };
+  const onShapeMove = (event) => {
+    if (!shapeDrag || event.pointerId !== shapeDrag.pointer) return;
+    shapeDraft = {
+      page: Number(shapeDrag.pageEl.dataset.pageNumber),
+      paths: shapePaths(shapeTool, { x: shapeDrag.x, y: shapeDrag.y }, { x: event.clientX, y: event.clientY }),
+    };
+    paintShapes();
+  };
+  const onShapeUp = (event) => {
+    if (!shapeDrag || (event.pointerId != null && event.pointerId !== shapeDrag.pointer)) return;
+    const start = shapeDrag;
+    shapeDrag = null;
+    shapeDraft = null;
+    const end = { x: event.clientX, y: event.clientY };
+    const boxed = shapeTool === "rect" || shapeTool === "ellipse" || shapeTool === "pentagon" || shapeTool === "cloud";
+    const tooSmall = boxed
+      ? Math.abs(end.x - start.x) < 6 || Math.abs(end.y - start.y) < 6
+      : Math.hypot(end.x - start.x, end.y - start.y) < 6;
+    if (tooSmall) {
+      paintShapes();
+      return;
+    }
+    const mapped = pagePdfPoint(start.pageEl, start.x, start.y);
+    if (!mapped) {
+      paintShapes();
+      return;
+    }
+    const paths = shapePaths(shapeTool, { x: start.x, y: start.y }, end).map((path) => ({
+      close: !!path.close,
+      fill: !!path.fill,
+      points: path.points.flatMap((point) => {
+        const pdf = pagePdfPoint(start.pageEl, point.x, point.y);
+        return pdf ? [pdf.x, pdf.y] : [];
+      }),
+    })).filter((path) => path.points.length >= 4);
+    if (!paths.length) {
+      paintShapes();
+      return;
+    }
+    rememberShapes();
+    shapes.push({ id: shapeSeq, page: mapped.page, color: shapeColorValue, stroke: SHAPE_STROKE, paths });
+    shapeSeq += 1;
+    paintShapes();
+    statusMode.textContent = t(shapeStatus);
+  };
+  stage.addEventListener("pointerdown", onShapeDown, true);
+  stage.addEventListener("pointermove", onShapeMove);
+  stage.addEventListener("pointerup", onShapeUp);
+  stage.addEventListener("pointercancel", onShapeUp);
+  const onShapePaint = () => { if (shapes.length || shapeDraft) paintShapes(); };
+  eventBus.on("pagerendered", onShapePaint);
+  eventBus.on("scalechanging", onShapePaint);
+
   current.cleanup = () => {
     document.removeEventListener("mousemove", onFormMove, true);
     document.removeEventListener("mouseup", onFormUp, true);
     document.removeEventListener("pointerdown", onHighlightPointer, true);
     document.removeEventListener("pointerdown", onMenuDismiss, true);
+    stage.removeEventListener("pointerdown", onShapeDown, true);
+    stage.removeEventListener("pointermove", onShapeMove);
+    stage.removeEventListener("pointerup", onShapeUp);
+    stage.removeEventListener("pointercancel", onShapeUp);
+    eventBus.off("pagerendered", onShapePaint);
+    eventBus.off("scalechanging", onShapePaint);
     hideMenu();
   };
   skipFieldBtn.onclick = () => hideFormDraft();
@@ -2352,12 +2719,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const work = window.SecuriWork;
     if (work) work.begin("Kaydediliyor…");
     try {
-      const bytes = await doc.saveDocument();
+      let bytes = await doc.saveDocument();
+      if (shapes.length) {
+        if (!options.addShapes) throw new Error("Şekiller bu pencerede dosyaya yazılamıyor.");
+        bytes = await options.addShapes(bytes, shapes.map((shape) => ({
+          page: shape.page,
+          color: shape.color,
+          stroke: shape.stroke,
+          paths: shape.paths,
+        })));
+      }
       const saved = await options.onSave(bytes);
       markDirty(!saved);
-    } catch {
+    } catch (err) {
       markDirty(true);
-      window.alert("İşaretlemeler kaydedilemedi.");
+      window.alert(String((err && err.message) || err || "İşaretlemeler kaydedilemedi."));
     } finally {
       if (work) work.end();
       save.disabled = false;
@@ -2421,7 +2797,11 @@ async function show(host, source, options = {}) {
 
   // The viewer loads its own copy so markup there never touches the thumbnails.
   const original = bytes.slice();
-  const open = (number) => openViewer(original, number, name, { password: options.password, onSave: options.onSave });
+  const open = (number) => openViewer(original, number, name, {
+    password: options.password,
+    onSave: options.onSave,
+    addShapes: options.addShapes,
+  });
   const task = pdfjs.getDocument({ ...LOAD_OPTIONS, data: bytes, password: options.password || undefined });
   let doc;
   try {

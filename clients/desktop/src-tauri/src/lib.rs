@@ -9,6 +9,7 @@ mod policy;
 mod print;
 mod qpdf;
 mod qr;
+mod shapes;
 mod shell_menu;
 mod update;
 
@@ -149,6 +150,7 @@ pub fn run() {
             qpdf::repair_pdf,
             qpdf::assemble_pdf,
             form_fields::add_form_fields,
+            shapes::add_shapes,
             defender::scan_file,
             qr::make_qr,
             license::license_status,
