@@ -627,6 +627,9 @@
     "Yinele": "Redo",
     "Silgi": "Eraser",
     "Şekli sürükleyerek çizin. Silgi kaldırır. Kaydet ile PDF'e yazılır.": "Drag to draw a shape. The eraser removes it. Save writes it into the PDF.",
+    "Şekli seç": "Select a shape",
+    "Bir şekle tıklayın. Rengi veya biçimini şeritten değiştirin.": "Click a shape. Change its color or form from the ribbon.",
+    "Seçili şeklin rengini veya biçimini şeritten değiştirin.": "Change the selected shape's color or form from the ribbon.",
     "Şekiller bu pencerede dosyaya yazılamıyor.": "Shapes cannot be written into the file from this window.",
   };
 

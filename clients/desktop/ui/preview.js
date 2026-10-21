@@ -627,9 +627,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
   ];
   let shapeTool = "rect";
   let shapeColorValue = "#e11d48";
+  let selectedShapeId = null;
   let chooseShape = (id) => { shapeTool = id; };
   let undoShape = () => {};
   let redoShape = () => {};
+  const shapeSelectBtn = button("", "Şekli seç", "icon", ICONS.select);
+  shapeSelectBtn.classList.add("viewer-shape-select");
+  shapeSelectBtn.setAttribute("aria-label", t("Seç"));
+  shapeSelectBtn.onclick = () => chooseShape("select");
   const shapeButtons = shapeKinds.map(([id, label, title, icon]) => {
     const node = button("", title, "icon", icon);
     node.classList.add("viewer-shape-tool");
@@ -644,6 +649,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   shapeColor.title = t("Şekil rengi");
   shapeColor.setAttribute("aria-label", t("Şekil rengi"));
   shapeColor.oninput = () => { shapeColorValue = shapeColor.value; };
+  let shapeColorUndoArmed = false;
   const shapeSep = () => el("span", "viewer-sep");
   const shapeUndoBtn = button("", "Geri al", "icon", ICONS.undo);
   const shapeRedoBtn = button("", "Yinele", "icon", ICONS.redo);
@@ -652,7 +658,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   shapeUndoBtn.onclick = () => undoShape();
   shapeRedoBtn.onclick = () => redoShape();
   shapeEraseBtn.onclick = () => chooseShape("eraser");
-  const shapeGroup = group(t("Şekiller"), ...shapeButtons, shapeSep(), shapeColor, shapeSep(), shapeUndoBtn, shapeRedoBtn, shapeEraseBtn);
+  const shapeGroup = group(t("Şekiller"), shapeSelectBtn, ...shapeButtons, shapeSep(), shapeColor, shapeSep(), shapeUndoBtn, shapeRedoBtn, shapeEraseBtn);
   ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, shapeGroup, processGroup, convertGroup].filter(Boolean));
   const tabBar = el("div", "viewer-tabs");
   const tabItems = [["view", "Görünüm"], ["edit", "Düzenleme"], ["note", "Açıklama"], ["shapes", "Şekiller"]];
@@ -1992,10 +1998,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
       markButtons.forEach((node) => node.classList.remove("active"));
       root.classList.add("is-shaping");
       root.classList.toggle("is-erasing", shapeTool === "eraser");
-      statusMode.textContent = t("Şekli sürükleyerek çizin. Silgi kaldırır. Kaydet ile PDF'e yazılır.");
+      root.classList.toggle("is-selecting", shapeTool === "select");
+      statusMode.textContent = t(shapeTool === "select"
+        ? "Bir şekle tıklayın. Rengi veya biçimini şeritten değiştirin."
+        : "Şekli sürükleyerek çizin. Silgi kaldırır. Kaydet ile PDF'e yazılır.");
       return;
     }
-    root.classList.remove("is-shaping", "is-erasing");
+    root.classList.remove("is-shaping", "is-erasing", "is-selecting");
     if (formMode) setFormMode(false);
     leaveRegions();
     if (mode === "note" && markButtons.some((node) => node.classList.contains("active"))) return;
@@ -2483,20 +2492,42 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let shapeDrag = null;
   let shapeDraft = null;
   const shapeStatus = "Şekli sürükleyerek çizin. Silgi kaldırır. Kaydet ile PDF'e yazılır.";
-  const snapshotShapes = () => JSON.stringify(shapes);
+  const snapshotShapes = () => JSON.stringify({ shapes, selectedShapeId });
   const restoreShapes = (raw) => {
-    shapes.splice(0, shapes.length, ...JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    const next = Array.isArray(parsed) ? parsed : parsed.shapes;
+    shapes.splice(0, shapes.length, ...next);
+    selectedShapeId = Array.isArray(parsed) ? selectedShapeId : parsed.selectedShapeId;
   };
+  const selectedShape = () => shapes.find((shape) => shape.id === selectedShapeId) || null;
   const rememberShapes = () => {
     shapeUndo.push(snapshotShapes());
     if (shapeUndo.length > 50) shapeUndo.shift();
     shapeRedo.length = 0;
     markDirty(true);
   };
+  const syncShapeSelection = () => {
+    const selected = selectedShape();
+    if (!selected) selectedShapeId = null;
+    else {
+      shapeColorValue = selected.color;
+      shapeColor.value = selected.color;
+    }
+    shapeSelectBtn.classList.toggle("active", shapeTool === "select");
+    shapeButtons.forEach((node, index) => {
+      const kind = shapeKinds[index][0];
+      node.classList.toggle("active", shapeTool === kind);
+      node.classList.toggle("picked", !!(selected && shapeTool === "select" && selected.kind === kind));
+    });
+    shapeEraseBtn.classList.toggle("active", shapeTool === "eraser");
+    root.classList.toggle("is-erasing", viewerMode === "shapes" && shapeTool === "eraser");
+    root.classList.toggle("is-selecting", viewerMode === "shapes" && shapeTool === "select");
+  };
   undoShape = () => {
     if (!shapeUndo.length) return;
     shapeRedo.push(snapshotShapes());
     restoreShapes(shapeUndo.pop());
+    syncShapeSelection();
     paintShapes();
     markDirty(true);
   };
@@ -2504,15 +2535,48 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (!shapeRedo.length) return;
     shapeUndo.push(snapshotShapes());
     restoreShapes(shapeRedo.pop());
+    syncShapeSelection();
     paintShapes();
     markDirty(true);
   };
   chooseShape = (id) => {
+    const selected = selectedShape();
+    if (selected && shapeTool === "select" && id !== "select" && id !== "eraser") {
+      if (selected.kind !== id) {
+        rememberShapes();
+        const pageEl = stage.querySelector(`.page[data-page-number="${selected.page}"]`);
+        const rebuilt = pageEl && selected.from && selected.to ? pathsFromEnds(pageEl, id, selected.from, selected.to) : null;
+        if (rebuilt && rebuilt.length) {
+          selected.kind = id;
+          selected.paths = rebuilt;
+        }
+        paintShapes();
+      }
+      syncShapeSelection();
+      statusMode.textContent = t("Seçili şeklin rengini veya biçimini şeritten değiştirin.");
+      return;
+    }
     shapeTool = id;
-    shapeButtons.forEach((node, index) => node.classList.toggle("active", shapeKinds[index][0] === id));
-    shapeEraseBtn.classList.toggle("active", id === "eraser");
-    root.classList.toggle("is-erasing", viewerMode === "shapes" && id === "eraser");
-    if (viewerMode === "shapes") statusMode.textContent = t(shapeStatus);
+    if (id !== "select") selectedShapeId = null;
+    syncShapeSelection();
+    if (viewerMode !== "shapes") return;
+    statusMode.textContent = t(id === "select"
+      ? "Bir şekle tıklayın. Rengi veya biçimini şeritten değiştirin."
+      : shapeStatus);
+  };
+  shapeColor.addEventListener("pointerdown", () => {
+    if (shapeColorUndoArmed || !selectedShape()) return;
+    rememberShapes();
+    shapeColorUndoArmed = true;
+  });
+  shapeColor.addEventListener("change", () => { shapeColorUndoArmed = false; });
+  shapeColor.oninput = () => {
+    shapeColorValue = shapeColor.value;
+    const selected = selectedShape();
+    if (!selected) return;
+    selected.color = shapeColorValue;
+    paintShapes();
+    markDirty(true);
   };
   const pagePdfPoint = (pageEl, clientX, clientY) => {
     const pageNumber = Number(pageEl.dataset.pageNumber);
@@ -2523,6 +2587,28 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const point = view.getPagePoint(clientX - origin.left, clientY - origin.top);
     if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return null;
     return { page: pageNumber, x: point[0], y: point[1] };
+  };
+  const clientFromPdf = (pageEl, x, y) => {
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    const view = pdfViewer.getPageView(pageNumber - 1);
+    if (!view || !view.viewport) return null;
+    const originEl = pageEl.querySelector(".canvasWrapper") || pageEl.querySelector("canvas") || pageEl;
+    const origin = originEl.getBoundingClientRect();
+    const vp = view.viewport.convertToViewportPoint(x, y);
+    return { x: origin.left + vp[0], y: origin.top + vp[1] };
+  };
+  const pathsFromEnds = (pageEl, kind, from, to) => {
+    const a = clientFromPdf(pageEl, from.x, from.y);
+    const b = clientFromPdf(pageEl, to.x, to.y);
+    if (!a || !b) return null;
+    return shapePaths(kind, a, b).map((path) => ({
+      close: !!path.close,
+      fill: !!path.fill,
+      points: path.points.flatMap((point) => {
+        const pdf = pagePdfPoint(pageEl, point.x, point.y);
+        return pdf ? [pdf.x, pdf.y] : [];
+      }),
+    })).filter((path) => path.points.length >= 4);
   };
   const paintShapes = () => {
     stage.querySelectorAll(".page").forEach((pageEl) => {
@@ -2553,18 +2639,47 @@ async function openViewer(source, pageNumber, title, options = {}) {
         node.setAttribute("stroke-linejoin", "round");
         node.setAttribute("stroke-linecap", "round");
         node.style.pointerEvents = fill ? "all" : "stroke";
-        if (id != null) node.dataset.shape = String(id);
+        if (id != null) {
+          node.dataset.shape = String(id);
+          const hit = document.createElementNS(SVG_NS, "polyline");
+          hit.setAttribute("points", node.getAttribute("points"));
+          hit.setAttribute("fill", "none");
+          hit.setAttribute("stroke", "transparent");
+          hit.setAttribute("stroke-width", "14");
+          hit.style.pointerEvents = "stroke";
+          hit.dataset.shape = String(id);
+          layer.appendChild(hit);
+        }
         layer.appendChild(node);
       };
       shapes.filter((shape) => shape.page === pageNumber).forEach((shape) => {
+        const bounds = [];
         shape.paths.forEach((path) => {
           const pts = [];
           for (let i = 0; i + 1 < path.points.length; i += 2) {
             const vp = view.viewport.convertToViewportPoint(path.points[i], path.points[i + 1]);
             pts.push([ox + vp[0], oy + vp[1]]);
           }
+          pts.forEach((point) => bounds.push(point));
           draw(pts, shape.color, strokePx, path.close, path.fill, shape.id);
         });
+        if (shape.id === selectedShapeId && bounds.length) {
+          const left = Math.min(...bounds.map((point) => point[0])) - 4;
+          const top = Math.min(...bounds.map((point) => point[1])) - 4;
+          const right = Math.max(...bounds.map((point) => point[0])) + 4;
+          const bottom = Math.max(...bounds.map((point) => point[1])) + 4;
+          const box = document.createElementNS(SVG_NS, "rect");
+          box.setAttribute("x", String(left));
+          box.setAttribute("y", String(top));
+          box.setAttribute("width", String(Math.max(1, right - left)));
+          box.setAttribute("height", String(Math.max(1, bottom - top)));
+          box.setAttribute("fill", "none");
+          box.setAttribute("stroke", "#2563eb");
+          box.setAttribute("stroke-width", "1.5");
+          box.setAttribute("stroke-dasharray", "4 3");
+          box.style.pointerEvents = "none";
+          layer.appendChild(box);
+        }
       });
       if (shapeDraft && shapeDraft.page === pageNumber) {
         shapeDraft.paths.forEach((path) => {
@@ -2578,17 +2693,27 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (event.target.closest && event.target.closest("button, input, textarea, select, .viewer-menu, .viewer-chrome")) return;
     const pageEl = event.target.closest && event.target.closest(".page");
     if (!pageEl || !root.contains(pageEl)) return;
-    if (shapeTool === "eraser") {
+    if (shapeTool === "select" || shapeTool === "eraser") {
       const hit = event.target.closest && event.target.closest("[data-shape]");
-      if (!hit) return;
+      const id = hit ? Number(hit.dataset.shape) : null;
+      const index = shapes.findIndex((shape) => shape.id === id);
       event.preventDefault();
       event.stopPropagation();
-      const id = Number(hit.dataset.shape);
-      const index = shapes.findIndex((shape) => shape.id === id);
-      if (index < 0) return;
-      rememberShapes();
-      shapes.splice(index, 1);
+      if (shapeTool === "eraser") {
+        if (index < 0) return;
+        rememberShapes();
+        if (selectedShapeId === id) selectedShapeId = null;
+        shapes.splice(index, 1);
+        syncShapeSelection();
+        paintShapes();
+        return;
+      }
+      selectedShapeId = index >= 0 ? id : null;
+      syncShapeSelection();
       paintShapes();
+      statusMode.textContent = t(selectedShapeId
+        ? "Seçili şeklin rengini veya biçimini şeritten değiştirin."
+        : "Bir şekle tıklayın. Rengi veya biçimini şeritten değiştirin.");
       return;
     }
     event.preventDefault();
@@ -2618,8 +2743,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
       paintShapes();
       return;
     }
-    const mapped = pagePdfPoint(start.pageEl, start.x, start.y);
-    if (!mapped) {
+    const from = pagePdfPoint(start.pageEl, start.x, start.y);
+    const to = pagePdfPoint(start.pageEl, end.x, end.y);
+    if (!from || !to) {
       paintShapes();
       return;
     }
@@ -2636,7 +2762,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
       return;
     }
     rememberShapes();
-    shapes.push({ id: shapeSeq, page: mapped.page, color: shapeColorValue, stroke: SHAPE_STROKE, paths });
+    shapes.push({
+      id: shapeSeq,
+      page: from.page,
+      kind: shapeTool,
+      color: shapeColorValue,
+      stroke: SHAPE_STROKE,
+      from: { x: from.x, y: from.y },
+      to: { x: to.x, y: to.y },
+      paths,
+    });
     shapeSeq += 1;
     paintShapes();
     statusMode.textContent = t(shapeStatus);

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Şekillerde Seç aracı var. Seçilen şeklin rengi ve biçimi şeritten değiştirilir
 - Görüntüleyicide Şekiller sekmesi: dikdörtgen, elips, eğri, beşgen, bulut, çizgi, zikzak ve ok. Renk, geri al, yinele ve silgi var. Kaydet şekli PDF'e yazar
 - Düzenlemede aynı satır iki kutu ve iki yazı olarak üst üste görünmez. Kutu, sayfadaki yazının üzerine oturur
 - Sağ tık menüsünde vurgula, metin ekle, görsel ekle, kopyala ve yakınlaştırma var. Vurgula seçili yazıyı boyar; görsel dosya seçince sayfaya iner. Metin eklemede Uygula yazıyı sayfaya işler. Dönüştür araçları şeritte durur. Ctrl+tekerlek ve Ctrl+artı/eksi yakınlaştırır

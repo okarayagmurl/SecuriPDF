@@ -724,7 +724,14 @@ html.has-doc-tabs .viewer { top: 40px; }
   box-shadow: inset 0 0 0 1.5px #2563eb;
 }
 .viewer.is-shaping .viewer-stage { cursor: crosshair; }
+.viewer.is-selecting .viewer-stage { cursor: default; }
 .viewer.is-erasing .viewer-stage { cursor: cell; }
+.viewer-shape-select { color: #334155; }
+.viewer-shape-tool.picked {
+  color: #e11d48;
+  background: #fff;
+  box-shadow: inset 0 0 0 1.5px #0f766e;
+}
 .shape-layer {
   position: absolute;
   inset: 0;
