@@ -18,6 +18,7 @@ fn main() {
             "assemble_pdf",
             "add_form_fields",
             "add_shapes",
+            "add_comments",
             "scan_file",
             "cli_job",
             "cli_start_engine",

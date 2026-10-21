@@ -21,6 +21,7 @@
     "allow-assemble-pdf",
     "allow-add-form-fields",
     "allow-add-shapes",
+    "allow-add-comments",
     "allow-scan-file",
     "allow-make-qr",
     "allow-license-status",

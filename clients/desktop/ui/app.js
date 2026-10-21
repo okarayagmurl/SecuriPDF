@@ -131,6 +131,16 @@
     return pages;
   }
 
+  function togglePageValue(current, page, allowAll) {
+    const raw = String(current || "").trim();
+    if (raw === "all" || raw === "") return String(page);
+    const pages = parsePages(raw);
+    if (pages.has(page)) pages.delete(page);
+    else pages.add(page);
+    if (!pages.size) return allowAll ? "all" : "";
+    return formatPages(pages);
+  }
+
   function formatPages(pages) {
     const sorted = Array.from(pages).sort((a, b) => a - b);
     const parts = [];
@@ -1166,6 +1176,13 @@
     return new Uint8Array(await core.invoke("make_qr", { text }));
   }
 
+  async function addComments(bytes, comments) {
+    const output = await core.invoke("add_comments", bytes, {
+      headers: { "x-securipdf-comments": encodeURIComponent(JSON.stringify(comments)) },
+    });
+    return new Uint8Array(output);
+  }
+
   async function addShapes(bytes, shapes) {
     const output = await core.invoke("add_shapes", bytes, {
       headers: { "x-securipdf-shapes": encodeURIComponent(JSON.stringify(shapes)) },
@@ -1465,6 +1482,54 @@
         if (!node || entry.combine) return;
         node.hidden = !shown(entry.spec, values);
       });
+      syncSurface();
+    }
+    const pageField = tool.fields.find((field) => field.pagePicker || field.name === "pageNumbers" || field.name === "pagesToNumber");
+    const padField = tool.fields.find((field) => field.type === "pad");
+    if (pageField) {
+      fieldsHost.before(el("p", { class: "hint", text: "Küçük resme tıklayınca sayfa seçilir. Numarayı kutuda da yazabilirsiniz." }));
+    }
+    if (padField) {
+      fieldsHost.before(el("p", { class: "hint", text: "Sayfaya tıklayınca konum, tıkladığınız bölgeye göre değişir. Izgara da durur." }));
+    }
+    if (tool.id === "crop") {
+      fieldsHost.before(el("p", { class: "hint", text: "Otomatik kırpma kapalıyken kalacak alanı sayfada sürükleyin. Sayılar birlikte değişir." }));
+    }
+    function syncSurface() {
+      if (!api.watchPages) return;
+      if (pageField) {
+        api.watchPages((page) => {
+          const node = fieldsHost.querySelector(`[data-input="${pageField.name}"]`);
+          if (!node) return;
+          const allowAll = String(pageField.default || "") === "all";
+          node.value = togglePageValue(node.value, page, allowAll);
+          const raw = node.value.trim();
+          if (api.markPages) api.markPages(raw === "all" || raw === "" ? new Set() : parsePages(raw));
+        });
+      } else api.watchPages(null);
+      if (padField) {
+        api.watchPoint((hit) => {
+          const value = String(hit.row * 3 + hit.col + 1);
+          const pad = fieldsHost.querySelector(`[data-input="${padField.name}"]`);
+          if (!pad) return;
+          pad.dataset.value = value;
+          pad.querySelectorAll("button").forEach((btn) => btn.classList.toggle("active", btn.dataset.value === value));
+        });
+      } else if (api.watchPoint) api.watchPoint(null);
+      if (tool.id === "crop" && api.watchCrop) {
+        const auto = fieldsHost.querySelector('[data-input="autoCrop"]');
+        if (auto && auto.checked) api.watchCrop(null);
+        else api.watchCrop((box) => {
+          ["x", "y", "width", "height"].forEach((name) => {
+            const node = fieldsHost.querySelector(`[data-input="${name}"]`);
+            if (node) node.value = String(box[name]);
+          });
+          if (auto && auto.checked) {
+            auto.checked = false;
+            applyPanel();
+          }
+        });
+      } else if (api.watchCrop) api.watchCrop(null);
     }
     applyPanel();
 
@@ -1555,6 +1620,7 @@
         errorText,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
         addShapes,
+        addComments,
         onTask: (toolId, api) => openDocumentTask(toolId, api),
         convertTools: (window.SECURIPDF_TOOLS || [])
           .filter((tool) => tool.category === "convert")

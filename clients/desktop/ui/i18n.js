@@ -652,6 +652,20 @@
     "Yeni belge sekmede açıldı.": "The new document opened in a tab.",
     "Kayıt iptal edildi. Belge yerinde duruyor.": "Save was cancelled. The document stays open.",
     "Bu araç bulunamadı.": "This tool was not found.",
+    "Yorum": "Comment",
+    "Yorumlar": "Comments",
+    "Sayfaya tıklayıp yorum yazın": "Click the page and write a comment",
+    "Sayfada yorumun duracağı yere tıklayın. Kaydet ile PDF'e yazılır.": "Click where the comment should sit. Save writes it into the PDF.",
+    "Yorum rengi": "Comment color",
+    "Henüz yorum yok.": "No comments yet.",
+    "Yorumu sil": "Delete comment",
+    "Yorum yazın": "Write a comment",
+    "Yorumu sayfaya koy": "Place the comment on the page",
+    "Yorumu yazmadan kapat": "Close without writing",
+    "Yorumlar bu pencerede dosyaya yazılamıyor.": "Comments cannot be written into the file from this window.",
+    "Küçük resme tıklayınca sayfa seçilir. Numarayı kutuda da yazabilirsiniz.": "Click a thumbnail to select that page. You can also type the number.",
+    "Sayfaya tıklayınca konum, tıkladığınız bölgeye göre değişir. Izgara da durur.": "Click the page to set the position from that area. The grid stays too.",
+    "Otomatik kırpma kapalıyken kalacak alanı sayfada sürükleyin. Sayılar birlikte değişir.": "With automatic crop off, drag the area to keep. The numbers change with it.",
   };
 
   window.SecuriI18n = {

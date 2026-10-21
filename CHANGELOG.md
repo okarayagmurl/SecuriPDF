@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Yorum ekranı: sayfaya tıklanınca not yazılır, listeden açılır ve Kaydet ile PDF notu olur
+- Sayfa seçimi küçük resme tıklayınca da kutuya yazılır. Damga ve numara konumu sayfaya tıklayınca değişir. Kırpma alanı sayfada sürüklenir; sayılar durur
 - Dönüştür, imzala, karart, OCR, damga, ek dosya ve sayfa işlemleri belgeyi kapatmaz. Seçenekler sayfanın yanında açılır; sonuç PDF ise aynı sekme yenilenir. Word ve Excel kayıt penceresine gider, PDF yerinde kalır
 - Açık belgede komutlar şeritte durur: Metin, Ekle, Şekil, Form, İşaret, Dönüştür ve İmzala. Araç ara herhangi bir aracı belgenin üstünden açar. Dönüştürme, karartma veya imza belgeyi kapatmaz; Belgeye dön aynı sayfaya getirir
 - Şekillerde Seç aracı var. Seçilen şeklin rengi ve biçimi şeritten değiştirilir

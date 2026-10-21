@@ -798,6 +798,78 @@ html.has-doc-tabs .viewer { top: 40px; }
 .viewer-task-fields, .viewer-task-files { display: flex; flex-direction: column; gap: 10px; }
 .viewer-task .primary { width: 100%; margin-top: 4px; }
 .viewer-task .error { margin: 0; }
+.viewer-task-color { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; }
+.comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.comment-empty { color: #64748b; font-size: 13px; }
+.comment-row { display: flex; gap: 6px; align-items: stretch; }
+.comment-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.comment-open span {
+  font-size: 12px;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.comment-remove {
+  width: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.comment-layer { position: absolute; inset: 0; z-index: 27; pointer-events: none; }
+.comment-pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 11px 11px 11px 2px;
+  color: #fff;
+  font: 700 11px "Segoe UI", sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.comment-pop {
+  position: absolute;
+  z-index: 28;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+.comment-pop textarea { width: 100%; min-height: 72px; resize: vertical; }
+.comment-actions { display: flex; gap: 6px; }
+.viewer.is-commenting .viewer-stage { cursor: crosshair; }
+.viewer.is-cropping .viewer-stage { cursor: crosshair; }
+.viewer-thumb.picked { outline: 2px solid #2563eb; outline-offset: -2px; }
+.viewer-crop {
+  position: absolute;
+  z-index: 23;
+  border: 1.5px dashed #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+  pointer-events: none;
+}
 .viewer-side {
   width: 260px;
   flex-shrink: 0;

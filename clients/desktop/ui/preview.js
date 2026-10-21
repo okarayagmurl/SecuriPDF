@@ -231,6 +231,7 @@ const ICONS = {
   undo: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-5a6 6 0 0 0-6-6H4"/>',
   redo: '<polyline points="15 14 20 9 15 4"/><path d="M4 20v-5a6 6 0 0 1 6-6h10"/>',
   eraser: '<path d="M20 20H9L3.5 14.5a2 2 0 0 1 0-2.8L12 3.2a2 2 0 0 1 2.8 0L20 8.4"/><path d="M7 13l6 6"/>',
+  comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 };
 
 function svgIcon(inner) {
@@ -621,6 +622,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   close.classList.add("viewer-btn-close");
 
   top.append(titleWrap, searchBox, cluster(...[printBtn, toWord, save].filter(Boolean)), close);
+  const commentBtn = button("Yorum", "Sayfaya tıklayıp yorum yazın", "tool", ICONS.comment);
+  commentBtn.onclick = () => openCommentScreen();
+  marks.append(commentBtn);
   if (options.onTask) {
     const ocrBtn = button("OCR", "Taranmış sayfayı aranabilir yap", "tool", ICONS.text);
     const redactBtn = button("Karart", "Kişisel veriyi kalıcı olarak kapatın", "tool", ICONS.highlight);
@@ -684,6 +688,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let pendingViewerMode = null;
   let setViewerMode = (mode) => { pendingViewerMode = mode; };
   let openTask = () => {};
+  let openCommentScreen = () => {};
   const commandItems = [
     ["edit", "Metin", "Yazıyı yerinde düzenle"],
     ["add", "Ekle", "Görsel ekle, damga koy veya dosya iliştir"],
@@ -762,9 +767,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let taskToken = 0;
   const closeTask = () => {
     taskToken += 1;
+    taskPages = null;
+    taskPoint = null;
+    taskCrop = null;
+    commentPlacing = false;
+    root.classList.remove("is-paging", "is-cropping", "is-commenting");
+    if (commentPop) { commentPop.remove(); commentPop = null; }
+    if (cropBox) { cropBox.remove(); cropBox = null; }
     taskPane.hidden = true;
     taskPane.dataset.open = "";
     taskBody.replaceChildren();
+    thumbsList.querySelectorAll(".viewer-thumb.picked").forEach((cell) => cell.classList.remove("picked"));
     applyViewerChrome(viewerMode);
   };
   taskClose.onclick = (event) => {
@@ -936,12 +949,23 @@ async function openViewer(source, pageNumber, title, options = {}) {
       canvas.style.width = THUMB_WIDTH + "px";
       canvas.style.height = Math.round(THUMB_WIDTH * 1.41) + "px";
       cell.append(canvas, el("span", null, String(number)));
-      cell.onclick = () => { pdfViewer.currentPageNumber = number; };
+      cell.onclick = () => {
+        pdfViewer.currentPageNumber = number;
+        if (taskPages) taskPages(number);
+      };
       thumbsList.appendChild(cell);
       observer.observe(cell);
     }
   };
   fillThumbs(doc);
+  let taskPages = null;
+  let taskPoint = null;
+  let taskCrop = null;
+  let commentPlacing = false;
+  let commentPop = null;
+  const comments = [];
+  let commentSeq = 1;
+  let commentColor = "#f59e0b";
   let readCurrentFile = async () => {
     throw new Error("Belge henüz hazır değil.");
   };
@@ -2362,8 +2386,225 @@ async function openViewer(source, pageNumber, title, options = {}) {
       save: (bytes, fileName) => (options.onSave ? options.onSave(bytes, fileName) : null),
       close: closeTask,
       busy: (on, label) => { if (on) setJobProgress(45, label || "İşleniyor…"); else hideJobProgress(); },
+      watchPages: (fn) => {
+        taskPages = fn;
+        root.classList.toggle("is-paging", Boolean(fn));
+      },
+      watchPoint: (fn) => { taskPoint = fn; },
+      watchCrop: (fn) => {
+        taskCrop = fn;
+        root.classList.toggle("is-cropping", Boolean(fn));
+        if (!fn && cropBox) cropBox.remove();
+      },
+      markPages: (pages) => {
+        const selected = pages instanceof Set ? pages : new Set();
+        thumbsList.querySelectorAll(".viewer-thumb").forEach((cell) => {
+          cell.classList.toggle("picked", selected.has(Number(cell.dataset.page)));
+        });
+      },
     });
   };
+  const renderCommentScreen = () => {
+    commentPlacing = true;
+    root.classList.add("is-commenting");
+    taskTitle.textContent = t("Yorumlar");
+    taskBody.replaceChildren();
+    const hint = el("p", "viewer-side-note", t("Sayfada yorumun duracağı yere tıklayın. Kaydet ile PDF'e yazılır."));
+    const colorRow = el("label", "viewer-task-color");
+    colorRow.append(document.createTextNode(t("Yorum rengi")));
+    const color = el("input", "viewer-color");
+    color.type = "color";
+    color.value = commentColor;
+    color.oninput = () => { commentColor = color.value; paintComments(); };
+    colorRow.appendChild(color);
+    const list = el("ul", "comment-list");
+    if (!comments.length) list.appendChild(el("li", "comment-empty", t("Henüz yorum yok.")));
+    comments.forEach((item) => {
+      const row = el("li", "comment-row");
+      const open = el("button", "comment-open");
+      open.type = "button";
+      open.append(el("strong", null, t("Sayfa") + " " + item.page), el("span", null, item.text));
+      open.onclick = () => { pdfViewer.currentPageNumber = item.page; };
+      const remove = el("button", "comment-remove", "×");
+      remove.type = "button";
+      remove.title = t("Yorumu sil");
+      remove.onclick = () => {
+        const index = comments.findIndex((entry) => entry.id === item.id);
+        if (index >= 0) comments.splice(index, 1);
+        markDirty(true);
+        paintComments();
+        renderCommentScreen();
+      };
+      row.append(open, remove);
+      list.appendChild(row);
+    });
+    taskBody.append(hint, colorRow, list);
+  };
+  openCommentScreen = () => {
+    taskToken += 1;
+    taskPages = null;
+    taskPoint = null;
+    taskCrop = null;
+    root.classList.remove("is-paging", "is-cropping");
+    taskPane.dataset.open = "1";
+    taskPane.hidden = false;
+    side.hidden = true;
+    renderCommentScreen();
+  };
+  const paintComments = () => {
+    stage.querySelectorAll(".page").forEach((pageEl) => {
+      let layer = pageEl.querySelector(":scope > .comment-layer");
+      if (!layer) {
+        layer = el("div", "comment-layer");
+        pageEl.appendChild(layer);
+      }
+      layer.replaceChildren();
+      const pageNumber = Number(pageEl.dataset.pageNumber);
+      const view = pdfViewer.getPageView(pageNumber - 1);
+      const canvas = pageEl.querySelector("canvas");
+      if (!view || !view.viewport || !canvas) return;
+      const pageBox = pageEl.getBoundingClientRect();
+      const canvasBox = canvas.getBoundingClientRect();
+      const ox = canvasBox.left - pageBox.left;
+      const oy = canvasBox.top - pageBox.top;
+      comments.filter((item) => item.page === pageNumber).forEach((item) => {
+        const vp = view.viewport.convertToViewportPoint(item.x, item.y);
+        const pin = el("button", "comment-pin", String(comments.indexOf(item) + 1));
+        pin.type = "button";
+        pin.title = item.text;
+        pin.style.left = (ox + vp[0]) + "px";
+        pin.style.top = (oy + vp[1] - 22) + "px";
+        pin.style.background = item.color || commentColor;
+        pin.onclick = (event) => {
+          event.stopPropagation();
+          pdfViewer.currentPageNumber = item.page;
+          openCommentScreen();
+        };
+        layer.appendChild(pin);
+      });
+    });
+  };
+  let cropBox = null;
+  let cropDrag = null;
+  const pagePoint = (pageEl, clientX, clientY) => {
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    const view = pdfViewer.getPageView(pageNumber - 1);
+    if (!view || !view.getPagePoint) return null;
+    const origin = (pageEl.querySelector("canvas") || pageEl).getBoundingClientRect();
+    const point = view.getPagePoint(clientX - origin.left, clientY - origin.top);
+    const col = clientX < origin.left + origin.width / 3 ? 0 : clientX > origin.right - origin.width / 3 ? 2 : 1;
+    const row = clientY < origin.top + origin.height / 3 ? 0 : clientY > origin.bottom - origin.height / 3 ? 2 : 1;
+    return { page: pageNumber, x: point[0], y: point[1], col, row, pageEl };
+  };
+  const placeComment = (hit, clientX, clientY) => {
+    if (commentPop) commentPop.remove();
+    const pop = el("div", "comment-pop");
+    const area = el("textarea");
+    area.rows = 3;
+    area.placeholder = t("Yorum yazın");
+    const actions = el("div", "comment-actions");
+    const add = button("Ekle", "Yorumu sayfaya koy", "primary");
+    const cancel = button("Vazgeç", "Yorumu yazmadan kapat", "ghost");
+    actions.append(add, cancel);
+    pop.append(area, actions);
+    const box = hit.pageEl.getBoundingClientRect();
+    pop.style.left = Math.max(8, clientX - box.left) + "px";
+    pop.style.top = Math.max(8, clientY - box.top) + "px";
+    hit.pageEl.appendChild(pop);
+    commentPop = pop;
+    area.focus();
+    cancel.onclick = () => { pop.remove(); if (commentPop === pop) commentPop = null; };
+    area.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel.onclick();
+      }
+    });
+    add.onclick = () => {
+      const text = area.value.trim();
+      if (!text) { area.focus(); return; }
+      comments.push({
+        id: commentSeq++,
+        page: hit.page,
+        x: hit.x,
+        y: hit.y,
+        text,
+        color: commentColor,
+      });
+      pop.remove();
+      if (commentPop === pop) commentPop = null;
+      markDirty(true);
+      paintComments();
+      if (taskPane.dataset.open === "1" && commentPlacing) renderCommentScreen();
+    };
+  };
+  const onTaskPointer = (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest && event.target.closest("button, input, textarea, select, a, .comment-pop, .viewer-menu, .viewer-chrome, .viewer-task")) return;
+    const pageEl = event.target.closest && event.target.closest(".page");
+    if (!pageEl || !root.contains(pageEl)) return;
+    if (commentPlacing) {
+      const hit = pagePoint(pageEl, event.clientX, event.clientY);
+      if (!hit) return;
+      event.preventDefault();
+      event.stopPropagation();
+      placeComment(hit, event.clientX, event.clientY);
+      return;
+    }
+    if (taskCrop) {
+      const hit = pagePoint(pageEl, event.clientX, event.clientY);
+      if (!hit) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (cropBox) cropBox.remove();
+      cropBox = el("div", "viewer-crop");
+      pageEl.appendChild(cropBox);
+      cropDrag = { pageEl, x: event.clientX, y: event.clientY, hit };
+      return;
+    }
+    if (taskPoint) {
+      const hit = pagePoint(pageEl, event.clientX, event.clientY);
+      if (!hit) return;
+      event.preventDefault();
+      taskPoint(hit);
+    }
+  };
+  const onTaskMove = (event) => {
+    if (!cropDrag || !cropBox) return;
+    const box = cropDrag.pageEl.getBoundingClientRect();
+    const left = Math.min(cropDrag.x, event.clientX) - box.left;
+    const top = Math.min(cropDrag.y, event.clientY) - box.top;
+    cropBox.style.left = left + "px";
+    cropBox.style.top = top + "px";
+    cropBox.style.width = Math.abs(event.clientX - cropDrag.x) + "px";
+    cropBox.style.height = Math.abs(event.clientY - cropDrag.y) + "px";
+  };
+  const onTaskUp = (event) => {
+    if (!cropDrag) return;
+    const start = cropDrag.hit;
+    const end = pagePoint(cropDrag.pageEl, event.clientX, event.clientY);
+    const drag = cropDrag;
+    cropDrag = null;
+    if (!end || !taskCrop) return;
+    const box = {
+      x: Math.round(Math.min(start.x, end.x) * 10) / 10,
+      y: Math.round(Math.min(start.y, end.y) * 10) / 10,
+      width: Math.round(Math.abs(start.x - end.x) * 10) / 10,
+      height: Math.round(Math.abs(start.y - end.y) * 10) / 10,
+    };
+    if (box.width < 8 || box.height < 8) {
+      if (cropBox) cropBox.remove();
+      return;
+    }
+    taskCrop(box);
+    drag.pageEl.appendChild(cropBox);
+  };
+  stage.addEventListener("pointerdown", onTaskPointer, true);
+  stage.addEventListener("pointermove", onTaskMove);
+  stage.addEventListener("pointerup", onTaskUp);
+  stage.addEventListener("pointercancel", onTaskUp);
+  eventBus.on("pagerendered", () => paintComments());
   openCommandMenu = (id, x, y) => {
     const runTool = (toolId) => () => openTask(toolId);
     if (id === "pages") {
@@ -2824,6 +3065,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
       selectedShapeId = null;
       paintShapes();
     }
+    if (comments.length && options.addComments) {
+      bytes = await options.addComments(bytes, comments.map((item) => ({
+        page: item.page, x: item.x, y: item.y, text: item.text, color: item.color,
+      })));
+    }
     const label = (name.textContent || "belge").trim() || "belge";
     const fileName = /\.pdf$/i.test(label) ? label : label + ".pdf";
     return new File([bytes], fileName, { type: "application/pdf" });
@@ -2832,7 +3078,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const page = pdfViewer.currentPageNumber || 1;
     const scale = pdfViewer.currentScaleValue;
     const ok = await showEditedDocument(bytes, page, scale);
-    if (ok) markDirty(true);
+    if (ok) {
+      comments.splice(0, comments.length);
+      paintComments();
+      markDirty(true);
+    }
     return ok;
   };
   const onShapeDown = (event) => {
@@ -3009,6 +3259,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
           color: shape.color,
           stroke: shape.stroke,
           paths: shape.paths,
+        })));
+      }
+      if (comments.length) {
+        if (!options.addComments) throw new Error("Yorumlar bu pencerede dosyaya yazılamıyor.");
+        bytes = await options.addComments(bytes, comments.map((item) => ({
+          page: item.page, x: item.x, y: item.y, text: item.text, color: item.color,
         })));
       }
       const saved = await options.onSave(bytes);
