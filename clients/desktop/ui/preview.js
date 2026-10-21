@@ -480,7 +480,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const editHint = el("p", "viewer-ribbon-hint", t("Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir."));
   const formHint = el("p", "viewer-ribbon-hint", t("Sayfada sürükleyerek metin, onay kutusu veya liste alanı çizin."));
   const processGroup = processBtns.length ? group("İşle", ...processBtns) : null;
-  ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, processGroup].filter(Boolean));
+  const convertTools = Array.isArray(options.convertTools) ? options.convertTools.filter((tool) => tool && tool.id && tool.title) : [];
+  const convertBtn = convertTools.length && options.onProcess
+    ? button("Dönüştür", "Belgeyi başka bir biçime çevirin", "tool", ICONS.word)
+    : null;
+  const convertGroup = convertBtn ? group(t("Dönüştür"), convertBtn) : null;
+  ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, processGroup, convertGroup].filter(Boolean));
   const tabBar = el("div", "viewer-tabs");
   const tabItems = [["view", "Görünüm"], ["edit", "Düzenleme"], ["note", "Açıklama"]];
   if (options.addFormFields) tabItems.push(["form", "Formlar"]);
@@ -526,7 +531,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", "Ctrl+S kaydet · Ctrl+F ara · Esc kapat");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır"));
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -564,6 +569,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     imageResourcesPath: "./vendor/pdfjs/web/images/",
   });
   linkService.setViewer(pdfViewer);
+  let editorUi = null;
+  eventBus.on("annotationeditoruimanager", (evt) => { editorUi = evt.uiManager; });
+  let hideMenu = () => false;
+  let pickImage = () => {};
 
   let dirty = false;
   let formMode = false;
@@ -602,6 +611,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       save.click();
+    } else if (!typing && (event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "+" || event.key === "=" || event.key === "Add" || event.code === "NumpadAdd")) {
+      event.preventDefault();
+      pdfViewer.increaseScale();
+    } else if (!typing && (event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "-" || event.key === "_" || event.key === "Subtract" || event.code === "NumpadSubtract")) {
+      event.preventDefault();
+      pdfViewer.decreaseScale();
+    } else if (!typing && (event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "0" || event.code === "Digit0" || event.code === "Numpad0")) {
+      event.preventDefault();
+      pdfViewer.currentScaleValue = "page-fit";
     } else if (!typing && event.key === "PageDown") {
       event.preventDefault();
       pdfViewer.nextPage();
@@ -609,6 +627,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       event.preventDefault();
       pdfViewer.previousPage();
     } else if (event.key === "Escape" && !typing) {
+      if (hideMenu()) { event.preventDefault(); return; }
       if (viewerMode !== "view") { event.preventDefault(); setViewerMode("view"); return; }
       closeViewer(false);
     }
@@ -715,6 +734,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
   fitWidth.onclick = () => { pdfViewer.currentScaleValue = "page-width"; };
   fitPage.onclick = () => { pdfViewer.currentScaleValue = "page-fit"; };
   rotate.onclick = () => { pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360; };
+  root.addEventListener("wheel", (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const raw = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+    const steps = Math.max(0.25, Math.min(2, Math.abs(raw) / 120));
+    if (raw < 0) pdfViewer.increaseScale({ steps });
+    else if (raw > 0) pdfViewer.decreaseScale({ steps });
+  }, { capture: true, passive: false });
 
   printDocument = async () => {
     printBtn.disabled = true;
@@ -813,7 +840,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       eventBus.dispatch("switchannotationeditorparams", {
         source: color,
         type: pdfjs.AnnotationEditorParamsType.HIGHLIGHT_FREE,
-        value: false,
+        value: true,
       });
     }
     if (mark.color) {
@@ -822,16 +849,27 @@ async function openViewer(source, pageNumber, title, options = {}) {
     }
   };
   let activeMark = MARKS[0];
-  markButtons.forEach((node, index) => { node.onclick = () => { activeMark = MARKS[index]; setMark(activeMark); }; });
+  markButtons.forEach((node, index) => {
+    node.onclick = () => {
+      activeMark = MARKS[index];
+      if (activeMark.mode === pdfjs.AnnotationEditorType.STAMP) {
+        pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null);
+        return;
+      }
+      setMark(activeMark);
+      if (activeMark.mode === pdfjs.AnnotationEditorType.HIGHLIGHT && editorUi) {
+        try { editorUi.highlightSelection("toolbar"); } catch { /* selection comes from the page */ }
+      }
+    };
+  });
   color.oninput = () => {
     activeMark.current = color.value;
     eventBus.dispatch("switchannotationeditorparams", { source: color, type: activeMark.color, value: color.value });
   };
-  eventBus.on("annotationeditoruimanager", () => setMark(MARKS[0]));
-
   // Toolbar clicks would clear the text selection; keep it so "Metni değiştir" can read it.
+  // Buttons stay clickable: cancelling mousedown also cancels their click.
   chrome.addEventListener("mousedown", (event) => {
-    if (event.target.closest("input, textarea, select, [contenteditable=true]")) return;
+    if (event.target.closest("input, textarea, select, button, [contenteditable=true]")) return;
     event.preventDefault();
   });
 
@@ -1842,13 +1880,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     addField.style.top = Math.min(Math.max(margin, clientY), maxTop) + "px";
     addField.style.width = width + "px";
     addField.style.height = height + "px";
-    addField.style.zIndex = "80";
+    addField.style.zIndex = "100";
     paintAddFont();
     addField.hidden = false;
     document.body.appendChild(addField);
     addActions.style.left = addField.style.left;
     addActions.style.top = (parseFloat(addField.style.top) + height + 6) + "px";
-    addActions.style.zIndex = "80";
+    addActions.style.zIndex = "100";
     addActions.hidden = false;
     document.body.appendChild(addActions);
     addField.focus();
@@ -1856,10 +1894,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   let addBusy = false;
   const applyAdd = async () => {
-    if (addBusy || !addDraft) return;
+    if (addBusy) return;
+    if (!addDraft) {
+      statusMode.textContent = t("Önce sayfada metnin duracağı yere tıklayın.");
+      return;
+    }
     const next = addField.value.replace(/\s+$/g, "");
     if (!next.trim()) {
-      hideAdd();
+      statusMode.textContent = t("Eklenecek metin boş.");
       return;
     }
     if (!options.engine || !options.engineGet || !options.engineJson) {
@@ -1879,22 +1921,29 @@ async function openViewer(source, pageNumber, title, options = {}) {
       setJobProgress(74, "Metin ekleniyor…");
       const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${jobId}/${pageNumber}`);
       page.textElements = page.textElements || [];
-      const lines = next.replace(/\r/g, "").split("\n");
       const fill = fillColorOf(textColor.value);
       const width = Math.max(40, 240 / (pdfViewer.currentScale || 1));
       const wrapped = wrapPdfLines(next, size, width, chosen);
+      const pageView = pdfViewer.getPageView(pageNumber - 1);
+      const viewBox = pageView && pageView.viewport ? pageView.viewport.viewBox : null;
+      const minY = viewBox ? Math.min(viewBox[1], viewBox[3]) : 0;
+      const maxY = viewBox ? Math.max(viewBox[1], viewBox[3]) : y + size;
       wrapped.forEach((line, index) => {
+        const baseline = Math.min(maxY - size * 0.3, Math.max(minY + size, y - index * size * 1.25));
         const element = {
           text: line,
-          fontId: chosen.stirling,
+          fontId: chosen.stirling || "fallback-liberation-sans",
           fontSize: size,
           fontMatrixSize: size,
           fontSizeInPt: size,
           spaceWidth: size * 0.28,
           width: Math.max(size, line.length * size * 0.52),
           height: size * 0.7,
+          x,
+          y: baseline,
           zOrder: 2100000 + index,
-          textMatrix: [size, 0, 0, size, x, y - index * size * 1.25],
+          textMatrix: [size, 0, 0, size, x, baseline],
+          fallbackUsed: true,
         };
         if (fill) element.fillColor = fill;
         page.textElements.push(element);
@@ -1909,7 +1958,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
       hideAdd();
       warmEditor();
       setJobProgress(100, "Metin eklendi");
-      statusMode.textContent = "Metin seçilen yazı tipiyle sayfaya yazıldı. Kaydet ile dosyaya yazın.";
+      const written = await doc.getPage(pageNumber).then((page) => page.getTextContent()).catch(() => null);
+      const flat = written ? written.items.map((item) => String(item.str || "")).join("").replace(/\s+/g, "") : "";
+      const probe = next.replace(/\s+/g, "").slice(0, 12);
+      if (probe && /^[\u0000-\u007F]+$/.test(probe) && !flat.includes(probe)) {
+        statusMode.textContent = t("Metin belgeye işlenemedi. Sayfa yenilendi ama yazı görünmüyor.");
+        window.alert(t("Metin belgeye işlenemedi. Sayfa yenilendi ama yazı görünmüyor."));
+      } else {
+        statusMode.textContent = "Metin seçilen yazı tipiyle sayfaya yazıldı. Kaydet ile dosyaya yazın.";
+      }
     } catch (err) {
       const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin eklenemedi.");
       window.alert(message);
@@ -1920,9 +1977,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
     }
   };
 
+  const boxContains = (node, event) => {
+    if (!node || node.hidden) return false;
+    const rect = node.getBoundingClientRect();
+    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  };
   stage.addEventListener("mousedown", (event) => {
     if (activeMark.mode !== pdfjs.AnnotationEditorType.FREETEXT || event.button !== 0) return;
-    if (event.target.closest && event.target.closest("textarea, button, .replace-actions, .form-actions, .form-draft")) return;
+    if (event.target.closest && event.target.closest("textarea, button, .replace-actions, .form-actions, .form-draft, .viewer-menu")) return;
+    if (boxContains(addField, event) || boxContains(addActions, event)) return;
     const pageEl = event.target.closest && event.target.closest(".page");
     if (!pageEl || !root.contains(pageEl)) return;
     event.preventDefault();
@@ -1935,16 +1998,164 @@ async function openViewer(source, pageNumber, title, options = {}) {
   keepPopupClick(addField);
   keepPopupClick(addActions);
   keepPopupClick(field);
-  addApply.addEventListener("pointerdown", (event) => {
+  const onApplyAdd = (event) => {
     event.preventDefault();
     event.stopPropagation();
     applyAdd();
-  });
+  };
+  addApply.addEventListener("pointerdown", onApplyAdd);
+  addApply.addEventListener("click", onApplyAdd);
   addCancel.onclick = () => hideAdd();
   addField.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyAdd(); }
     if (event.key === "Escape") { event.preventDefault(); hideAdd(); }
   });
+
+  const menu = el("div", "viewer-menu");
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+  root.appendChild(menu);
+  hideMenu = () => {
+    if (menu.hidden) return false;
+    menu.hidden = true;
+    menu.replaceChildren();
+    return true;
+  };
+  const openMenu = (x, y, items) => {
+    menu.replaceChildren();
+    items.forEach((item) => {
+      const node = el("button", null, t(item.label));
+      node.type = "button";
+      node.disabled = Boolean(item.disabled);
+      const run = (event) => {
+        if (node.disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        hideMenu();
+        item.run();
+      };
+      if (item.keepSelection) node.addEventListener("pointerdown", run);
+      else node.onclick = run;
+      menu.appendChild(node);
+    });
+    menu.hidden = false;
+    const width = 240;
+    const left = Math.min(Math.max(8, x), Math.max(8, window.innerWidth - width - 8));
+    const top = Math.min(Math.max(8, y), Math.max(8, window.innerHeight - 48));
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+  };
+  if (convertBtn) {
+    convertBtn.onclick = (event) => {
+      event.stopPropagation();
+      const rect = convertBtn.getBoundingClientRect();
+      openMenu(rect.left, rect.bottom + 4, convertTools.map((tool) => ({
+        label: tool.title,
+        run: () => options.onProcess(tool.id),
+      })));
+    };
+  }
+  const imageInput = el("input");
+  imageInput.type = "file";
+  imageInput.accept = "image/png,image/jpeg,image/gif,image/webp,image/bmp";
+  imageInput.hidden = true;
+  root.appendChild(imageInput);
+  let imageTarget = null;
+  const placeImage = async (file, pageIndex, clientX, clientY) => {
+    const layer = editorUi && editorUi.getLayer(pageIndex);
+    if (!layer || !layer.div) {
+      window.alert(t("Bu sayfa henüz çizilmedi. Sayfayı görüntüleyip yeniden deneyin."));
+      return;
+    }
+    const rect = layer.div.getBoundingClientRect();
+    const x = clientX == null ? rect.width / 2 : clientX - rect.left;
+    const y = clientY == null ? rect.height / 2 : clientY - rect.top;
+    try {
+      await layer.pasteEditor(
+        { mode: pdfjs.AnnotationEditorType.STAMP },
+        { bitmapFile: file, x, y, isCentered: true },
+      );
+      markDirty(true);
+      statusMode.textContent = t("Görsel sayfaya eklendi. Kaydet ile dosyaya yazın.");
+    } catch {
+      window.alert(t("Görsel eklenemedi."));
+    }
+  };
+  pickImage = (pageIndex, clientX, clientY) => {
+    imageTarget = { pageIndex, clientX, clientY };
+    imageInput.value = "";
+    imageInput.click();
+  };
+  imageInput.onchange = () => {
+    const file = imageInput.files && imageInput.files[0];
+    const target = imageTarget;
+    imageTarget = null;
+    if (file && target) placeImage(file, target.pageIndex, target.clientX, target.clientY);
+  };
+  const markOf = (mode) => MARKS.find((mark) => mark.mode === mode) || MARKS[0];
+  const onHighlightPointer = (event) => {
+    const button = event.target.closest && event.target.closest(".editToolbar .highlightButton");
+    if (!button || !root.contains(button) || !editorUi) return;
+    try { editorUi.highlightSelection("floating_button"); } catch { /* the selection was already used */ }
+  };
+  document.addEventListener("pointerdown", onHighlightPointer, true);
+  stage.addEventListener("contextmenu", (event) => {
+    const pageEl = event.target.closest && event.target.closest(".page");
+    if (!pageEl || !root.contains(pageEl)) return;
+    event.preventDefault();
+    const pageIndex = Math.max(0, Number(pageEl.dataset.pageNumber) - 1);
+    const selected = window.getSelection();
+    const hasText = Boolean(selected && !selected.isCollapsed && String(selected).trim());
+    openMenu(event.clientX, event.clientY, [
+      {
+        label: "Vurgula",
+        keepSelection: true,
+        run: () => {
+          if (hasText && editorUi) {
+            leaveRegions();
+            try { editorUi.highlightSelection("context_menu"); } catch { /* the tool below still turns highlight on */ }
+            return;
+          }
+          setViewerMode("note").then(() => {
+            activeMark = markOf(pdfjs.AnnotationEditorType.HIGHLIGHT);
+            setMark(activeMark);
+            statusMode.textContent = t("Metni seçin veya sürükleyerek vurgulayın.");
+          });
+        },
+      },
+      {
+        label: "Metin ekle",
+        run: () => {
+          setViewerMode("note").then(() => {
+            activeMark = markOf(pdfjs.AnnotationEditorType.FREETEXT);
+            setMark(activeMark);
+            openAddText(pageEl, event.clientX, event.clientY);
+          });
+        },
+      },
+      { label: "Görsel ekle", run: () => pickImage(pageIndex, event.clientX, event.clientY) },
+      {
+        label: "Kopyala",
+        keepSelection: true,
+        disabled: !hasText,
+        run: () => {
+          const text = String(window.getSelection() || "");
+          if (text && navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+        },
+      },
+      { label: "Yakınlaştır", run: () => pdfViewer.increaseScale() },
+      { label: "Uzaklaştır", run: () => pdfViewer.decreaseScale() },
+      { label: "Genişliğe sığdır", run: () => { pdfViewer.currentScaleValue = "page-width"; } },
+      { label: "Sayfaya sığdır", run: () => { pdfViewer.currentScaleValue = "page-fit"; } },
+    ]);
+  });
+  const onMenuDismiss = (event) => {
+    if (menu.hidden) return;
+    if (event.target.closest && event.target.closest(".viewer-menu")) return;
+    hideMenu();
+  };
+  document.addEventListener("pointerdown", onMenuDismiss, true);
+  stage.addEventListener("scroll", () => hideMenu());
 
   const draftBox = el("div", "form-draft");
   draftBox.hidden = true;
@@ -2052,6 +2263,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   current.cleanup = () => {
     document.removeEventListener("mousemove", onFormMove, true);
     document.removeEventListener("mouseup", onFormUp, true);
+    document.removeEventListener("pointerdown", onHighlightPointer, true);
+    document.removeEventListener("pointerdown", onMenuDismiss, true);
+    hideMenu();
   };
   skipFieldBtn.onclick = () => hideFormDraft();
   addFieldBtn.onclick = async () => {

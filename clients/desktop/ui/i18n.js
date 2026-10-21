@@ -592,6 +592,19 @@
     "Izgara bulunamadı; motorun tablosu kullanıldı. Birleşik hücreler bozulabilir.": "No grid was found; the engine table was used. Merged cells may break.",
     "Tablolar satır ve sütun hizasından çıkarıldı. Çok satırlı hücreler tek hücrede kaldı.": "Tables were read from row and column alignment. Multi-line cells stayed in one cell.",
     "Izgara bulunamadı; motorun CSV çıktısı kullanıldı.": "No grid was found; the engine CSV was used.",
+    "Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır": "Ctrl+S save · Ctrl+F find · Ctrl+wheel zoom",
+    "Belgeyi başka bir biçime çevirin": "Convert this document to another format",
+    "Metin ekle": "Add text",
+    "Görsel ekle": "Add image",
+    "Genişliğe sığdır": "Fit width",
+    "Sayfaya sığdır": "Fit page",
+    "Önce sayfada metnin duracağı yere tıklayın.": "Click the page where the text should go first.",
+    "Eklenecek metin boş.": "The text to add is empty.",
+    "Metin belgeye işlenemedi. Sayfa yenilendi ama yazı görünmüyor.": "The text was not written into the document. The page reloaded, but the text is not visible.",
+    "Görsel sayfaya eklendi. Kaydet ile dosyaya yazın.": "The image was added to the page. Use Save to write it into the file.",
+    "Görsel eklenemedi.": "The image could not be added.",
+    "Bu sayfa henüz çizilmedi. Sayfayı görüntüleyip yeniden deneyin.": "This page is not drawn yet. Show the page and try again.",
+    "Metni seçin veya sürükleyerek vurgulayın.": "Select the text, or drag to highlight.",
   };
 
   window.SecuriI18n = {

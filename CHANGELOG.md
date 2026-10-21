@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Sağ tık menüsünde vurgula, metin ekle, görsel ekle, kopyala ve yakınlaştırma var. Vurgula seçili yazıyı boyar; görsel dosya seçince sayfaya iner. Metin eklemede Uygula yazıyı sayfaya işler. Dönüştür araçları şeritte durur. Ctrl+tekerlek ve Ctrl+artı/eksi yakınlaştırır
 - Açılan PDF’ler üstte yatay sekme olur. Yeni belge eskisini kapatmaz; sekmedeki artı başka belge açar
 - Sayfa yakınlaştırma, sığdırma ve döndürme Görünüm dışında Düzenleme, Açıklama ve Formlar sekmelerinde de durur
 - Düzenleme, yazısı olan sayfada OCR çalıştırmaz ve “düzenlenebilir metin yok” demez. Kesik alan tıklanınca yazının kendisi olur; başka yere tıklayınca yazılır

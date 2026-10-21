@@ -1267,6 +1267,9 @@
           if (!window.SecuriPreview.closeViewer(false)) return;
           selectTool(toolId, [source]);
         },
+        convertTools: (window.SECURIPDF_TOOLS || [])
+          .filter((tool) => tool.category === "convert")
+          .map((tool) => ({ id: tool.id, title: tool.title })),
         onClose: () => {
           if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
         },
