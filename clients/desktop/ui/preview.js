@@ -614,18 +614,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textColor.hidden = true;
   marks.append(textFont, textBold, textItalic, textSize, textColor);
   const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
-  const toWord = options.onToWord ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
+  const toWord = options.onTask ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
   const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
   save.disabled = true;
   const close = button("", "Görüntüleyiciyi kapat (Esc)", "icon", ICONS.close);
   close.classList.add("viewer-btn-close");
 
   top.append(titleWrap, searchBox, cluster(...[printBtn, toWord, save].filter(Boolean)), close);
-  if (options.onProcess) {
+  if (options.onTask) {
     const ocrBtn = button("OCR", "Taranmış sayfayı aranabilir yap", "tool", ICONS.text);
     const redactBtn = button("Karart", "Kişisel veriyi kalıcı olarak kapatın", "tool", ICONS.highlight);
-    ocrBtn.onclick = () => options.onProcess("ocr-pdf");
-    redactBtn.onclick = () => options.onProcess("redact");
+    ocrBtn.onclick = () => openTask("ocr-pdf");
+    redactBtn.onclick = () => openTask("redact");
     marks.append(ocrBtn, redactBtn);
   }
   const pageGroup = group("Sayfa", prev, pageBox, next);
@@ -635,6 +635,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const formHint = el("p", "viewer-ribbon-hint", t("Sayfada sürükleyerek metin, onay kutusu veya liste alanı çizin."));
   const convertTools = Array.isArray(options.convertTools) ? options.convertTools.filter((tool) => tool && tool.id && tool.title) : [];
   const signTools = Array.isArray(options.signTools) ? options.signTools.filter((tool) => tool && tool.id && tool.title) : [];
+  const pageTools = Array.isArray(options.pageTools) ? options.pageTools.filter((tool) => tool && tool.id && tool.title) : [];
   const toolCatalog = Array.isArray(options.tools) ? options.tools.filter((tool) => tool && tool.id && tool.title) : [];
   const shapeKinds = [
     ["rect", "Dikdörtgen", "Dikdörtgen çizin", ICONS.rect],
@@ -682,6 +683,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const shapeGroup = group(t("Şekiller"), shapeSelectBtn, ...shapeButtons, shapeSep(), shapeColor, shapeSep(), shapeUndoBtn, shapeRedoBtn, shapeEraseBtn);
   let pendingViewerMode = null;
   let setViewerMode = (mode) => { pendingViewerMode = mode; };
+  let openTask = () => {};
   const commandItems = [
     ["edit", "Metin", "Yazıyı yerinde düzenle"],
     ["add", "Ekle", "Görsel ekle, damga koy veya dosya iliştir"],
@@ -689,15 +691,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
   ];
   if (options.addFormFields) commandItems.push(["form", "Form", "Form alanı ekle"]);
   commandItems.push(["note", "İşaret", "Vurgula, çiz veya karart"]);
-  if (options.onProcess && convertTools.length) commandItems.push(["convert", "Dönüştür", "Belgeyi başka biçime çevir"]);
-  if (options.onProcess && signTools.length) commandItems.push(["sign", "İmzala", "Sertifika, doğrulama ve zaman damgası"]);
+  if (options.onTask && pageTools.length) commandItems.push(["pages", "Sayfa", "Döndür, kırp, sil veya sırala"]);
+  if (options.onTask && convertTools.length) commandItems.push(["convert", "Dönüştür", "Belgeyi başka biçime çevir"]);
+  if (options.onTask && signTools.length) commandItems.push(["sign", "İmzala", "Sertifika, doğrulama ve zaman damgası"]);
   let openCommandMenu = () => {};
   const commandButtons = commandItems.map(([id, label, title]) => {
     const node = button(label, title);
     node.classList.add("viewer-command");
     node.dataset.mode = id;
     node.onclick = (event) => {
-      if (id === "add" || id === "convert" || id === "sign") {
+      if (id === "add" || id === "pages" || id === "convert" || id === "sign") {
         event.stopPropagation();
         const rect = node.getBoundingClientRect();
         openCommandMenu(id, rect.left, rect.bottom + 4);
@@ -748,7 +751,27 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const loading = el("p", "viewer-loading", "Belge açılıyor…");
   stage.appendChild(pages);
   body.append(stage, loading);
-  workspace.append(thumbs, body, side);
+  const taskPane = el("aside", "viewer-task");
+  taskPane.hidden = true;
+  const taskHead = el("div", "viewer-task-head");
+  const taskTitle = el("h2", "viewer-side-title", "");
+  const taskClose = button("", "Paneli kapat", "icon", ICONS.close);
+  taskHead.append(taskTitle, taskClose);
+  const taskBody = el("div", "viewer-task-body");
+  taskPane.append(taskHead, taskBody);
+  let taskToken = 0;
+  const closeTask = () => {
+    taskToken += 1;
+    taskPane.hidden = true;
+    taskPane.dataset.open = "";
+    taskBody.replaceChildren();
+    applyViewerChrome(viewerMode);
+  };
+  taskClose.onclick = (event) => {
+    event.stopPropagation();
+    closeTask();
+  };
+  workspace.append(thumbs, body, side, taskPane);
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
@@ -805,8 +828,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     shapeGroup.hidden = mode !== "shapes";
     editHint.hidden = mode !== "edit";
     formHint.hidden = mode !== "form";
-    const showSide = mode === "edit" || mode === "form";
+    const showSide = taskPane.dataset.open !== "1" && (mode === "edit" || mode === "form");
     side.hidden = !showSide;
+    taskPane.hidden = taskPane.dataset.open !== "1";
     stylePane.hidden = mode !== "edit";
     formPane.hidden = mode !== "form";
     sideTitle.textContent = mode === "form" ? t("Form Alanı Listesi") : t("Metin Stilleri");
@@ -853,6 +877,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       pdfViewer.previousPage();
     } else if (event.key === "Escape" && !typing) {
       if (hideMenu()) { event.preventDefault(); return; }
+      if (taskPane.dataset.open === "1") { event.preventDefault(); closeTask(); return; }
       if (viewerMode !== "view") { event.preventDefault(); setViewerMode("view"); return; }
       closeViewer(false);
     }
@@ -917,6 +942,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     }
   };
   fillThumbs(doc);
+  let readCurrentFile = async () => {
+    throw new Error("Belge henüz hazır değil.");
+  };
+  let adoptDocument = async () => false;
 
   let restoreView = null;
   eventBus.on("pagesinit", () => {
@@ -1404,12 +1433,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     current.task.destroy();
     current.task = nextTask;
     doc = nextDoc;
+    const safePage = Math.min(Math.max(1, page || 1), doc.numPages);
     doc.annotationStorage.onSetModified = () => markDirty(true);
     doc.annotationStorage.onResetModified = () => markDirty(false);
     let painted = false;
     const paintedDone = new Promise((resolve) => {
       const onPaint = (evt) => {
-        if (evt.pageNumber !== page) return;
+        if (evt.pageNumber !== safePage) return;
         eventBus.off("pagerendered", onPaint);
         painted = true;
         resolve();
@@ -1417,15 +1447,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
       eventBus.on("pagerendered", onPaint);
       setTimeout(() => { eventBus.off("pagerendered", onPaint); resolve(); }, 5000);
     });
-    restoreView = { page, scale };
+    restoreView = { page: safePage, scale };
     pdfViewer.setDocument(doc);
     linkService.setDocument(doc, null);
     pageTotal.textContent = `/ ${doc.numPages}`;
     pageInput.max = String(doc.numPages);
     fillThumbs(doc);
     await paintedDone;
-    pdfViewer.currentPageNumber = page;
-    const view = pdfViewer.getPageView(page - 1);
+    pdfViewer.currentPageNumber = safePage;
+    const view = pdfViewer.getPageView(safePage - 1);
     if (!painted && view && typeof view.reset === "function") {
       view.reset();
       pdfViewer.update();
@@ -2021,6 +2051,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   setViewerMode = async (mode) => {
     if (regionBusy && mode === "edit") return;
+    if (taskPane.dataset.open === "1") closeTask();
     applyViewerChrome(mode);
     if (mode === "edit") {
       if (formMode) setFormMode(false);
@@ -2312,9 +2343,32 @@ async function openViewer(source, pageNumber, title, options = {}) {
     menu.style.left = left + "px";
     menu.style.top = top + "px";
   };
+  openTask = (toolId) => {
+    if (!options.onTask || !toolId) return;
+    taskToken += 1;
+    const token = taskToken;
+    taskPane.dataset.open = "1";
+    taskPane.hidden = false;
+    side.hidden = true;
+    taskBody.replaceChildren();
+    taskTitle.textContent = "";
+    options.onTask(toolId, {
+      host: taskBody,
+      alive: () => token === taskToken && sessionAlive(current),
+      setTitle: (text) => { taskTitle.textContent = text; },
+      currentFile: () => readCurrentFile(),
+      pageCount: () => (doc ? doc.numPages : 0),
+      adopt: (bytes) => adoptDocument(bytes),
+      save: (bytes, fileName) => (options.onSave ? options.onSave(bytes, fileName) : null),
+      close: closeTask,
+      busy: (on, label) => { if (on) setJobProgress(45, label || "İşleniyor…"); else hideJobProgress(); },
+    });
+  };
   openCommandMenu = (id, x, y) => {
-    const runTool = (toolId) => () => { if (options.onProcess) options.onProcess(toolId); };
-    if (id === "convert") {
+    const runTool = (toolId) => () => openTask(toolId);
+    if (id === "pages") {
+      openMenu(x, y, pageTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
+    } else if (id === "convert") {
       openMenu(x, y, convertTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
     } else if (id === "sign") {
       openMenu(x, y, signTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
@@ -2328,7 +2382,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   showToolMatches = () => {
     const query = toolFind.value.trim().toLocaleLowerCase("tr");
-    if (!query || !options.onProcess) {
+    if (!query || !options.onTask) {
       hideMenu();
       return;
     }
@@ -2345,7 +2399,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
           pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null);
           return;
         }
-        options.onProcess(tool.id);
+        if (tool.id === "add-form-fields" || tool.id === "fill-forms") {
+          setViewerMode("form");
+          return;
+        }
+        openTask(tool.id);
       },
     })));
   };
@@ -2758,6 +2816,25 @@ async function openViewer(source, pageNumber, title, options = {}) {
       }
     });
   };
+  readCurrentFile = async () => {
+    let bytes = await doc.saveDocument();
+    if (shapes.length && options.addShapes) {
+      bytes = await options.addShapes(bytes, shapes.slice());
+      shapes.splice(0, shapes.length);
+      selectedShapeId = null;
+      paintShapes();
+    }
+    const label = (name.textContent || "belge").trim() || "belge";
+    const fileName = /\.pdf$/i.test(label) ? label : label + ".pdf";
+    return new File([bytes], fileName, { type: "application/pdf" });
+  };
+  adoptDocument = async (bytes) => {
+    const page = pdfViewer.currentPageNumber || 1;
+    const scale = pdfViewer.currentScaleValue;
+    const ok = await showEditedDocument(bytes, page, scale);
+    if (ok) markDirty(true);
+    return ok;
+  };
   const onShapeDown = (event) => {
     if (viewerMode !== "shapes" || event.button !== 0) return;
     if (event.target.closest && event.target.closest("button, input, textarea, select, .viewer-menu, .viewer-chrome")) return;
@@ -2944,12 +3021,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       save.disabled = false;
     }
   };
-  if (toWord) {
-    toWord.onclick = () => {
-      if (!closeViewer(false)) return;
-      options.onToWord();
-    };
-  }
+  if (toWord) toWord.onclick = () => openTask("pdf-to-word");
   close.onclick = () => closeViewer(false);
 }
 

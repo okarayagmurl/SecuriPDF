@@ -644,6 +644,14 @@
     "Belgeyi başka biçime çevir": "Convert the document",
     "Sertifika, doğrulama ve zaman damgası": "Certificate, validation, and timestamp",
     "Taranmış sayfayı aranabilir yap": "Make a scanned page searchable",
+    "Döndür, kırp, sil veya sırala": "Rotate, crop, delete, or reorder",
+    "Paneli kapat": "Close panel",
+    "Bu belgeye uygula": "Apply to this document",
+    "Eklenecek diğer PDF'ler": "Other PDFs to add",
+    "Belge güncellendi. Kaydet ile dosyaya yazın.": "The document was updated. Use Save to write the file.",
+    "Yeni belge sekmede açıldı.": "The new document opened in a tab.",
+    "Kayıt iptal edildi. Belge yerinde duruyor.": "Save was cancelled. The document stays open.",
+    "Bu araç bulunamadı.": "This tool was not found.",
   };
 
   window.SecuriI18n = {

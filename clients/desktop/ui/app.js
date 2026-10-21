@@ -1023,14 +1023,16 @@
     return state.tool.validate ? state.tool.validate(values) : null;
   }
 
-  function buildForm(values, files = state.files) {
+  function buildForm(values, files = state.files, tool = state.tool) {
     const form = new FormData();
-    state.tool.files.forEach((spec) => {
-      if (!isVisible(spec, values)) return;
-      files[spec.name].forEach((file) => form.append(spec.name, file, file.name));
+    const shown = (field) => Object.entries(field.showIf || {}).every(([key, expected]) =>
+      Array.isArray(expected) ? expected.includes(values[key]) : values[key] === expected);
+    tool.files.forEach((spec) => {
+      if (!shown(spec, values)) return;
+      (files[spec.name] || []).forEach((file) => form.append(spec.name, file, file.name));
     });
-    state.tool.fields.forEach((field) => {
-      if (field.local || !isVisible(field, values)) return;
+    tool.fields.forEach((field) => {
+      if (field.local || !shown(field, values)) return;
       let value = values[field.name];
       if (field.type === "checks") {
         value.forEach((item) => form.append(field.name, item));
@@ -1042,9 +1044,9 @@
       const times = field.perFile ? files[field.perFile].length : 1;
       for (let i = 0; i < times; i++) form.append(field.name, value);
     });
-    const constants = typeof state.tool.constants === "function"
-      ? state.tool.constants(values)
-      : state.tool.constants || {};
+    const constants = typeof tool.constants === "function"
+      ? tool.constants(values)
+      : tool.constants || {};
     Object.entries(constants).forEach(([key, value]) => form.append(key, value));
     return form;
   }
@@ -1061,11 +1063,11 @@
     return "bin";
   }
 
-  function outputName(bytes, files = state.files) {
-    const first = files[state.tool.files[0].name][0];
-    const base = first.name.replace(/\.[^.]+$/, "") || "belge";
-    const suffix = state.tool.suffix ? "_" + state.tool.suffix : "";
-    const ext = typeof state.tool.outputExt === "function" ? state.tool.outputExt(bytes) : state.tool.outputExt;
+  function outputName(bytes, files = state.files, tool = state.tool) {
+    const first = files[tool.files[0].name][0];
+    const base = (first && first.name ? first.name : "belge").replace(/\.[^.]+$/, "") || "belge";
+    const suffix = tool.suffix ? "_" + tool.suffix : "";
+    const ext = typeof tool.outputExt === "function" ? tool.outputExt(bytes) : tool.outputExt;
     return `${base}${suffix}.${ext || outputExtension(bytes)}`;
   }
 
@@ -1201,7 +1203,7 @@
         values,
         engine: callEngine,
         engineGet,
-        form: () => buildForm(values, files),
+        form: () => buildForm(values, files, tool),
         htmlToPdf,
         office,
         addFormFields,
@@ -1211,7 +1213,7 @@
         assemble: assemblePdf,
         note: (text) => { note = text; },
       })
-      : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files));
+      : await callEngine(typeof tool.apiPath === "function" ? tool.apiPath(values) : tool.apiPath, buildForm(values, files, tool));
     const bytes = produced instanceof Uint8Array ? produced : produced.bytes;
     const name = produced instanceof Uint8Array ? "" : (produced.name || "");
     return { bytes, note, name };
@@ -1248,6 +1250,270 @@
     const report = "\uFEFF" + [["Dosya", "Durum", "Çıktı", "Boyut (bayt)", "Süre (sn)", "Not"], ...rows]
       .map((row) => row.map(cell).join(";")).join("\r\n") + "\r\n";
     return { outputs, report: new TextEncoder().encode(report), failed: rows.filter((row) => row[1] === "Hata").length };
+  }
+
+  function taskBlocked(tool) {
+    if (state.license && !state.license.valid) return "Lisans gerekli";
+    if (state.policy && state.policy.blockedTools &&
+        state.policy.blockedTools.some((id) => String(id).toLowerCase() === String(tool.id).toLowerCase())) {
+      return ERRORS.POLICY_TOOL;
+    }
+    if (tool.id === "timestamp-pdf" && state.policy && state.policy.allowTimestamp === false) return ERRORS.POLICY_TIMESTAMP;
+    if (needsEngine(tool) && state.engine !== "ready") return "Ön gereksinimler henüz hazır değil. Biraz bekleyip tekrar deneyin.";
+    return "";
+  }
+
+  function validateTask(tool, values, files, pageCount) {
+    const shown = (field) => Object.entries(field.showIf || {}).every(([key, expected]) =>
+      Array.isArray(expected) ? expected.includes(values[key]) : values[key] === expected);
+    for (const spec of tool.files) {
+      if (!shown(spec, values)) continue;
+      const count = (files[spec.name] || []).length;
+      const min = spec.min !== undefined ? spec.min : 1;
+      if (count < min) return min > 1 ? `${spec.label}: en az ${min} dosya seçin.` : `${spec.label}: dosya seçin.`;
+    }
+    for (const field of tool.fields) {
+      if (!shown(field, values)) continue;
+      const value = values[field.name];
+      if (field.required && (value === "" || value == null)) return `${field.label} boş bırakılamaz.`;
+      if ((field.type === "number" || field.type === "range") && value !== "") {
+        const number = Number(String(value).replace(",", "."));
+        if (!Number.isFinite(number)) return `${field.label} bir sayı olmalı.`;
+        if (field.min !== undefined && number < field.min) return `${field.label} en az ${field.min} olmalı.`;
+        if (field.max !== undefined && number > field.max) return `${field.label} en fazla ${field.max} olmalı.`;
+      }
+      if (field.pagePicker && value !== "" && pageCount) {
+        const beyond = Array.from(parsePages(value)).filter((page) => page > pageCount);
+        if (beyond.length) return `${field.label}: belgede ${pageCount} sayfa var (${beyond.join(", ")} yok).`;
+        if (field.pagePicker === "remove" && parsePages(value).size >= pageCount) {
+          return "Tüm sayfalar silinemez; en az bir sayfa kalmalı.";
+        }
+      }
+    }
+    return tool.validate ? tool.validate(values) : null;
+  }
+
+  function openDocumentTask(toolId, api) {
+    const tool = tools.find((item) => item.id === toolId);
+    api.host.replaceChildren();
+    if (!tool) {
+      api.setTitle("Araç");
+      api.host.appendChild(el("p", { class: "hint", text: "Bu araç bulunamadı." }));
+      return;
+    }
+    api.setTitle(t(tool.title));
+    const note = el("p", { class: "hint", text: "" });
+    const error = el("p", { class: "error", text: "" });
+    const lead = el("p", { class: "hint", text: tool.description });
+    const fieldsHost = el("div", { class: "viewer-task-fields" });
+    const filesHost = el("div", { class: "viewer-task-files" });
+    const run = el("button", { type: "button", class: "primary", text: "Bu belgeye uygula" });
+    api.host.append(lead, filesHost, fieldsHost, error, note, run);
+
+    const primary = tool.files[0];
+    const accept = (primary && primary.accept) || "";
+    const usesPdf = /pdf/i.test(accept);
+    const picked = {};
+    const shown = (field, values) => Object.entries(field.showIf || {}).every(([key, expected]) =>
+      Array.isArray(expected) ? expected.includes(values[key]) : values[key] === expected);
+
+    const extraSpecs = [];
+    if (usesPdf && primary.multiple) {
+      extraSpecs.push({ spec: primary, combine: true, label: "Eklenecek diğer PDF'ler" });
+    }
+    tool.files.forEach((spec, index) => {
+      if (usesPdf && index === 0) return;
+      extraSpecs.push({ spec, combine: false, label: spec.label });
+    });
+    extraSpecs.forEach((entry) => {
+      const input = el("input", { type: "file", accept: entry.spec.accept || "", multiple: entry.spec.multiple ? "" : undefined });
+      input.addEventListener("change", () => { picked[entry.spec.name] = Array.from(input.files || []); });
+      const box = el("div", { class: "field", "data-file": entry.spec.name }, [
+        el("span", { class: "label", text: entry.label }),
+        input,
+      ]);
+      if (entry.spec.hint) box.appendChild(el("p", { class: "hint", text: entry.spec.hint }));
+      filesHost.appendChild(box);
+    });
+
+    tool.fields.forEach((field) => {
+      const controlId = "vt-" + tool.id + "-" + field.name;
+      let input;
+      if (field.type === "select") {
+        input = el("select", { id: controlId }, (field.options || []).map((option) =>
+          el("option", { value: option.value, text: option.label, selected: String(option.value) === String(field.default) })));
+      } else if (field.type === "checkbox") {
+        input = el("input", { id: controlId, type: "checkbox", checked: !!field.default });
+      } else if (field.type === "checks") {
+        const groups = [];
+        (field.options || []).forEach((option) => {
+          const name = option.group || "";
+          const last = groups[groups.length - 1];
+          if (!last || last.name !== name) groups.push({ name, options: [option] });
+          else last.options.push(option);
+        });
+        const box = (option) => el("label", {}, [
+          el("input", { type: "checkbox", value: option.value, checked: (field.default || []).includes(option.value) }),
+          document.createTextNode(t(option.label)),
+        ]);
+        input = el("div", { id: controlId, class: "checks" + (groups.some((group) => group.name) ? " grouped" : "") },
+          groups.flatMap((group) => group.name
+            ? [el("div", { class: "check-group" }, [el("span", { class: "check-group-label", text: group.name }), el("div", { class: "checks" }, group.options.map(box))])]
+            : group.options.map(box)));
+      } else if (field.type === "textarea") {
+        input = el("textarea", { id: controlId, rows: field.rows || 4, placeholder: field.placeholder, spellcheck: "false" });
+        input.value = field.default || "";
+      } else if (field.type === "pad") {
+        input = el("div", { id: controlId, class: "pad", "data-value": String(field.default) }, (field.options || []).map((option) =>
+          el("button", {
+            type: "button",
+            "data-value": option.value,
+            title: option.label,
+            class: String(option.value) === String(field.default) ? "active" : "",
+            text: option.mark || "",
+            onclick: () => {
+              input.dataset.value = option.value;
+              input.querySelectorAll("button").forEach((btn) => btn.classList.toggle("active", btn.dataset.value === option.value));
+              applyPanel();
+            },
+          })));
+      } else if (field.type === "range") {
+        const slider = el("input", {
+          type: "range", min: field.min, max: field.max, step: field.step || 1,
+          value: field.default !== undefined ? String(field.default) : "0",
+        });
+        const shownValue = el("span", { class: "value", text: formatRange(field, slider.value) });
+        slider.addEventListener("input", () => { shownValue.textContent = formatRange(field, slider.value); applyPanel(); });
+        input = el("div", { id: controlId, class: "range" }, [slider, shownValue]);
+      } else {
+        input = el("input", {
+          id: controlId,
+          type: field.type || "text",
+          value: field.default !== undefined ? String(field.default) : "",
+          placeholder: field.placeholder,
+          min: field.min,
+          max: field.max,
+          step: field.step || (field.type === "number" ? "any" : undefined),
+          autocomplete: field.type === "password" ? "new-password" : "off",
+        });
+      }
+      input.dataset.input = field.name;
+      input.addEventListener("change", () => applyPanel());
+      input.addEventListener("input", () => applyPanel());
+      const kind = ["field", field.type === "checkbox" ? "check" : ""].filter(Boolean).join(" ");
+      const wrapper = field.type === "checkbox"
+        ? el("div", { class: kind, "data-field": field.name }, [el("label", { for: controlId }, [input, document.createTextNode(t(field.label))])])
+        : el("div", { class: kind, "data-field": field.name }, [
+          el(field.type === "checks" || field.type === "pad" || field.type === "range" ? "span" : "label", { for: controlId, class: "label", text: field.label }),
+          input,
+        ]);
+      if (field.load) {
+        wrapper.appendChild(el("button", {
+          type: "button", class: "secondary refresh", text: "Listeyi yenile",
+          onclick: () => loadPanelOptions(field, true),
+        }));
+      }
+      if (field.hint) wrapper.appendChild(el("p", { class: "hint", text: field.hint }));
+      fieldsHost.appendChild(wrapper);
+    });
+
+    const loaded = new Set();
+    const readPanel = () => {
+      const values = {};
+      tool.fields.forEach((field) => {
+        const input = fieldsHost.querySelector(`[data-input="${field.name}"]`);
+        if (!input) values[field.name] = field.type === "checks" ? [] : field.type === "checkbox" ? false : "";
+        else if (field.type === "checkbox") values[field.name] = input.checked;
+        else if (field.type === "checks") values[field.name] = Array.from(input.querySelectorAll("input:checked")).map((box) => box.value);
+        else if (field.type === "pad") values[field.name] = input.dataset.value || "";
+        else if (field.type === "range") values[field.name] = (input.querySelector("input") || input).value;
+        else values[field.name] = input.value.trim();
+      });
+      return values;
+    };
+    async function loadPanelOptions(field, force) {
+      if (state.engine !== "ready" || (!force && loaded.has(field.name))) return;
+      loaded.add(field.name);
+      const select = fieldsHost.querySelector(`[data-input="${field.name}"]`);
+      if (!select) return;
+      const previous = select.value;
+      select.replaceChildren(el("option", { value: previous, text: "Yükleniyor…" }));
+      let options = [];
+      try {
+        options = await field.load({ get: engineGet });
+      } catch (err) {
+        if (api.alive()) error.textContent = errorText(err);
+      }
+      if (!api.alive()) return;
+      field.options = options;
+      select.replaceChildren(...(options.length
+        ? options.map((option) => el("option", { value: option.value, text: option.label }))
+        : [el("option", { value: "", text: field.empty || "Kayıt bulunamadı" })]));
+      if (options.some((option) => option.value === previous)) select.value = previous;
+    }
+    function applyPanel() {
+      const values = readPanel();
+      tool.fields.forEach((field) => {
+        const node = fieldsHost.querySelector(`[data-field="${field.name}"]`);
+        if (!node) return;
+        const visible = shown(field, values);
+        node.hidden = !visible;
+        if (visible && field.load) loadPanelOptions(field);
+      });
+      extraSpecs.forEach((entry) => {
+        const node = filesHost.querySelector(`[data-file="${entry.spec.name}"]`);
+        if (!node || entry.combine) return;
+        node.hidden = !shown(entry.spec, values);
+      });
+    }
+    applyPanel();
+
+    run.addEventListener("click", async () => {
+      error.textContent = "";
+      note.textContent = "";
+      const blocked = taskBlocked(tool);
+      if (blocked) { error.textContent = blocked; return; }
+      run.disabled = true;
+      api.busy(true, tool.title);
+      try {
+        const values = readPanel();
+        const fileMap = {};
+        tool.files.forEach((spec) => { fileMap[spec.name] = []; });
+        if (usesPdf) {
+          const current = await api.currentFile();
+          const more = primary.multiple ? (picked[primary.name] || []) : [];
+          fileMap[primary.name] = primary.multiple ? [current].concat(more) : [current];
+        }
+        tool.files.forEach((spec, index) => {
+          if (usesPdf && index === 0) return;
+          if (!shown(spec, values)) { fileMap[spec.name] = []; return; }
+          fileMap[spec.name] = picked[spec.name] || [];
+        });
+        const problem = validateTask(tool, values, fileMap, api.pageCount());
+        if (problem) { error.textContent = problem; return; }
+        const { bytes, note: producedNote, name } = await execute(tool, values, fileMap);
+        if (!bytes) throw new Error("İşlem boş bir sonuç üretti.");
+        const outName = name || outputName(bytes, fileMap, tool);
+        const declared = typeof tool.outputExt === "function" ? tool.outputExt(bytes) : tool.outputExt;
+        const isPdf = declared ? declared === "pdf" : outputExtension(bytes) === "pdf";
+        if (isPdf && usesPdf) {
+          await api.adopt(bytes);
+          if (api.alive()) note.textContent = producedNote || "Belge güncellendi. Kaydet ile dosyaya yazın.";
+        } else if (isPdf) {
+          const file = new File([bytes], outName, { type: "application/pdf" });
+          await openCurrentViewer(file);
+          if (api.alive()) note.textContent = producedNote || "Yeni belge sekmede açıldı.";
+        } else {
+          const saved = await api.save(bytes, outName);
+          if (api.alive()) note.textContent = saved ? "Kaydedildi: " + saved : "Kayıt iptal edildi. Belge yerinde duruyor.";
+        }
+      } catch (err) {
+        if (api.alive()) error.textContent = errorText(err);
+      } finally {
+        api.busy(false);
+        if (api.alive()) run.disabled = false;
+      }
+    });
   }
 
   async function openCurrentViewer(file) {
@@ -1289,16 +1555,12 @@
         errorText,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
         addShapes,
-        onToWord: () => {
-          window.SecuriPreview.parkViewer();
-          selectTool("pdf-to-word", [source]);
-        },
-        onProcess: (toolId) => {
-          window.SecuriPreview.parkViewer();
-          selectTool(toolId, [source]);
-        },
+        onTask: (toolId, api) => openDocumentTask(toolId, api),
         convertTools: (window.SECURIPDF_TOOLS || [])
           .filter((tool) => tool.category === "convert")
+          .map((tool) => ({ id: tool.id, title: tool.title })),
+        pageTools: (window.SECURIPDF_TOOLS || [])
+          .filter((tool) => tool.category === "pages")
           .map((tool) => ({ id: tool.id, title: tool.title })),
         signTools: (window.SECURIPDF_TOOLS || [])
           .filter((tool) => tool.category === "sign")

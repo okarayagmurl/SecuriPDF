@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Dönüştür, imzala, karart, OCR, damga, ek dosya ve sayfa işlemleri belgeyi kapatmaz. Seçenekler sayfanın yanında açılır; sonuç PDF ise aynı sekme yenilenir. Word ve Excel kayıt penceresine gider, PDF yerinde kalır
 - Açık belgede komutlar şeritte durur: Metin, Ekle, Şekil, Form, İşaret, Dönüştür ve İmzala. Araç ara herhangi bir aracı belgenin üstünden açar. Dönüştürme, karartma veya imza belgeyi kapatmaz; Belgeye dön aynı sayfaya getirir
 - Şekillerde Seç aracı var. Seçilen şeklin rengi ve biçimi şeritten değiştirilir
 - Görüntüleyicide Şekiller sekmesi: dikdörtgen, elips, eğri, beşgen, bulut, çizgi, zikzak ve ok. Renk, geri al, yinele ve silgi var. Kaydet şekli PDF'e yazar
