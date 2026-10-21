@@ -132,13 +132,7 @@
   }
 
   function togglePageValue(current, page, allowAll) {
-    const raw = String(current || "").trim();
-    if (raw === "all" || raw === "") return String(page);
-    const pages = parsePages(raw);
-    if (pages.has(page)) pages.delete(page);
-    else pages.add(page);
-    if (!pages.size) return allowAll ? "all" : "";
-    return formatPages(pages);
+    return window.SecuriTask.togglePageValue(current, page, allowAll);
   }
 
   function formatPages(pages) {
@@ -1062,23 +1056,12 @@
   }
 
   function outputExtension(bytes) {
-    const ascii = (start, end) => String.fromCharCode.apply(null, bytes.subarray(start, end));
-    if (ascii(0, 4) === "%PDF") return "pdf";
-    if (bytes[0] === 0x50 && bytes[1] === 0x4b) return "zip";
-    if (bytes[0] === 0x89 && ascii(1, 4) === "PNG") return "png";
-    if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpg";
-    if (ascii(0, 4) === "GIF8") return "gif";
-    if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "webp";
-    if (ascii(0, 2) === "BM") return "bmp";
-    return "bin";
+    return window.SecuriTask.sniffExtension(bytes);
   }
 
   function outputName(bytes, files = state.files, tool = state.tool) {
     const first = files[tool.files[0].name][0];
-    const base = (first && first.name ? first.name : "belge").replace(/\.[^.]+$/, "") || "belge";
-    const suffix = tool.suffix ? "_" + tool.suffix : "";
-    const ext = typeof tool.outputExt === "function" ? tool.outputExt(bytes) : tool.outputExt;
-    return `${base}${suffix}.${ext || outputExtension(bytes)}`;
+    return window.SecuriTask.outputFileName(first && first.name, tool, bytes);
   }
 
   // Callers re-render files or the preview afterwards; refreshing here could
@@ -1509,7 +1492,7 @@
       } else api.watchPages(null);
       if (padField) {
         api.watchPoint((hit) => {
-          const value = String(hit.row * 3 + hit.col + 1);
+          const value = window.SecuriTask.padValue(hit);
           const pad = fieldsHost.querySelector(`[data-input="${padField.name}"]`);
           if (!pad) return;
           pad.dataset.value = value;
@@ -1558,19 +1541,32 @@
         if (problem) { error.textContent = problem; return; }
         const { bytes, note: producedNote, name } = await execute(tool, values, fileMap);
         if (!bytes) throw new Error("İşlem boş bir sonuç üretti.");
-        const outName = name || outputName(bytes, fileMap, tool);
-        const declared = typeof tool.outputExt === "function" ? tool.outputExt(bytes) : tool.outputExt;
-        const isPdf = declared ? declared === "pdf" : outputExtension(bytes) === "pdf";
-        if (isPdf && usesPdf) {
+        const source = (fileMap[primary.name] || [])[0];
+        const plan = window.SecuriTask.resultAction(tool, bytes);
+        const finalName = name || window.SecuriTask.outputFileName(source && source.name, tool, bytes);
+        if (plan.action === "replace") {
           await api.adopt(bytes);
           if (api.alive()) note.textContent = producedNote || "Belge güncellendi. Kaydet ile dosyaya yazın.";
-        } else if (isPdf) {
-          const file = new File([bytes], outName, { type: "application/pdf" });
+        } else if (plan.action === "open") {
+          const file = new File([bytes], finalName, { type: "application/pdf" });
           await openCurrentViewer(file);
           if (api.alive()) note.textContent = producedNote || "Yeni belge sekmede açıldı.";
-        } else {
-          const saved = await api.save(bytes, outName);
-          if (api.alive()) note.textContent = saved ? "Kaydedildi: " + saved : "Kayıt iptal edildi. Belge yerinde duruyor.";
+        } else if (api.alive()) {
+          note.textContent = producedNote || "Dönüşüm hazır. Sonuç PDF değil.";
+          const line = el("p", { class: "task-result-name", text: finalName });
+          const saveBtn = el("button", { type: "button", class: "primary", text: "Sonucu kaydet" });
+          saveBtn.addEventListener("click", async () => {
+            saveBtn.disabled = true;
+            try {
+              const saved = await saveBytes(bytes, finalName);
+              if (api.alive()) note.textContent = saved ? "Kaydedildi: " + saved : "Kayıt iptal edildi. Belge yerinde duruyor.";
+            } catch (err) {
+              if (api.alive()) error.textContent = errorText(err);
+            } finally {
+              if (api.alive()) saveBtn.disabled = false;
+            }
+          });
+          api.host.append(line, saveBtn);
         }
       } catch (err) {
         if (api.alive()) error.textContent = errorText(err);
@@ -1618,7 +1614,7 @@
         engineJson: callEngineJson,
         engineJsonQuiet: (path, payload) => callEngineJson(path, payload, true),
         errorText,
-        onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
+        onSave: (bytes, name) => saveBytes(bytes, name || stem + "_duzenli.pdf"),
         addShapes,
         addComments,
         onTask: (toolId, api) => openDocumentTask(toolId, api),

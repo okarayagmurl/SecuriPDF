@@ -232,6 +232,8 @@ const ICONS = {
   redo: '<polyline points="15 14 20 9 15 4"/><path d="M4 20v-5a6 6 0 0 1 6-6h10"/>',
   eraser: '<path d="M20 20H9L3.5 14.5a2 2 0 0 1 0-2.8L12 3.2a2 2 0 0 1 2.8 0L20 8.4"/><path d="M7 13l6 6"/>',
   comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  convert: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  sign: '<path d="M3 17c2-1 3-4 4-4s2 3 3 3 2-6 4-6 2 5 3 5 2-2 4-2"/><path d="M3 21h18"/>',
 };
 
 function svgIcon(inner) {
@@ -615,13 +617,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
   textColor.hidden = true;
   marks.append(textFont, textBold, textItalic, textSize, textColor);
   const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
-  const toWord = options.onTask ? button("Word", "Uzun düzenleme için Word belgesine dönüştürün", "ghost", ICONS.word) : null;
   const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
   save.disabled = true;
   const close = button("", "Görüntüleyiciyi kapat (Esc)", "icon", ICONS.close);
   close.classList.add("viewer-btn-close");
 
-  top.append(titleWrap, searchBox, cluster(...[printBtn, toWord, save].filter(Boolean)), close);
+  top.append(titleWrap, searchBox, cluster(printBtn, save), close);
   const commentBtn = button("Yorum", "Sayfaya tıklayıp yorum yazın", "tool", ICONS.comment);
   commentBtn.onclick = () => openCommentScreen();
   marks.append(commentBtn);
@@ -690,18 +691,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let openTask = () => {};
   let openCommentScreen = () => {};
   const commandItems = [
-    ["edit", "Metin", "Yazıyı yerinde düzenle"],
-    ["add", "Ekle", "Görsel ekle, damga koy veya dosya iliştir"],
-    ["shapes", "Şekil", "Otomatik şekiller"],
+    ["edit", "Metin", "Yazıyı yerinde düzenle", ICONS.text],
+    ["add", "Ekle", "Görsel ekle, damga koy veya dosya iliştir", ICONS.plus],
+    ["shapes", "Şekil", "Otomatik şekiller", ICONS.rect],
   ];
-  if (options.addFormFields) commandItems.push(["form", "Form", "Form alanı ekle"]);
-  commandItems.push(["note", "İşaret", "Vurgula, çiz veya karart"]);
-  if (options.onTask && pageTools.length) commandItems.push(["pages", "Sayfa", "Döndür, kırp, sil veya sırala"]);
-  if (options.onTask && convertTools.length) commandItems.push(["convert", "Dönüştür", "Belgeyi başka biçime çevir"]);
-  if (options.onTask && signTools.length) commandItems.push(["sign", "İmzala", "Sertifika, doğrulama ve zaman damgası"]);
+  if (options.addFormFields) commandItems.push(["form", "Form", "Form alanı ekle", ICONS.form]);
+  commandItems.push(["note", "İşaret", "Vurgula, çiz veya karart", ICONS.highlight]);
+  if (options.onTask && pageTools.length) commandItems.push(["pages", "Sayfa", "Döndür, kırp, sil veya sırala", ICONS.pages]);
+  if (options.onTask && convertTools.length) commandItems.push(["convert", "Dönüştür", "Belgeyi başka biçime çevir", ICONS.convert]);
+  if (options.onTask && signTools.length) commandItems.push(["sign", "İmzala", "Sertifika, doğrulama ve zaman damgası", ICONS.sign]);
   let openCommandMenu = () => {};
-  const commandButtons = commandItems.map(([id, label, title]) => {
-    const node = button(label, title);
+  const commandButtons = commandItems.map(([id, label, title, icon]) => {
+    const node = button(label, title, "tool", icon);
     node.classList.add("viewer-command");
     node.dataset.mode = id;
     node.onclick = (event) => {
@@ -2346,8 +2347,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const openMenu = (x, y, items) => {
     menu.replaceChildren();
     items.forEach((item) => {
-      const node = el("button", null, t(item.label));
+      const node = el("button");
       node.type = "button";
+      if (item.icon) node.innerHTML = svgIcon(item.icon) + `<span>${t(item.label)}</span>`;
+      else node.textContent = t(item.label);
       node.disabled = Boolean(item.disabled);
       const run = (event) => {
         if (node.disabled) return;
@@ -2605,19 +2608,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
   stage.addEventListener("pointerup", onTaskUp);
   stage.addEventListener("pointercancel", onTaskUp);
   eventBus.on("pagerendered", () => paintComments());
+  const menuIcon = (id) => (window.SECURIPDF_MENU_ICONS || {})[id] || "";
+  const menuTool = (tool) => ({ label: tool.title, icon: menuIcon(tool.id), run: () => openTask(tool.id) });
   openCommandMenu = (id, x, y) => {
-    const runTool = (toolId) => () => openTask(toolId);
-    if (id === "pages") {
-      openMenu(x, y, pageTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
-    } else if (id === "convert") {
-      openMenu(x, y, convertTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
-    } else if (id === "sign") {
-      openMenu(x, y, signTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
-    } else if (id === "add") {
+    if (id === "pages") openMenu(x, y, pageTools.map(menuTool));
+    else if (id === "convert") openMenu(x, y, convertTools.map(menuTool));
+    else if (id === "sign") openMenu(x, y, signTools.map(menuTool));
+    else if (id === "add") {
       openMenu(x, y, [
-        { label: "Görsel ekle", run: () => pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null) },
-        { label: "Damga", run: runTool("add-stamp") },
-        { label: "Ek dosya ekle", run: runTool("add-attachments") },
+        { label: "Görsel ekle", icon: menuIcon("add-image"), run: () => pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null) },
+        { label: "Damga", icon: menuIcon("add-stamp"), run: () => openTask("add-stamp") },
+        { label: "Ek dosya ekle", icon: menuIcon("add-attachments"), run: () => openTask("add-attachments") },
       ]);
     }
   };
@@ -2635,6 +2636,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     }
     openMenu(rect.left, rect.bottom + 4, hits.map((tool) => ({
       label: tool.title,
+      icon: menuIcon(tool.id),
       run: () => {
         if (tool.id === "add-image") {
           pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null);
@@ -3277,7 +3279,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
       save.disabled = false;
     }
   };
-  if (toWord) toWord.onclick = () => openTask("pdf-to-word");
   close.onclick = () => closeViewer(false);
 }
 

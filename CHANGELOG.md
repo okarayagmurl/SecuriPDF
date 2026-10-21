@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Şerit komutları ve açılan listeler ikonlu. Kaydet yanındaki Word kalktı. Dönüştürme sonucu kendi uzantısıyla gösterilir ve o adla kaydedilir
 - Yorum ekranı: sayfaya tıklanınca not yazılır, listeden açılır ve Kaydet ile PDF notu olur
 - Sayfa seçimi küçük resme tıklayınca da kutuya yazılır. Damga ve numara konumu sayfaya tıklayınca değişir. Kırpma alanı sayfada sürüklenir; sayılar durur
 - Dönüştür, imzala, karart, OCR, damga, ek dosya ve sayfa işlemleri belgeyi kapatmaz. Seçenekler sayfanın yanında açılır; sonuç PDF ise aynı sekme yenilenir. Word ve Excel kayıt penceresine gider, PDF yerinde kalır

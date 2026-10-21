@@ -652,6 +652,8 @@
     "Yeni belge sekmede açıldı.": "The new document opened in a tab.",
     "Kayıt iptal edildi. Belge yerinde duruyor.": "Save was cancelled. The document stays open.",
     "Bu araç bulunamadı.": "This tool was not found.",
+    "Dönüşüm hazır. Sonuç PDF değil.": "The conversion is ready. The result is not a PDF.",
+    "Sonucu kaydet": "Save the result",
     "Yorum": "Comment",
     "Yorumlar": "Comments",
     "Sayfaya tıklayıp yorum yazın": "Click the page and write a comment",

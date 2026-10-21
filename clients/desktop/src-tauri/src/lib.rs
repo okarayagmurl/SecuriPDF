@@ -684,4 +684,13 @@ mod tests {
         assert_eq!(safe_file_name("rapor_birlesik.pdf"), "rapor_birlesik.pdf");
         assert_eq!(safe_file_name("  ...  "), "sonuc");
     }
+
+    #[test]
+    fn conversion_names_keep_their_own_extension() {
+        for name in ["rapor.docx", "tablo.xlsx", "sunum.pptx", "liste.csv", "metin.txt", "belge.udf", "sayfalar.zip"] {
+            let safe = safe_file_name(name);
+            assert_eq!(safe, name);
+            assert!(!safe.ends_with(".pdf"), "{safe}");
+        }
+    }
 }
