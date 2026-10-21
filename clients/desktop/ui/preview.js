@@ -123,14 +123,16 @@ function renderDocTabs() {
 
 function activateSession(session) {
   if (!sessionAlive(session)) return;
-  if (viewer !== session) {
-    if (viewer && viewer.onKey) document.removeEventListener("keydown", viewer.onKey, true);
-    docSessions.forEach((item) => { item.root.hidden = item !== session; });
-    viewer = session;
-    session.root.hidden = false;
-    if (session.onKey) document.addEventListener("keydown", session.onKey, true);
-  }
+  docSessions.forEach((item) => {
+    if (item.onKey) document.removeEventListener("keydown", item.onKey, true);
+    item.root.hidden = item !== session;
+    item.parked = false;
+  });
+  viewer = session;
+  session.root.hidden = false;
+  if (session.onKey) document.addEventListener("keydown", session.onKey, true);
   renderDocTabs();
+  notifyViewer(true);
 }
 
 function closeSession(session, force) {
@@ -149,6 +151,7 @@ function closeSession(session, force) {
     viewer = null;
     const next = docSessions[index] || docSessions[index - 1] || null;
     if (next) activateSession(next);
+    else notifyViewer(false);
   }
   renderDocTabs();
   return true;
@@ -170,6 +173,30 @@ async function loadViewerLib() {
 function closeViewer(force = true) {
   if (!viewer) return true;
   return closeSession(viewer, force);
+}
+
+function notifyViewer(shown) {
+  document.dispatchEvent(new CustomEvent("securipdf-viewer-visibility", {
+    detail: { shown: Boolean(shown), title: viewer ? viewer.title : "" },
+  }));
+}
+
+function parkViewer() {
+  if (!viewer) return false;
+  if (viewer.onKey) document.removeEventListener("keydown", viewer.onKey, true);
+  viewer.root.hidden = true;
+  viewer.parked = true;
+  if (docTabStrip) docTabStrip.hidden = true;
+  document.documentElement.classList.remove("has-doc-tabs");
+  notifyViewer(false);
+  return true;
+}
+
+function resumeViewer() {
+  if (!viewer) return false;
+  viewer.parked = false;
+  activateSession(viewer);
+  return true;
 }
 
 const ICONS = {
@@ -594,27 +621,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
   close.classList.add("viewer-btn-close");
 
   top.append(titleWrap, searchBox, cluster(...[printBtn, toWord, save].filter(Boolean)), close);
-  const processBtns = options.onProcess ? [
-    button("OCR", "Taranmış sayfayı aranabilir yap, sonra karartın veya imzalayın", "tool", ICONS.text),
-    button("Karart", "Kişisel veriyi kalıcı olarak kapatın", "tool", ICONS.highlight),
-    button("İmzala", "Dijital imza ekleyin", "tool", ICONS.edit),
-  ] : [];
-  if (processBtns.length) {
-    processBtns[0].onclick = () => options.onProcess("ocr-pdf");
-    processBtns[1].onclick = () => options.onProcess("redact");
-    processBtns[2].onclick = () => options.onProcess("cert-sign");
+  if (options.onProcess) {
+    const ocrBtn = button("OCR", "Taranmış sayfayı aranabilir yap", "tool", ICONS.text);
+    const redactBtn = button("Karart", "Kişisel veriyi kalıcı olarak kapatın", "tool", ICONS.highlight);
+    ocrBtn.onclick = () => options.onProcess("ocr-pdf");
+    redactBtn.onclick = () => options.onProcess("redact");
+    marks.append(ocrBtn, redactBtn);
   }
   const pageGroup = group("Sayfa", prev, pageBox, next);
   const viewGroup = group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate);
-  const markGroup = group("Açıklama", marks);
+  const markGroup = group("İşaret", marks);
   const editHint = el("p", "viewer-ribbon-hint", t("Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir."));
   const formHint = el("p", "viewer-ribbon-hint", t("Sayfada sürükleyerek metin, onay kutusu veya liste alanı çizin."));
-  const processGroup = processBtns.length ? group("İşle", ...processBtns) : null;
   const convertTools = Array.isArray(options.convertTools) ? options.convertTools.filter((tool) => tool && tool.id && tool.title) : [];
-  const convertBtn = convertTools.length && options.onProcess
-    ? button("Dönüştür", "Belgeyi başka bir biçime çevirin", "tool", ICONS.word)
-    : null;
-  const convertGroup = convertBtn ? group(t("Dönüştür"), convertBtn) : null;
+  const signTools = Array.isArray(options.signTools) ? options.signTools.filter((tool) => tool && tool.id && tool.title) : [];
+  const toolCatalog = Array.isArray(options.tools) ? options.tools.filter((tool) => tool && tool.id && tool.title) : [];
   const shapeKinds = [
     ["rect", "Dikdörtgen", "Dikdörtgen çizin", ICONS.rect],
     ["ellipse", "Elips", "Elips çizin", ICONS.ellipse],
@@ -659,19 +680,45 @@ async function openViewer(source, pageNumber, title, options = {}) {
   shapeRedoBtn.onclick = () => redoShape();
   shapeEraseBtn.onclick = () => chooseShape("eraser");
   const shapeGroup = group(t("Şekiller"), shapeSelectBtn, ...shapeButtons, shapeSep(), shapeColor, shapeSep(), shapeUndoBtn, shapeRedoBtn, shapeEraseBtn);
-  ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, shapeGroup, processGroup, convertGroup].filter(Boolean));
-  const tabBar = el("div", "viewer-tabs");
-  const tabItems = [["view", "Görünüm"], ["edit", "Düzenleme"], ["note", "Açıklama"], ["shapes", "Şekiller"]];
-  if (options.addFormFields) tabItems.push(["form", "Formlar"]);
-  if (processGroup) tabItems.push(["process", "İşle"]);
-  const tabButtons = tabItems.map(([id, label]) => {
-    const node = el("button", "viewer-tab", t(label));
-    node.type = "button";
+  let pendingViewerMode = null;
+  let setViewerMode = (mode) => { pendingViewerMode = mode; };
+  const commandItems = [
+    ["edit", "Metin", "Yazıyı yerinde düzenle"],
+    ["add", "Ekle", "Görsel ekle, damga koy veya dosya iliştir"],
+    ["shapes", "Şekil", "Otomatik şekiller"],
+  ];
+  if (options.addFormFields) commandItems.push(["form", "Form", "Form alanı ekle"]);
+  commandItems.push(["note", "İşaret", "Vurgula, çiz veya karart"]);
+  if (options.onProcess && convertTools.length) commandItems.push(["convert", "Dönüştür", "Belgeyi başka biçime çevir"]);
+  if (options.onProcess && signTools.length) commandItems.push(["sign", "İmzala", "Sertifika, doğrulama ve zaman damgası"]);
+  let openCommandMenu = () => {};
+  const commandButtons = commandItems.map(([id, label, title]) => {
+    const node = button(label, title);
+    node.classList.add("viewer-command");
     node.dataset.mode = id;
-    tabBar.appendChild(node);
+    node.onclick = (event) => {
+      if (id === "add" || id === "convert" || id === "sign") {
+        event.stopPropagation();
+        const rect = node.getBoundingClientRect();
+        openCommandMenu(id, rect.left, rect.bottom + 4);
+        return;
+      }
+      setViewerMode(id);
+    };
     return node;
   });
-  chrome.append(top, tabBar, ribbon);
+  const toolFind = el("input", "viewer-toolfind");
+  toolFind.type = "search";
+  toolFind.placeholder = t("Araç ara");
+  toolFind.setAttribute("aria-label", t("Araç ara"));
+  toolFind.autocomplete = "off";
+  let showToolMatches = () => {};
+  toolFind.oninput = () => showToolMatches();
+  toolFind.onfocus = () => showToolMatches();
+  const commandBar = el("div", "viewer-commands");
+  commandBar.append(...commandButtons, toolFind);
+  ribbon.append(...[pageGroup, viewGroup, commandBar, markGroup, editHint, formHint, shapeGroup].filter(Boolean));
+  chrome.append(top, ribbon);
   const workspace = el("div", "viewer-workspace");
   const side = el("aside", "viewer-side");
   side.hidden = true;
@@ -751,16 +798,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let dirty = false;
   let formMode = false;
   let viewerMode = "view";
-  let pendingViewerMode = null;
-  let setViewerMode = (mode) => { pendingViewerMode = mode; };
   const applyViewerChrome = (mode) => {
     viewerMode = mode;
-    tabButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === mode));
+    commandButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === mode));
     markGroup.hidden = mode !== "note";
     shapeGroup.hidden = mode !== "shapes";
     editHint.hidden = mode !== "edit";
     formHint.hidden = mode !== "form";
-    if (processGroup) processGroup.hidden = mode !== "process";
     const showSide = mode === "edit" || mode === "form";
     side.hidden = !showSide;
     stylePane.hidden = mode !== "edit";
@@ -768,7 +812,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
     sideTitle.textContent = mode === "form" ? t("Form Alanı Listesi") : t("Metin Stilleri");
   };
   applyViewerChrome("view");
-  tabButtons.forEach((node) => { node.onclick = () => setViewerMode(node.dataset.mode); });
   let hideFormDraft = () => {};
   let hideAdd = () => {};
   let setFormMode = () => {};
@@ -2269,16 +2312,43 @@ async function openViewer(source, pageNumber, title, options = {}) {
     menu.style.left = left + "px";
     menu.style.top = top + "px";
   };
-  if (convertBtn) {
-    convertBtn.onclick = (event) => {
-      event.stopPropagation();
-      const rect = convertBtn.getBoundingClientRect();
-      openMenu(rect.left, rect.bottom + 4, convertTools.map((tool) => ({
-        label: tool.title,
-        run: () => options.onProcess(tool.id),
-      })));
-    };
-  }
+  openCommandMenu = (id, x, y) => {
+    const runTool = (toolId) => () => { if (options.onProcess) options.onProcess(toolId); };
+    if (id === "convert") {
+      openMenu(x, y, convertTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
+    } else if (id === "sign") {
+      openMenu(x, y, signTools.map((tool) => ({ label: tool.title, run: runTool(tool.id) })));
+    } else if (id === "add") {
+      openMenu(x, y, [
+        { label: "Görsel ekle", run: () => pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null) },
+        { label: "Damga", run: runTool("add-stamp") },
+        { label: "Ek dosya ekle", run: runTool("add-attachments") },
+      ]);
+    }
+  };
+  showToolMatches = () => {
+    const query = toolFind.value.trim().toLocaleLowerCase("tr");
+    if (!query || !options.onProcess) {
+      hideMenu();
+      return;
+    }
+    const hits = toolCatalog.filter((tool) => tool.title.toLocaleLowerCase("tr").includes(query)).slice(0, 12);
+    const rect = toolFind.getBoundingClientRect();
+    if (!hits.length) {
+      hideMenu();
+      return;
+    }
+    openMenu(rect.left, rect.bottom + 4, hits.map((tool) => ({
+      label: tool.title,
+      run: () => {
+        if (tool.id === "add-image") {
+          pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null);
+          return;
+        }
+        options.onProcess(tool.id);
+      },
+    })));
+  };
   const imageInput = el("input");
   imageInput.type = "file";
   imageInput.accept = "image/png,image/jpeg,image/gif,image/webp,image/bmp";
@@ -3517,5 +3587,8 @@ async function exportTables(data, pageSpec, kind, password) {
   }
 }
 
-window.SecuriPreview = { show, openViewer, closeViewer, countPages, pageInfo, textLines, textBoxes, exportTables };
+window.SecuriPreview = {
+  show, openViewer, closeViewer, parkViewer, resumeViewer, countPages, pageInfo, textLines, textBoxes, exportTables,
+  hasSession: () => docSessions.length > 0,
+};
 window.dispatchEvent(new Event("securipreview-ready"));

@@ -631,6 +631,19 @@
     "Bir şekle tıklayın. Rengi veya biçimini şeritten değiştirin.": "Click a shape. Change its color or form from the ribbon.",
     "Seçili şeklin rengini veya biçimini şeritten değiştirin.": "Change the selected shape's color or form from the ribbon.",
     "Şekiller bu pencerede dosyaya yazılamıyor.": "Shapes cannot be written into the file from this window.",
+    "Ekle": "Add",
+    "Şekil": "Shape",
+    "İşaret": "Mark",
+    "Araç ara": "Find a tool",
+    "Belgeye dön": "Back to document",
+    "Yazıyı yerinde düzenle": "Edit text in place",
+    "Görsel ekle, damga koy veya dosya iliştir": "Add an image, a stamp, or a file",
+    "Otomatik şekiller": "Auto shapes",
+    "Form alanı ekle": "Add a form field",
+    "Vurgula, çiz veya karart": "Highlight, draw, or redact",
+    "Belgeyi başka biçime çevir": "Convert the document",
+    "Sertifika, doğrulama ve zaman damgası": "Certificate, validation, and timestamp",
+    "Taranmış sayfayı aranabilir yap": "Make a scanned page searchable",
   };
 
   window.SecuriI18n = {

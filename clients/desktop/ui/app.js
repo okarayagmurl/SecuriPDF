@@ -21,6 +21,24 @@
   const previewReady = window.SecuriPreview
     ? Promise.resolve()
     : new Promise((resolve) => window.addEventListener("securipreview-ready", resolve, { once: true }));
+  const returnBar = document.createElement("button");
+  returnBar.type = "button";
+  returnBar.className = "doc-return";
+  returnBar.hidden = true;
+  returnBar.addEventListener("click", () => {
+    if (window.SecuriPreview && window.SecuriPreview.resumeViewer) window.SecuriPreview.resumeViewer();
+  });
+  document.body.appendChild(returnBar);
+  document.addEventListener("securipdf-viewer-visibility", (event) => {
+    const detail = event.detail || {};
+    const open = window.SecuriPreview && window.SecuriPreview.hasSession && window.SecuriPreview.hasSession();
+    if (detail.shown || !open) {
+      returnBar.hidden = true;
+      return;
+    }
+    returnBar.textContent = t("Belgeye dön") + (detail.title ? " · " + detail.title : "");
+    returnBar.hidden = false;
+  });
   const pageCounts = new WeakMap();
 
   const ERRORS = {
@@ -1271,13 +1289,22 @@
         errorText,
         onSave: (bytes) => saveBytes(bytes, stem + "_duzenli.pdf"),
         addShapes,
-        onToWord: () => selectTool("pdf-to-word", [source]),
+        onToWord: () => {
+          window.SecuriPreview.parkViewer();
+          selectTool("pdf-to-word", [source]);
+        },
         onProcess: (toolId) => {
-          if (!window.SecuriPreview.closeViewer(false)) return;
+          window.SecuriPreview.parkViewer();
           selectTool(toolId, [source]);
         },
         convertTools: (window.SECURIPDF_TOOLS || [])
           .filter((tool) => tool.category === "convert")
+          .map((tool) => ({ id: tool.id, title: tool.title })),
+        signTools: (window.SECURIPDF_TOOLS || [])
+          .filter((tool) => tool.category === "sign")
+          .map((tool) => ({ id: tool.id, title: tool.title })),
+        tools: (window.SECURIPDF_TOOLS || [])
+          .filter((tool) => tool.id && tool.id !== "open-pdf")
           .map((tool) => ({ id: tool.id, title: tool.title })),
         onClose: () => {
           if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
