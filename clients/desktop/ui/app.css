@@ -796,6 +796,7 @@ button:disabled { opacity: 0.55; cursor: default; }
   cursor: pointer;
   white-space: nowrap;
 }
+.viewer-btn[hidden] { display: none !important; }
 .viewer-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 .viewer-btn:hover { background: #f1f5f9; color: var(--ink); }
 .viewer-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

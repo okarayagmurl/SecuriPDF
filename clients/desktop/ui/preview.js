@@ -408,7 +408,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const pageGroup = group("Sayfa", prev, pageBox, next);
   const viewGroup = group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate);
   const markGroup = group("Açıklama", marks);
-  const editHint = el("p", "viewer-ribbon-hint", t("Kesik çizgili alanlara tıklayın. Yazı tipi sağdaki Metin Stilleri panelindedir."));
+  const editHint = el("p", "viewer-ribbon-hint", t("Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir."));
   const formHint = el("p", "viewer-ribbon-hint", t("Sayfada sürükleyerek metin, onay kutusu veya liste alanı çizin."));
   const processGroup = processBtns.length ? group("İşle", ...processBtns) : null;
   ribbon.append(...[pageGroup, viewGroup, markGroup, editHint, formHint, processGroup].filter(Boolean));
@@ -801,7 +801,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   styleRow.append(boldBtn, italicBtn, sizeInput, replaceColor);
   const styleNote = el("p", "viewer-side-note", t("Kesik çizgili bir alana tıklayın."));
   const applyRow = el("div", "viewer-style-row");
-  applyRow.append(applyBtn, cancelBtn);
+  applyRow.append(cancelBtn);
   stylePane.append(fontLabel, fontSel, styleRow, styleNote, applyRow);
   let colorTouched = false;
   root.append(field);
@@ -984,12 +984,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.fontSize = Math.round(Math.max(12, first.height * 0.72)) + "px";
     field.style.lineHeight = "1.25";
     colorTouched = false;
+    styleDirty = false;
+    watchStyle = false;
     replaceColor.value = "#111827";
     boldBtn.classList.remove("on");
     italicBtn.classList.remove("on");
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
+    watchStyle = true;
     styleNote.textContent = found.text.replace(/\s+/g, " ").trim() || t("Kesik çizgili bir alana tıklayın.");
     applyBtn.disabled = false;
     field.hidden = false;
@@ -1035,7 +1038,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     throw new Error("Metin düzenleyici zaman aşımına uğradı.");
   };
 
+  let textRuns = new Map();
   const showEditedDocument = async (bytes, page, scale) => {
+    textRuns = new Map();
     const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: bytes, password: options.password || undefined });
     const nextDoc = await nextTask.promise;
     if (viewer !== current) { nextTask.destroy(); return false; }
@@ -1165,7 +1170,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   const chosenReplaceFont = (currentFontId) => fontChoice(fontSel.value, boldBtn.classList.contains("on"), italicBtn.classList.contains("on"), currentFontId);
 
+  let styleDirty = false;
+  let watchStyle = false;
+  let replaceBusy = false;
   const paintReplaceFont = () => {
+    if (watchStyle) styleDirty = true;
     const chosen = chosenReplaceFont();
     field.style.fontFamily = chosen.css;
     field.style.fontWeight = chosen.weight;
@@ -1286,9 +1295,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
 
   const applyReplace = async () => {
-    if (!pendingReplace) return;
+    if (replaceBusy || !pendingReplace) return;
     const next = field.value;
-    if (!next.trim()) {
+    if (!next.trim() || (next === pendingReplace.text && !styleDirty && !colorTouched)) {
       hideReplace();
       return;
     }
@@ -1306,6 +1315,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const x = box.left + Math.min(box.size, Math.max(0, box.right - box.left) / 2);
       return x >= rect[0] - padX && x <= rect[2] + padX && box.y >= rect[1] - padY && box.y <= rect[3] + padY;
     };
+    replaceBusy = true;
     applyBtn.disabled = true;
     try {
       const bytes = await doc.saveDocument();
@@ -1358,6 +1368,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin yazılamadı.");
       window.alert(message);
     } finally {
+      replaceBusy = false;
       applyBtn.disabled = !pendingReplace;
       setTimeout(hideJobProgress, 700);
     }
@@ -1418,13 +1429,66 @@ async function openViewer(source, pageNumber, title, options = {}) {
       wrapWidth: Math.max(...boxes.map((box) => box.width)),
     };
   };
+  const loadPageRuns = async (pageNumber) => {
+    if (textRuns.has(pageNumber)) return textRuns.get(pageNumber);
+    const page = await doc.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+    const content = await page.getTextContent();
+    const vt = viewport.transform;
+    const runs = [];
+    for (const item of content.items || []) {
+      const text = item && typeof item.str === "string" ? item.str : "";
+      if (!text.trim() || !item.transform) continue;
+      const m = item.transform;
+      const tx = [
+        vt[0] * m[0] + vt[2] * m[1],
+        vt[1] * m[0] + vt[3] * m[1],
+        vt[0] * m[2] + vt[2] * m[3],
+        vt[1] * m[2] + vt[3] * m[3],
+        vt[0] * m[4] + vt[2] * m[5] + vt[4],
+        vt[1] * m[4] + vt[3] * m[5] + vt[5],
+      ];
+      const height = Math.max(0.8, Math.hypot(tx[2], tx[3]) || Math.abs(item.height) || 8);
+      const width = Math.max(item.width || 0, text.trim().length * height * 0.45);
+      const left = tx[4];
+      const top = tx[5] - height;
+      runs.push({ text, left, top, right: left + width, bottom: top + height, width, height });
+    }
+    const packed = {
+      width: viewport.width,
+      height: viewport.height,
+      runs,
+      chars: runs.reduce((sum, run) => sum + run.text.trim().length, 0),
+    };
+    textRuns.set(pageNumber, packed);
+    return packed;
+  };
+  const pageScreenSpans = (pageEl) => {
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    const packed = textRuns.get(pageNumber);
+    const canvas = pageEl.querySelector("canvas");
+    if (!packed || !canvas) return textSpans(pageEl);
+    const canvasBox = canvas.getBoundingClientRect();
+    if (canvasBox.width < 8 || !packed.width || !packed.height) return textSpans(pageEl);
+    const sx = canvasBox.width / packed.width;
+    const sy = canvasBox.height / packed.height;
+    return packed.runs.map((run) => ({
+      text: run.text,
+      left: canvasBox.left + run.left * sx,
+      top: canvasBox.top + run.top * sy,
+      width: Math.max(4, run.width * sx),
+      height: Math.max(4, run.height * sy),
+      right: canvasBox.left + run.right * sx,
+      bottom: canvasBox.top + run.bottom * sy,
+    }));
+  };
   const paintRegions = () => {
     clearRegions();
     if (!regionMode) return;
     stage.querySelectorAll(".page").forEach((pageEl) => {
       const pageBox = pageEl.getBoundingClientRect();
       if (pageBox.width < 8) return;
-      clusterTextBlocks(textSpans(pageEl), false).forEach((block) => {
+      clusterTextBlocks(pageScreenSpans(pageEl), false).forEach((block) => {
         const node = document.createElement("div");
         node.className = "edit-region";
         node.style.left = (block.left - pageBox.left) + "px";
@@ -1433,6 +1497,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
         node.style.height = block.height + "px";
         node.title = block.spans.map((span) => span.text).join(" ").replace(/\s+/g, " ").trim();
         const open = (event) => {
+          if (replaceBusy) return;
           event.preventDefault();
           event.stopPropagation();
           const current = pageEl.getBoundingClientRect();
@@ -1444,7 +1509,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
           };
           box.right = box.left + box.width;
           box.bottom = box.top + box.height;
-          const inside = textSpans(pageEl).filter((span) =>
+          const inside = pageScreenSpans(pageEl).filter((span) =>
             span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top);
           const found = foundFromSpans(pageEl, inside.length ? inside : block.spans);
           if (!found) return;
@@ -1488,31 +1553,43 @@ async function openViewer(source, pageNumber, title, options = {}) {
     textSize.hidden = true;
     textColor.hidden = true;
     regionMode = true;
-    paintRegions();
-    if (regionNodes.length) {
-      statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
-      warmEditor();
-      return;
+    const pageNumber = pdfViewer.currentPageNumber || 1;
+    let packed = { chars: 0, runs: [] };
+    try {
+      packed = await loadPageRuns(pageNumber);
+    } catch {
+      packed = { chars: 0, runs: [], width: 1, height: 1 };
+      textRuns.set(pageNumber, packed);
     }
-    await new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        eventBus.off("textlayerrendered", finish);
-        resolve();
-      };
-      eventBus.on("textlayerrendered", finish);
-      setTimeout(finish, 900);
-    });
     if (!regionMode) return;
     paintRegions();
-    if (regionNodes.length) {
-      statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+    const ready = () => {
+      statusMode.textContent = "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir; başka yere tıklayınca yazılır.";
       warmEditor();
+    };
+    if (regionNodes.length) {
+      ready();
       return;
     }
-    const pageNumber = pdfViewer.currentPageNumber || 1;
+    if (packed.chars > 0) {
+      await new Promise((resolve) => {
+        let settled = false;
+        const finish = (evt) => {
+          if (evt && evt.pageNumber && evt.pageNumber !== pageNumber) return;
+          if (settled) return;
+          settled = true;
+          eventBus.off("pagerendered", finish);
+          resolve();
+        };
+        eventBus.on("pagerendered", finish);
+        setTimeout(finish, 1500);
+      });
+      if (!regionMode) return;
+      paintRegions();
+      if (regionNodes.length) ready();
+      else statusMode.textContent = "Yazı sayfada var. Sayfa çizilince kesik alanlar görünecek.";
+      return;
+    }
     const pageEl = stage.querySelector(`.page[data-page-number="${pageNumber}"]`);
     let noted = false;
     if (pageEl && !regionOcrTried) {
@@ -1538,11 +1615,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
         }
       }
     }
+    if (!regionMode) return;
+    if (!textRuns.has(pageNumber)) await loadPageRuns(pageNumber);
     paintRegions();
-    if (regionNodes.length) {
-      statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
-      warmEditor();
-    } else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
+    if (regionNodes.length) ready();
+    else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
   };
   leaveRegions = () => {
     if (!regionMode) return;
@@ -1604,16 +1681,29 @@ async function openViewer(source, pageNumber, title, options = {}) {
     pendingViewerMode = null;
     setViewerMode(queued);
   }
-  eventBus.on("textlayerrendered", () => {
+  eventBus.on("textlayerrendered", (evt) => {
     if (!regionMode) return;
-    paintRegions();
-    if (regionNodes.length) statusMode.textContent = "Kesik çizgili alanlara tıklayarak yazıyı değiştirin.";
+    const number = evt && evt.pageNumber;
+    const draw = () => {
+      paintRegions();
+      if (regionNodes.length) statusMode.textContent = "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir; başka yere tıklayınca yazılır.";
+    };
+    if (!number || textRuns.has(number)) draw();
+    else loadPageRuns(number).then(draw);
   });
+  applyBtn.hidden = true;
   applyBtn.onclick = () => applyReplace();
+  cancelBtn.addEventListener("pointerdown", (event) => event.preventDefault());
   cancelBtn.onclick = hideReplace;
   field.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyReplace(); }
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); applyReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
+  });
+  field.addEventListener("focusout", (event) => {
+    if (replaceBusy || !pendingReplace) return;
+    const next = event.relatedTarget;
+    if (next && (side.contains(next) || next === field || next === cancelBtn)) return;
+    applyReplace();
   });
 
   const addField = el("textarea", "replace-field");
