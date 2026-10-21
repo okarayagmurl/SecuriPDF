@@ -79,6 +79,8 @@
     "Bu sırada dosya seçip önizleyebilirsiniz.": "You can choose a file while this finishes.",
     "Ön gereksinimler hazırlanamadı.": "Prerequisites could not be prepared.",
     "Kapat": "Close",
+    "Başka belge aç": "Open another document",
+    "Kaydedilmemiş değişiklikler var. Bu belge kapatılsın mı?": "This document has unsaved changes. Close it?",
     "Lisans": "License",
     "Lisans gerekli": "License required",
     "Hazır değil": "Not ready",

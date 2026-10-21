@@ -597,6 +597,68 @@ button:disabled { opacity: 0.55; cursor: default; }
 .zip-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .zip-list .size { color: var(--muted); }
 
+.doc-tabs {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 40px;
+  padding: 6px 8px 0;
+  background: #d5dbe3;
+  overflow-x: auto;
+}
+.doc-tabs[hidden] { display: none !important; }
+.doc-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  min-width: 128px;
+  height: 34px;
+  margin: 0;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: #e7ebf0;
+  color: #475569;
+  font: 600 12px "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.doc-tab.active { background: #fff; color: #1d4ed8; }
+.doc-tab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.doc-tab-x {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  line-height: 18px;
+  color: #64748b;
+}
+.doc-tab-x:hover { background: #e2e8f0; color: #0f172a; }
+.doc-tab-add {
+  flex: 0 0 32px;
+  height: 32px;
+  margin: 0 0 1px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.doc-tab-add:hover { background: #fff; }
+html.has-doc-tabs .viewer { top: 40px; }
 .viewer {
   position: fixed;
   inset: 0;
@@ -606,6 +668,7 @@ button:disabled { opacity: 0.55; cursor: default; }
   background: #e8eaed;
   color: var(--ink);
 }
+.viewer[hidden] { display: none !important; }
 .viewer-chrome {
   flex-shrink: 0;
   background: #fff;

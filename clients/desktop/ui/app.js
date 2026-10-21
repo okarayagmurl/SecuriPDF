@@ -590,9 +590,14 @@
     state.files[spec.name] = isMultiple(spec) ? state.files[spec.name].concat(accepted) : [accepted[0]];
     clearResult();
     renderFiles();
-    if (isViewerTool(state.tool) && accepted[0] && /\.pdf$/i.test(accepted[0].name)) {
-      previewFile(accepted[0]);
-      openCurrentViewer(accepted[0]);
+    if (isViewerTool(state.tool)) {
+      const pdfs = accepted.filter((file) => /\.pdf$/i.test(file.name || ""));
+      if (pdfs.length) {
+        previewFile(pdfs[0]);
+        (async () => {
+          for (const file of pdfs) await openCurrentViewer(file);
+        })();
+      }
     }
   }
 
@@ -1264,6 +1269,10 @@
         },
         onClose: () => {
           if (lockPath && core) core.invoke("unlock_opened_file", { path: lockPath }).catch(() => {});
+        },
+        onAddDocument: () => {
+          const picker = document.querySelector("#fileInputs input[type=file]");
+          if (picker) picker.click();
         },
       });
     });

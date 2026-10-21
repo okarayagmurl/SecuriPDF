@@ -82,6 +82,77 @@ async function renderPage(page, canvas, cssWidth) {
 
 let viewer = null;
 let viewerLib = null;
+const docSessions = [];
+let docTabStrip = null;
+let addDocument = null;
+
+function sessionAlive(session) {
+  return docSessions.includes(session);
+}
+
+function renderDocTabs() {
+  if (!docTabStrip) {
+    docTabStrip = el("div", "doc-tabs");
+    document.body.appendChild(docTabStrip);
+  }
+  docTabStrip.replaceChildren();
+  docSessions.forEach((session) => {
+    const tab = el("button", "doc-tab" + (session === viewer ? " active" : ""));
+    tab.type = "button";
+    tab.title = session.title || "Belge";
+    const label = el("span", "doc-tab-label", session.title || "Belge");
+    const close = el("span", "doc-tab-x", "×");
+    close.title = t("Kapat");
+    tab.append(label, close);
+    tab.addEventListener("click", () => activateSession(session));
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeSession(session, false);
+    });
+    docTabStrip.appendChild(tab);
+  });
+  const add = el("button", "doc-tab-add", "+");
+  add.type = "button";
+  add.title = t("Başka belge aç");
+  add.addEventListener("click", () => { if (addDocument) addDocument(); });
+  docTabStrip.appendChild(add);
+  const open = docSessions.length > 0;
+  docTabStrip.hidden = !open;
+  document.documentElement.classList.toggle("has-doc-tabs", open);
+}
+
+function activateSession(session) {
+  if (!sessionAlive(session)) return;
+  if (viewer !== session) {
+    if (viewer && viewer.onKey) document.removeEventListener("keydown", viewer.onKey, true);
+    docSessions.forEach((item) => { item.root.hidden = item !== session; });
+    viewer = session;
+    session.root.hidden = false;
+    if (session.onKey) document.addEventListener("keydown", session.onKey, true);
+  }
+  renderDocTabs();
+}
+
+function closeSession(session, force) {
+  if (!sessionAlive(session)) return true;
+  if (!force && session.isDirty() && !window.confirm(t("Kaydedilmemiş değişiklikler var. Bu belge kapatılsın mı?"))) return false;
+  if (session.thumbsObserver) session.thumbsObserver.disconnect();
+  if (typeof session.cleanup === "function") session.cleanup();
+  if (session.onKey) document.removeEventListener("keydown", session.onKey, true);
+  session.root.remove();
+  try { session.task.destroy(); } catch { /* already closed */ }
+  const index = docSessions.indexOf(session);
+  docSessions.splice(index, 1);
+  session.closed = true;
+  if (typeof session.onClose === "function") session.onClose();
+  if (viewer === session) {
+    viewer = null;
+    const next = docSessions[index] || docSessions[index - 1] || null;
+    if (next) activateSession(next);
+  }
+  renderDocTabs();
+  return true;
+}
 
 // The viewer component reads the core library from a global, so it is loaded
 // only after that global exists.
@@ -98,16 +169,7 @@ async function loadViewerLib() {
 
 function closeViewer(force = true) {
   if (!viewer) return true;
-  if (!force && viewer.isDirty() && !window.confirm("Kaydedilmemiş işaretlemeler var. Görüntüleyici kapatılsın mı?")) return false;
-  const closing = viewer;
-  if (closing.thumbsObserver) closing.thumbsObserver.disconnect();
-  if (typeof closing.cleanup === "function") closing.cleanup();
-  viewer.root.remove();
-  document.removeEventListener("keydown", viewer.onKey, true);
-  viewer.task.destroy();
-  viewer = null;
-  if (typeof closing.onClose === "function") closing.onClose();
-  return true;
+  return closeSession(viewer, force);
 }
 
 const ICONS = {
@@ -281,7 +343,14 @@ const fontChoice = (familyId, bold, italic, currentFontId) => {
  * options.onSave(bytes) receives the PDF with the markup written into it.
  */
 async function openViewer(source, pageNumber, title, options = {}) {
-  if (!closeViewer(false)) return;
+  const tabTitle = title || "Belge";
+  const existing = docSessions.find((session) => session.title === tabTitle);
+  if (existing) {
+    activateSession(existing);
+    if (existing.goToPage) existing.goToPage(pageNumber || 1);
+    return;
+  }
+  if (options.onAddDocument) addDocument = options.onAddDocument;
   const lib = await loadViewerLib();
   const root = el("div", "viewer");
   root.setAttribute("role", "dialog");
@@ -477,6 +546,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   const hideJobProgress = () => { jobProgress.hidden = true; };
   document.body.appendChild(root);
+  docSessions.forEach((item) => { item.root.hidden = true; });
 
   const eventBus = new lib.EventBus();
   const linkService = new lib.PDFLinkService({ eventBus });
@@ -543,20 +613,23 @@ async function openViewer(source, pageNumber, title, options = {}) {
       closeViewer(false);
     }
   };
-  document.addEventListener("keydown", onKey, true);
-  const current = { root, onKey, task, isDirty: () => dirty, onClose: options.onClose };
-  viewer = current;
+  const current = { root, onKey, task, title: tabTitle, pendingPage: pageNumber || 1, isDirty: () => dirty, onClose: options.onClose };
+  docSessions.push(current);
+  activateSession(current);
 
   let doc;
   try {
     doc = await task.promise;
   } catch {
-    if (viewer === current) {
-      loading.textContent = "PDF açılamadı.";
-    }
+    if (sessionAlive(current)) loading.textContent = "PDF açılamadı.";
     return;
   }
-  if (viewer !== current) return;
+  if (!sessionAlive(current)) return;
+  current.goToPage = (number) => {
+    if (!number) return;
+    current.pendingPage = number;
+    pdfViewer.currentPageNumber = number;
+  };
   const markDirty = (value) => {
     dirty = value;
     save.disabled = false;
@@ -1042,7 +1115,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     textRuns = new Map();
     const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: bytes, password: options.password || undefined });
     const nextDoc = await nextTask.promise;
-    if (viewer !== current) { nextTask.destroy(); return false; }
+    if (!sessionAlive(current)) { nextTask.destroy(); return false; }
     current.task.destroy();
     current.task = nextTask;
     doc = nextDoc;
@@ -2007,7 +2080,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       restoreView = { page: pdfViewer.currentPageNumber, scale: pdfViewer.currentScaleValue };
       const nextTask = pdfjs.getDocument({ ...LOAD_OPTIONS, data: next, password: options.password || undefined });
       const nextDoc = await nextTask.promise;
-      if (viewer !== current) { nextTask.destroy(); return; }
+      if (!sessionAlive(current)) { nextTask.destroy(); return; }
       current.task.destroy();
       current.task = nextTask;
       doc = nextDoc;
@@ -2130,7 +2203,6 @@ async function show(host, source, options = {}) {
       setCrop: handle.setCrop,
       destroy() {
         handle.destroy();
-        closeViewer();
         task.destroy();
       },
     };
@@ -2184,7 +2256,6 @@ async function show(host, source, options = {}) {
     setSelected,
     destroy() {
       observer.disconnect();
-      closeViewer();
       task.destroy();
     },
   };
