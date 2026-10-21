@@ -954,6 +954,27 @@ async function openViewer(source, pageNumber, title, options = {}) {
     };
   }).filter((item) => item.width > 1 && item.height > 1 && item.text.trim());
 
+  // A page can expose the same glyphs twice (text layer plus extraction, or a redraw
+  // a fraction of a line away). Keep one box so the line is not shown stacked.
+  const dedupeSpans = (spans) => {
+    const kept = [];
+    spans.forEach((span) => {
+      const text = span.text.replace(/\s+/g, " ").trim();
+      const mid = (span.top + span.bottom) / 2;
+      const twin = kept.find((other) => {
+        const otherText = other.text.replace(/\s+/g, " ").trim();
+        const overlapX = Math.min(other.right, span.right) - Math.max(other.left, span.left);
+        const minW = Math.min(other.width, span.width);
+        const minH = Math.min(other.height, span.height);
+        const sameLine = Math.abs(((other.top + other.bottom) / 2) - mid) < Math.max(minH, 4) * 0.65;
+        const sameText = text === otherText;
+        return sameLine && overlapX > minW * 0.45 && (sameText || overlapX > minW * 0.75);
+      });
+      if (!twin) kept.push({ ...span, text });
+    });
+    return kept;
+  };
+
   const sameBand = (a, b) => {
     const overlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
     return overlap > Math.min(a.height, b.height) * 0.45;
@@ -1075,10 +1096,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const pageBox = found.pageEl.getBoundingClientRect();
     found.boxes.forEach((box) => {
       const cover = el("div", "replace-cover");
-      cover.style.left = (box.left - pageBox.left) + "px";
-      cover.style.top = (box.top - pageBox.top) + "px";
-      cover.style.width = box.width + "px";
-      cover.style.height = box.height + "px";
+      cover.style.left = (box.left - pageBox.left - 1) + "px";
+      cover.style.top = (box.top - pageBox.top - 1) + "px";
+      cover.style.width = (box.width + 2) + "px";
+      cover.style.height = (box.height + 2) + "px";
       found.pageEl.appendChild(cover);
       covers.push(cover);
     });
@@ -1089,10 +1110,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.left = (first.left - pageBox.left) + "px";
     field.style.top = (first.top - pageBox.top) + "px";
     field.style.width = Math.max(blockWidth, 72) + "px";
-    field.style.height = Math.max(blockHeight, 36) + "px";
+    field.style.height = Math.max(blockHeight, 16) + "px";
     field.value = found.text;
-    field.style.fontSize = Math.round(Math.max(12, first.height * 0.72)) + "px";
-    field.style.lineHeight = "1.25";
+    field.style.fontSize = Math.round(Math.max(10, first.height * 0.86)) + "px";
+    field.style.lineHeight = "1";
+    field.style.padding = "0 2px";
     colorTouched = false;
     styleDirty = false;
     watchStyle = false;
@@ -1558,10 +1580,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
         vt[0] * m[4] + vt[2] * m[5] + vt[4],
         vt[1] * m[4] + vt[3] * m[5] + vt[5],
       ];
-      const height = Math.max(0.8, Math.hypot(tx[2], tx[3]) || Math.abs(item.height) || 8);
-      const width = Math.max(item.width || 0, text.trim().length * height * 0.45);
+      const fontSize = Math.max(0.8, Math.hypot(tx[2], tx[3]) || Math.abs(item.height) || 8);
+      const userScale = Math.max(Math.hypot(vt[0], vt[1]), 0.01);
+      const width = Math.max((Number(item.width) || 0) * userScale, text.trim().length * fontSize * 0.45);
       const left = tx[4];
-      const top = tx[5] - height;
+      const top = tx[5] - fontSize * 0.8;
+      const height = fontSize;
       runs.push({ text, left, top, right: left + width, bottom: top + height, width, height });
     }
     const packed = {
@@ -1574,15 +1598,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
     return packed;
   };
   const pageScreenSpans = (pageEl) => {
+    const painted = textSpans(pageEl);
+    if (painted.length) return dedupeSpans(painted);
     const pageNumber = Number(pageEl.dataset.pageNumber);
     const packed = textRuns.get(pageNumber);
     const canvas = pageEl.querySelector("canvas");
-    if (!packed || !canvas) return textSpans(pageEl);
+    if (!packed || !canvas) return [];
     const canvasBox = canvas.getBoundingClientRect();
-    if (canvasBox.width < 8 || !packed.width || !packed.height) return textSpans(pageEl);
+    if (canvasBox.width < 8 || !packed.width || !packed.height) return [];
     const sx = canvasBox.width / packed.width;
     const sy = canvasBox.height / packed.height;
-    return packed.runs.map((run) => ({
+    return dedupeSpans(packed.runs.map((run) => ({
       text: run.text,
       left: canvasBox.left + run.left * sx,
       top: canvasBox.top + run.top * sy,
@@ -1590,7 +1616,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       height: Math.max(4, run.height * sy),
       right: canvasBox.left + run.right * sx,
       bottom: canvasBox.top + run.bottom * sy,
-    }));
+    })));
   };
   const paintRegions = () => {
     clearRegions();
@@ -1663,6 +1689,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     textSize.hidden = true;
     textColor.hidden = true;
     regionMode = true;
+    root.classList.add("is-editing");
     const pageNumber = pdfViewer.currentPageNumber || 1;
     let packed = { chars: 0, runs: [] };
     try {
@@ -1734,6 +1761,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   leaveRegions = () => {
     if (!regionMode) return;
     regionMode = false;
+    root.classList.remove("is-editing");
     clearRegions();
     hideReplace();
   };
