@@ -503,7 +503,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const applyViewerChrome = (mode) => {
     viewerMode = mode;
     tabButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === mode));
-    viewGroup.hidden = mode !== "view";
     markGroup.hidden = mode !== "note";
     editHint.hidden = mode !== "edit";
     formHint.hidden = mode !== "form";

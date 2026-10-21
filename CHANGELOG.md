@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Sayfa yakınlaştırma, sığdırma ve döndürme Görünüm dışında Düzenleme, Açıklama ve Formlar sekmelerinde de durur
 - Düzenleme, yazısı olan sayfada OCR çalıştırmaz ve “düzenlenebilir metin yok” demez. Kesik alan tıklanınca yazının kendisi olur; başka yere tıklayınca yazılır
 - Görüntüleyicide Görünüm, Düzenleme, Açıklama ve Formlar sekmeleri var. Düzenlemede sağda Metin Stilleri paneli, formlarda alan listesi durur
 - Düzenleme, kesik çizgili alanları motoru bekletmeden gösterir. Belge bir kez hazırlanır; sonraki yazı değişimi aynı hazırlığı kullanır
