@@ -639,6 +639,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const pageGroup = group("Sayfa", prev, pageBox, next);
   let openLayoutMenu = () => {};
   const layoutBtn = button("Düzen", "Sayfa geçişi, döndürme ve sayfa düzeni", "tool", ICONS.pages);
+  layoutBtn.classList.add("viewer-command");
   layoutBtn.onclick = (event) => {
     event.stopPropagation();
     const rect = layoutBtn.getBoundingClientRect();
@@ -741,6 +742,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   let openSnip = () => {};
   const snipBtn = button("Kes", "Seçilen alanı panoya kopyalayın, indirin veya kırpın", "tool", ICONS.crop);
+  snipBtn.classList.add("viewer-command");
   snipBtn.onclick = () => openSnip();
   const commandBar = el("div", "viewer-commands");
   commandBar.append(...commandButtons, snipBtn, toolFind);
@@ -821,6 +823,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     taskPane.dataset.open = "";
     taskBody.replaceChildren();
     commandSource = "";
+    snipBtn.classList.remove("active");
     thumbsList.querySelectorAll(".viewer-thumb.picked").forEach((cell) => cell.classList.remove("picked"));
     applyViewerChrome(viewerMode);
     if (commentsOpen) commentsPane.hidden = false;
@@ -2459,6 +2462,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   openTask = (toolId) => {
     if (!options.onTask || !toolId) return;
+    snipBtn.classList.remove("active");
     commentsPane.hidden = true;
     taskToken += 1;
     const token = taskToken;
@@ -2975,6 +2979,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     };
     taskBody.append(hint, ...radios, actions);
     taskCrop = (box) => { snipPdf = box; };
+    snipBtn.classList.add("active");
   };
   showToolMatches = () => {
     const query = toolFind.value.trim().toLocaleLowerCase("tr");
