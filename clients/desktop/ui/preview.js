@@ -2802,10 +2802,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
   eventBus.on("pagerendered", () => paintComments());
   loadFileComments();
   const menuIcon = (id) => (window.SECURIPDF_MENU_ICONS || {})[id] || "";
+  const clearRibbonMode = () => {
+    root.classList.remove("is-shaping", "is-erasing", "is-selecting", "text-placing");
+    markButtons.forEach((node) => node.classList.remove("active"));
+    if (formMode) setFormMode(false);
+    leaveRegions();
+    if (viewerMode !== "view") {
+      try { pdfViewer.annotationEditorMode = { mode: pdfjs.AnnotationEditorType.NONE }; } catch { /* ignore */ }
+    }
+    applyViewerChrome("view");
+  };
   const runMenuTool = (menuId, toolId) => {
     commandSource = menuId;
+    clearRibbonMode();
     openTask(toolId);
-    applyViewerChrome(viewerMode);
+    applyViewerChrome("view");
   };
   const menuTool = (menuId) => (tool) => ({
     label: tool.title,
@@ -2813,6 +2824,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     run: () => runMenuTool(menuId, tool.id),
   });
   openCommandMenu = (id, x, y) => {
+    commandSource = "";
+    clearRibbonMode();
     if (id === "pages") openMenu(x, y, pageTools.map(menuTool("pages")));
     else if (id === "convert") openMenu(x, y, convertTools.map(menuTool("convert")));
     else if (id === "sign") openMenu(x, y, signTools.map(menuTool("sign")));
@@ -2922,6 +2935,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   openSnip = () => {
     snipPdf = null;
+    commandSource = "";
+    clearRibbonMode();
     commentsPane.hidden = true;
     taskToken += 1;
     taskPages = null;

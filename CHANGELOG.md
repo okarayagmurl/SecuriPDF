@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Şeritte Ekle, Sayfa, Dönüştür veya İmzala seçilince Metin, Şekil, Form ve İşaret seçimi kalkar
 - Görüntüleme ve düzenlemede yorumlar sağ panelde listelenir. Belgedeki notlar açılınca görünür; yeni yorum ve işlemler de oraya düşer ve silinebilir
 - Sayfa düzeni menüsü sürekli veya tek sayfa geçişi, saat yönü ve tersi döndürme, tek sayfa, çift sayfa, kapak ve tam ekran sunar. Kesme aracı seçilen alanı panoya kopyalar, indirir veya sayfayı o alana kırpar
 - Farklı kaydet, belgeyi seçilen adla yazar. Sayfa, Dönüştür ve İmzala açılınca ve işlem sürerken seçili renkte kalır
