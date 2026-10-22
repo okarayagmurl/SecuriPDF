@@ -2926,8 +2926,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (choice === "copy") {
       try {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        statusMode.textContent = t("Seçilen alan panoya kopyalandı.");
+        statusMode.textContent = t("Kopyalandı. Seçilen alan panoda.");
         noteActivity(snipPdf && snipPdf.page, "Alan panoya kopyalandı");
+        window.alert(t("Kopyalandı. Seçilen alan panoda."));
         return;
       } catch { /* the clipboard refused the image; save it instead */ }
     }

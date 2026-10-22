@@ -177,6 +177,7 @@
     "Yorum ekle": "Add a comment",
     "Kes": "Snip",
     "Kesme Aracı": "Snip tool",
+    "Kopyalandı. Seçilen alan panoda.": "Copied. The selected area is on the clipboard.",
     "Panoya kopyala": "Copy to clipboard",
     "İndir": "Download",
     "Kırp ve kaldır": "Crop and remove",

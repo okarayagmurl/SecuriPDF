@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Kırpmada panoya kopyalama bitince kopyalandı uyarısı çıkar
 - Kes paneli ve Düzen menüsü açıkken düğmeleri seçili görünür
 - Şeritte Ekle, Sayfa, Dönüştür veya İmzala seçilince Metin, Şekil, Form ve İşaret seçimi kalkar
 - Görüntüleme ve düzenlemede yorumlar sağ panelde listelenir. Belgedeki notlar açılınca görünür; yeni yorum ve işlemler de oraya düşer ve silinebilir
