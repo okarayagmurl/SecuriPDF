@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Metin değişince güncel yazı yerinde kalır. Motora yazma ve ilerleme yalnızca Kaydet’te başlar
 - Metin, ayrı bir kutu yerine seçilen yazının üzerinde değişir
 - Kırpmada panoya kopyalama bitince kopyalandı uyarısı çıkar
 - Kes paneli ve Düzen menüsü açıkken düğmeleri seçili görünür

@@ -1272,6 +1272,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let colorTouched = false;
   root.append(field);
   let pendingReplace = null;
+  const textDrafts = [];
+  let draftSeq = 1;
+  let suspendDraft = false;
   const covers = [];
 
   const clearCovers = () => {
@@ -1454,8 +1457,59 @@ async function openViewer(source, pageNumber, title, options = {}) {
     };
   };
 
+  const rectHits = (a, b) => a && b && a[0] < b[2] - 0.5 && a[2] > b[0] + 0.5 && a[1] < b[3] - 0.5 && a[3] > b[1] + 0.5;
+  const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && draft.pdfRects.some((rect) => (found.pdfRects || []).some((other) => rectHits(rect, other))));
+  const paintDrafts = () => {
+    stage.querySelectorAll(".draft-cover, .draft-text").forEach((node) => node.remove());
+    textDrafts.forEach((draft) => {
+      const pageEl = stage.querySelector(`.page[data-page-number="${draft.pageNumber}"]`);
+      const view = pdfViewer.getPageView(draft.pageNumber - 1);
+      const canvas = pageEl && pageEl.querySelector("canvas");
+      if (!pageEl || !view || !view.viewport || !canvas) return;
+      const pageBox = pageEl.getBoundingClientRect();
+      const canvasBox = canvas.getBoundingClientRect();
+      const ox = canvasBox.left - pageBox.left;
+      const oy = canvasBox.top - pageBox.top;
+      const boxes = draft.pdfRects.map((rect) => {
+        const vp = view.viewport.convertToViewportRectangle(rect);
+        const left = Math.min(vp[0], vp[2]);
+        const top = Math.min(vp[1], vp[3]);
+        return { left: ox + left, top: oy + top, width: Math.abs(vp[2] - vp[0]), height: Math.abs(vp[3] - vp[1]) };
+      }).filter((box) => box.width > 1 && box.height > 1);
+      if (!boxes.length) return;
+      boxes.forEach((box) => {
+        const cover = el("div", "draft-cover");
+        cover.style.left = box.left + "px";
+        cover.style.top = box.top + "px";
+        cover.style.width = box.width + "px";
+        cover.style.height = box.height + "px";
+        pageEl.appendChild(cover);
+      });
+      const left = Math.min(...boxes.map((box) => box.left));
+      const top = Math.min(...boxes.map((box) => box.top));
+      const right = Math.max(...boxes.map((box) => box.left + box.width));
+      const bottom = Math.max(...boxes.map((box) => box.top + box.height));
+      const label = el("div", "draft-text");
+      label.textContent = draft.text;
+      label.style.left = left + "px";
+      label.style.top = top + "px";
+      label.style.width = Math.max(8, right - left) + "px";
+      label.style.height = Math.max(12, bottom - top) + "px";
+      label.style.fontFamily = draft.fontFamily || "sans-serif";
+      label.style.fontWeight = draft.fontWeight || "400";
+      label.style.fontSize = Math.max(8, draft.fontSize || (bottom - top) * 0.8) + "px";
+      label.style.lineHeight = draft.text.includes("\n") ? "1.15" : Math.max(12, bottom - top) + "px";
+      pageEl.appendChild(label);
+    });
+  };
   const showReplace = (found) => {
+    if (!field.hidden && pendingReplace) rememberDraft();
+    suspendDraft = true;
     hideReplace();
+    const draft = findDraft(found);
+    found.original = draft ? draft.original : found.text;
+    found.draftId = draft ? draft.id : 0;
+    found.text = draft ? draft.text : found.text;
     pendingReplace = found;
     const pageBox = found.pageEl.getBoundingClientRect();
     found.boxes.forEach((box) => {
@@ -1492,7 +1546,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
     watchStyle = true;
-    styleNote.textContent = t("Yazı yerinde değişir. Enter veya dışarı tıklayınca belgeye işlenir.");
+    styleNote.textContent = t("Yazı yerinde değişir. Kaydet ile dosyaya yazılır.");
     applyBtn.disabled = false;
     field.hidden = false;
     field.rows = 1;
@@ -1501,6 +1555,45 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const end = field.value.length;
     field.setSelectionRange(end, end);
     window.getSelection().removeAllRanges();
+    suspendDraft = false;
+  };
+  const rememberDraft = () => {
+    if (suspendDraft || !pendingReplace) return;
+    const next = field.value;
+    const original = pendingReplace.original || pendingReplace.text;
+    const unchanged = next === original && !styleDirty && !colorTouched;
+    const index = textDrafts.findIndex((draft) => draft.id === pendingReplace.draftId || (draft.pageNumber === pendingReplace.pageNumber && draft.pdfRects.some((rect) => (pendingReplace.pdfRects || []).some((other) => rectHits(rect, other)))));
+    if (unchanged || !String(next || "").trim()) {
+      if (index >= 0) textDrafts.splice(index, 1);
+    } else {
+      const draft = {
+        id: pendingReplace.draftId || draftSeq++,
+        pageNumber: pendingReplace.pageNumber,
+        pdfRects: pendingReplace.pdfRects,
+        boxCount: (pendingReplace.boxes || []).length,
+        original,
+        text: next,
+        fontFamily: field.style.fontFamily,
+        fontWeight: field.style.fontWeight,
+        fontSize: parseFloat(field.style.fontSize) || 12,
+        style: {
+          dirty: styleDirty,
+          color: colorTouched ? replaceColor.value : "",
+          size: sizeInput.value,
+          font: fontSel.value,
+          bold: boldBtn.classList.contains("on"),
+          italic: italicBtn.classList.contains("on"),
+        },
+      };
+      pendingReplace.draftId = draft.id;
+      if (index >= 0) textDrafts[index] = draft;
+      else textDrafts.push(draft);
+      markDirty(true);
+    }
+    paintDrafts();
+    statusMode.textContent = textDrafts.length
+      ? "Yazı güncellendi. Kaydet ile dosyaya yazılır."
+      : "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir.";
   };
 
   const boxOf = (item) => {
@@ -1797,20 +1890,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     doc.saveDocument().then((raw) => ensureEditorJob(new Uint8Array(raw))).catch(() => {});
   };
 
-  const applyReplace = async () => {
-    if (replaceBusy || !pendingReplace) return;
-    const next = field.value;
-    if (!next.trim() || (next === pendingReplace.text && !styleDirty && !colorTouched)) {
-      hideReplace();
-      return;
-    }
-    if (!options.engine || !options.engineGet || !options.engineJson) {
-      window.alert("Metin düzenleyici için yerel motor hazır olmalı.");
-      return;
-    }
-    const { pageNumber, pdfRects } = pendingReplace;
+  const applyDraftOnPage = (page, draft) => {
+    const pdfRects = draft.pdfRects || [];
     const norm = (value) => String(value || "").replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
-    const wanted = norm(pendingReplace.text);
+    const wanted = norm(draft.original);
     const onBaseline = (item, rect) => {
       const box = boxOf(item);
       const padX = Math.max(1.5, box.size * 0.2);
@@ -1818,63 +1901,91 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const x = box.left + Math.min(box.size, Math.max(0, box.right - box.left) / 2);
       return x >= rect[0] - padX && x <= rect[2] + padX && box.y >= rect[1] - padY && box.y <= rect[3] + padY;
     };
+    const style = draft.style || {};
+    const previous = {
+      colorTouched, size: sizeInput.value, font: fontSel.value,
+      bold: boldBtn.classList.contains("on"), italic: italicBtn.classList.contains("on"), color: replaceColor.value,
+    };
+    colorTouched = Boolean(style.color);
+    sizeInput.value = style.size || "";
+    fontSel.value = style.font || fontSel.value;
+    boldBtn.classList.toggle("on", Boolean(style.bold));
+    italicBtn.classList.toggle("on", Boolean(style.italic));
+    if (style.color) replaceColor.value = style.color;
+    const elements = page.textElements || [];
+    const readable = elements.filter((item) => String(item.text || "").trim());
+    let picked = readable.filter((item) => pdfRects.some((rect) => onBaseline(item, rect)));
+    if (!picked.length && pdfRects.length) {
+      const targetY = pdfRects.reduce((sum, rect) => sum + (rect[1] + rect[3]) / 2, 0) / pdfRects.length;
+      const overlapping = readable.filter((item) => pdfRects.some((rect) => overlapsPdf(boxOf(item), rect)));
+      const pool = overlapping.length ? overlapping : readable;
+      const closest = pool.reduce((best, item) => (Math.abs(boxOf(item).y - targetY) < Math.abs(boxOf(best).y - targetY) ? item : best));
+      const band = Math.max(2.5, boxOf(closest).size * 0.35);
+      picked = pool.filter((item) => Math.abs(boxOf(item).y - boxOf(closest).y) <= band && pdfRects.some((rect) => {
+        const box = boxOf(item);
+        return box.right > rect[0] - 4 && box.left < rect[2] + 4;
+      }));
+    }
+    if (!picked.length && wanted) {
+      const exact = readable.filter((item) => norm(item.text) === wanted);
+      if (exact.length === 1) picked = exact;
+    }
+    const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && pdfRects.some((rect) => overlapsPdf({
+      left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
+    }, rect)));
+    let wrote = false;
+    if (picked.length) {
+      const targets = pdfRects.map((rect) => (rect[1] + rect[3]) / 2);
+      const written = writeLines(page, picked, draft.text, draft.boxCount, targets);
+      written.touched.forEach(styleRun);
+      written.created.forEach(styleRun);
+      wrote = true;
+    } else if (annot) {
+      replaceAnnotation(page, annot, draft.text);
+      wrote = true;
+    }
+    colorTouched = previous.colorTouched;
+    sizeInput.value = previous.size;
+    fontSel.value = previous.font;
+    boldBtn.classList.toggle("on", previous.bold);
+    italicBtn.classList.toggle("on", previous.italic);
+    replaceColor.value = previous.color;
+    return wrote;
+  };
+  const commitTextDrafts = async (bytes, withProgress) => {
+    if (!textDrafts.length) return bytes;
+    if (!options.engine || !options.engineGet || !options.engineJson) {
+      throw new Error("Metin düzenleyici için yerel motor hazır olmalı.");
+    }
+    const progress = (percent, label) => { if (withProgress) setJobProgress(percent, label); };
     replaceBusy = true;
-    applyBtn.disabled = true;
     try {
-      const bytes = await doc.saveDocument();
-      const ready = editorReady && editorTask && editorSig === byteSig(bytes);
-      if (!ready) setJobProgress(18, "Sayfa hazırlanıyor…");
-      const jobId = await ensureEditorJob(bytes, ready ? null : (fraction) => setJobProgress(22 + Math.round(fraction * 48), "Sayfa okunuyor…"));
-      setJobProgress(74, "Seçilen yazı bulunuyor…");
-      const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${jobId}/${pageNumber}`);
-      const elements = page.textElements || [];
-      const readable = elements.filter((item) => String(item.text || "").trim());
-      let picked = readable.filter((item) => (pdfRects || []).some((rect) => onBaseline(item, rect)));
-      if (!picked.length && (pdfRects || []).length) {
-        const targetY = pdfRects.reduce((sum, rect) => sum + (rect[1] + rect[3]) / 2, 0) / pdfRects.length;
-        const overlapping = readable.filter((item) => pdfRects.some((rect) => overlapsPdf(boxOf(item), rect)));
-        const pool = overlapping.length ? overlapping : readable;
-        const closest = pool.reduce((best, item) => (Math.abs(boxOf(item).y - targetY) < Math.abs(boxOf(best).y - targetY) ? item : best));
-        const band = Math.max(2.5, boxOf(closest).size * 0.35);
-        picked = pool.filter((item) => Math.abs(boxOf(item).y - boxOf(closest).y) <= band && pdfRects.some((rect) => {
-          const box = boxOf(item);
-          return box.right > rect[0] - 4 && box.left < rect[2] + 4;
-        }));
+      progress(12, "Yazı belgeye işleniyor…");
+      const jobId = await ensureEditorJob(bytes, withProgress ? (fraction) => progress(18 + Math.round(fraction * 40), "Sayfa okunuyor…") : null);
+      const byPage = new Map();
+      textDrafts.forEach((draft) => {
+        const list = byPage.get(draft.pageNumber) || [];
+        list.push(draft);
+        byPage.set(draft.pageNumber, list);
+      });
+      const pages = [];
+      for (const [pageNumber, drafts] of byPage) {
+        progress(64, "Seçilen yazı bulunuyor…");
+        const page = await options.engineGet(`/api/v1/convert/pdf/text-editor/page/${jobId}/${pageNumber}`);
+        const missed = drafts.filter((draft) => !applyDraftOnPage(page, draft));
+        if (missed.length) throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
+        if (page.pageNumber == null) page.pageNumber = pageNumber;
+        pages.push(page);
       }
-      if (!picked.length && wanted) {
-        const exact = readable.filter((item) => norm(item.text) === wanted);
-        if (exact.length === 1) picked = exact;
-      }
-      const annot = (page.annotations || []).find((item) => Array.isArray(item.rect) && item.rect.length >= 4 && (pdfRects || []).some((rect) => overlapsPdf({
-        left: item.rect[0], right: item.rect[2], bottom: item.rect[1], top: item.rect[3],
-      }, rect)));
-      if (picked.length) {
-        const targets = (pdfRects || []).map((rect) => (rect[1] + rect[3]) / 2);
-        const written = writeLines(page, picked, next, (pendingReplace.boxes || []).length, targets);
-        written.touched.forEach(styleRun);
-        written.created.forEach(styleRun);
-      } else if (annot) replaceAnnotation(page, annot, next);
-      else throw new Error("Seçilen yazı bu sayfada düzenlenebilir metin değil. Taranmış bir sayfaysa önce OCR uygulayın.");
-      if (page.pageNumber == null) page.pageNumber = pageNumber;
-      setJobProgress(86, "Yazı belgeye işleniyor…");
-      const rebuilt = await writeEditor(`/api/v1/convert/pdf/text-editor/partial/${jobId}`, { pages: [page] });
-      setJobProgress(94, "Sayfa yenileniyor…");
-      const shown = await showEditedDocument(rebuilt, pageNumber, pdfViewer.currentScaleValue);
-      if (!shown) return;
-      markDirty(true);
-      hideReplace();
-      warmEditor();
-      setJobProgress(100, "Metin yazıldı");
-      statusMode.textContent = "Metin belgenin yazısına işlendi. Kaydet ile dosyaya yazın.";
-      noteActivity(pageNumber, "Metin güncellendi");
-    } catch (err) {
-      hideReplace();
-      const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin yazılamadı.");
-      window.alert(message);
+      progress(86, "Yazı belgeye işleniyor…");
+      const rebuilt = await writeEditor(`/api/v1/convert/pdf/text-editor/partial/${jobId}`, { pages });
+      textDrafts.splice(0, textDrafts.length);
+      paintDrafts();
+      progress(100, "Yazı yazıldı");
+      return rebuilt;
     } finally {
       replaceBusy = false;
-      applyBtn.disabled = !pendingReplace;
-      setTimeout(hideJobProgress, 700);
+      if (withProgress) setTimeout(hideJobProgress, 700);
     }
   };
 
@@ -2223,20 +2334,24 @@ async function openViewer(source, pageNumber, title, options = {}) {
     };
     if (!number || textRuns.has(number)) draw();
     else loadPageRuns(number).then(draw);
+    paintDrafts();
   });
+  eventBus.on("pagerendered", () => paintDrafts());
+  eventBus.on("scalechanging", () => paintDrafts());
   applyBtn.hidden = true;
-  applyBtn.onclick = () => applyReplace();
+  applyBtn.onclick = () => { rememberDraft(); hideReplace(); };
   cancelBtn.addEventListener("pointerdown", (event) => event.preventDefault());
   cancelBtn.onclick = hideReplace;
   field.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); applyReplace(); }
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); rememberDraft(); hideReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
   });
   field.addEventListener("focusout", (event) => {
-    if (replaceBusy || !pendingReplace) return;
+    if (suspendDraft || replaceBusy || !pendingReplace) return;
     const next = event.relatedTarget;
     if (next && (side.contains(next) || next === field || next === cancelBtn)) return;
-    applyReplace();
+    rememberDraft();
+    hideReplace();
   });
 
   const addField = el("textarea", "replace-field");
@@ -3438,7 +3553,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     });
   };
   readCurrentFile = async () => {
+    if (!field.hidden) rememberDraft();
     let bytes = await doc.saveDocument();
+    if (textDrafts.length) {
+      bytes = await commitTextDrafts(bytes, false);
+      await showEditedDocument(bytes, pdfViewer.currentPageNumber, pdfViewer.currentScaleValue);
+      bytes = await doc.saveDocument();
+    }
     if (shapes.length && options.addShapes) {
       bytes = await options.addShapes(bytes, shapes.slice());
       shapes.splice(0, shapes.length);
@@ -3637,7 +3758,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const work = window.SecuriWork;
     if (work) work.begin("Kaydediliyor…");
     try {
+      if (!field.hidden) rememberDraft();
       let bytes = await doc.saveDocument();
+      if (textDrafts.length) {
+        setJobProgress(12, "Yazı belgeye işleniyor…");
+        bytes = await commitTextDrafts(bytes, true);
+        const shown = await showEditedDocument(bytes, pdfViewer.currentPageNumber, pdfViewer.currentScaleValue);
+        if (!shown) return;
+        bytes = await doc.saveDocument();
+        noteActivity(pdfViewer.currentPageNumber || 1, "Metin güncellendi");
+      }
       if (shapes.length) {
         if (!options.addShapes) throw new Error("Şekiller bu pencerede dosyaya yazılamıyor.");
         bytes = await options.addShapes(bytes, shapes.map((shape) => ({

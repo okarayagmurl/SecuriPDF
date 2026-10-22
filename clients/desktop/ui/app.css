@@ -1319,6 +1319,20 @@ html.has-doc-tabs .viewer { top: 40px; }
   background: rgba(191, 219, 254, 0.96);
   pointer-events: none;
 }
+.draft-cover, .draft-text {
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.draft-cover { z-index: 18; background: #fff; }
+.draft-text {
+  z-index: 19;
+  margin: 0;
+  padding: 0 1px;
+  overflow: hidden;
+  color: #111827;
+  white-space: pre;
+}
 .edit-region {
   position: absolute;
   z-index: 20;
