@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Metin, ayrı bir kutu yerine seçilen yazının üzerinde değişir
 - Kırpmada panoya kopyalama bitince kopyalandı uyarısı çıkar
 - Kes paneli ve Düzen menüsü açıkken düğmeleri seçili görünür
 - Şeritte Ekle, Sayfa, Dönüştür veya İmzala seçilince Metin, Şekil, Form ve İşaret seçimi kalkar

@@ -1299,6 +1299,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
 
   const textSpans = (pageEl) => Array.from(pageEl.querySelectorAll(".textLayer span")).map((node) => {
     const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
     return {
       text: node.textContent || "",
       left: rect.left,
@@ -1307,6 +1308,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
       bottom: rect.bottom,
       width: rect.width,
       height: rect.height,
+      fontFamily: style.fontFamily,
+      fontWeight: style.fontWeight,
+      fontSize: parseFloat(style.fontSize) || rect.height,
     };
   }).filter((item) => item.width > 1 && item.height > 1 && item.text.trim());
 
@@ -1443,7 +1447,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const b = toPdf(box.right, box.bottom);
       return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
     };
-    return { text: value, pageNumber, pageEl, originEl, view, boxes, pdfRects: boxes.map(pdfOf), wrapWidth };
+    const sample = (lines[0] && lines[0][0]) || hits[0] || {};
+    return {
+      text: value, pageNumber, pageEl, originEl, view, boxes, pdfRects: boxes.map(pdfOf), wrapWidth,
+      fontFamily: sample.fontFamily, fontWeight: sample.fontWeight, fontSize: sample.fontSize,
+    };
   };
 
   const showReplace = (found) => {
@@ -1463,14 +1471,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const last = found.boxes[found.boxes.length - 1];
     const blockWidth = found.wrapWidth || Math.max(...found.boxes.map((box) => box.width));
     const blockHeight = Math.max(last.bottom - first.top, first.height);
+    const single = !found.text.includes("\n");
     field.style.left = (first.left - pageBox.left) + "px";
     field.style.top = (first.top - pageBox.top) + "px";
-    field.style.width = Math.max(blockWidth, 72) + "px";
-    field.style.height = Math.max(blockHeight, 16) + "px";
+    field.style.width = Math.max(blockWidth, 8) + "px";
+    field.style.height = Math.max(blockHeight, 12) + "px";
     field.value = found.text;
-    field.style.fontSize = Math.round(Math.max(10, first.height * 0.86)) + "px";
-    field.style.lineHeight = "1";
-    field.style.padding = "0 2px";
+    field.style.fontFamily = found.fontFamily || "sans-serif";
+    field.style.fontWeight = found.fontWeight || "400";
+    field.style.fontSize = Math.max(8, found.fontSize || first.height * 0.8) + "px";
+    field.style.lineHeight = single ? Math.max(blockHeight, 12) + "px" : "1.15";
+    field.style.padding = "0 1px";
     colorTouched = false;
     styleDirty = false;
     watchStyle = false;
@@ -1481,12 +1492,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
     watchStyle = true;
-    styleNote.textContent = found.text.replace(/\s+/g, " ").trim() || t("Kesik çizgili bir alana tıklayın.");
+    styleNote.textContent = t("Yazı yerinde değişir. Enter veya dışarı tıklayınca belgeye işlenir.");
     applyBtn.disabled = false;
     field.hidden = false;
+    field.rows = 1;
     found.pageEl.appendChild(field);
     field.focus();
-    field.select();
+    const end = field.value.length;
+    field.setSelectionRange(end, end);
     window.getSelection().removeAllRanges();
   };
 
@@ -1909,6 +1922,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const b = toPdf(box.right, box.bottom);
       return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
     };
+    const sample = spans[0] || {};
     return {
       text: value,
       pageNumber,
@@ -1918,6 +1932,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
       boxes,
       pdfRects: boxes.map(pdfOf),
       wrapWidth: Math.max(...boxes.map((box) => box.width)),
+      fontFamily: sample.fontFamily,
+      fontWeight: sample.fontWeight,
+      fontSize: sample.fontSize,
     };
   };
   const loadPageRuns = async (pageNumber) => {

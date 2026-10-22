@@ -103,6 +103,7 @@
     "İşle": "Process",
     "Metin Stilleri": "Text styles",
     "Kesik çizgili bir alana tıklayın.": "Click a dashed region.",
+    "Yazı yerinde değişir. Enter veya dışarı tıklayınca belgeye işlenir.": "The text changes in place. Enter or a click outside writes it into the document.",
     "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir.": "A dashed region is the text itself. Click it to edit in place.",
     "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir; başka yere tıklayınca yazılır.": "A dashed region is the text itself. Click to edit it; click away to write it.",
     "Yazı sayfada var. Sayfa çizilince kesik alanlar görünecek.": "The page has text. Dashed regions appear when the page is drawn.",
