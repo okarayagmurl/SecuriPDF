@@ -1281,7 +1281,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     covers.splice(0).forEach((node) => node.remove());
   };
 
+  let suppressFocusOut = 0;
   const hideReplace = () => {
+    suppressFocusOut += 1;
     field.hidden = true;
     root.appendChild(field);
     applyBtn.disabled = true;
@@ -1289,6 +1291,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     stage.querySelectorAll(".edit-region.selected").forEach((node) => node.classList.remove("selected"));
     clearCovers();
     pendingReplace = null;
+    queueMicrotask(() => { suppressFocusOut = Math.max(0, suppressFocusOut - 1); });
   };
 
   const padBox = (rect, pad) => ({
@@ -1479,6 +1482,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       if (!boxes.length) return;
       boxes.forEach((box) => {
         const cover = el("div", "draft-cover");
+        cover.style.pointerEvents = "none";
         cover.style.left = box.left + "px";
         cover.style.top = box.top + "px";
         cover.style.width = box.width + "px";
@@ -1490,6 +1494,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const right = Math.max(...boxes.map((box) => box.left + box.width));
       const bottom = Math.max(...boxes.map((box) => box.top + box.height));
       const label = el("div", "draft-text");
+      label.style.pointerEvents = "none";
       label.textContent = draft.text;
       label.style.left = left + "px";
       label.style.top = top + "px";
@@ -2117,34 +2122,49 @@ async function openViewer(source, pageNumber, title, options = {}) {
         node.style.width = block.width + "px";
         node.style.height = block.height + "px";
         node.title = block.spans.map((span) => span.text).join(" ").replace(/\s+/g, " ").trim();
-        const open = (event) => {
-          if (replaceBusy) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const current = pageEl.getBoundingClientRect();
-          const box = {
-            left: current.left + parseFloat(node.style.left),
-            top: current.top + parseFloat(node.style.top),
-            width: parseFloat(node.style.width),
-            height: parseFloat(node.style.height),
-          };
-          box.right = box.left + box.width;
-          box.bottom = box.top + box.height;
-          const inside = pageScreenSpans(pageEl).filter((span) =>
-            span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top);
-          const found = foundFromSpans(pageEl, inside.length ? inside : block.spans);
-          if (!found) return;
-          regionNodes.forEach((item) => item.classList.remove("selected"));
-          node.classList.add("selected");
-          showReplace(found);
-        };
-        node.addEventListener("mousedown", open);
+        node._spans = block.spans;
+        node.addEventListener("mousedown", (event) => { event.preventDefault(); event.stopPropagation(); });
         node.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); });
         pageEl.appendChild(node);
         regionNodes.push(node);
       });
     });
   };
+  const openRegion = (node) => {
+    if (replaceBusy || !regionMode || !node) return;
+    const pageEl = node.parentElement;
+    if (!pageEl) return;
+    const current = pageEl.getBoundingClientRect();
+    const box = {
+      left: current.left + parseFloat(node.style.left),
+      top: current.top + parseFloat(node.style.top),
+      width: parseFloat(node.style.width),
+      height: parseFloat(node.style.height),
+    };
+    box.right = box.left + box.width;
+    box.bottom = box.top + box.height;
+    const inside = pageScreenSpans(pageEl).filter((span) =>
+      span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top);
+    const found = foundFromSpans(pageEl, inside.length ? inside : (node._spans || []));
+    if (!found) return;
+    regionNodes.forEach((item) => item.classList.remove("selected"));
+    node.classList.add("selected");
+    showReplace(found);
+  };
+  stage.addEventListener("pointerdown", (event) => {
+    if (!regionMode || event.button !== 0) return;
+    if (event.target.closest && event.target.closest("textarea, input, button, select, a")) return;
+    const x = event.clientX;
+    const y = event.clientY;
+    const hit = regionNodes.find((node) => {
+      const box = node.getBoundingClientRect();
+      return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+    });
+    if (!hit) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openRegion(hit);
+  }, true);
   const recognizePage = async (pageNumber) => {
     const bytes = await doc.saveDocument();
     const form = new FormData();
@@ -2349,7 +2369,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
   eventBus.on("pagerendered", () => paintDrafts());
   eventBus.on("scalechanging", () => paintDrafts());
   eventBus.on("annotationeditormodechanged", () => requestAnimationFrame(paintDrafts));
-  chrome.addEventListener("pointerdown", () => {
+  let saveQueued = false;
+  let requestSave = () => {};
+  chrome.addEventListener("pointerdown", (event) => {
+    const hit = event.target.closest && event.target.closest("button");
+    if (hit === save || hit === saveAs) {
+      event.preventDefault();
+      event.stopPropagation();
+      requestSave(hit === saveAs ? saveAsName() : undefined);
+      return;
+    }
     if (field.hidden || !pendingReplace) return;
     suspendDraft = false;
     rememberDraft();
@@ -2363,13 +2392,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
   });
   field.addEventListener("focusout", (event) => {
-    if (suspendDraft || replaceBusy || !pendingReplace) return;
+    if (suppressFocusOut || suspendDraft || replaceBusy || !pendingReplace) return;
     const next = event.relatedTarget;
     if (next && (side.contains(next) || next === field || next === cancelBtn)) return;
-    rememberDraft();
     const stamp = pendingReplace;
+    rememberDraft();
     setTimeout(() => {
-      if (pendingReplace !== stamp || suspendDraft) return;
+      if (pendingReplace !== stamp || suspendDraft || suppressFocusOut) return;
       hideReplace();
       paintDrafts();
     }, 0);
@@ -3843,8 +3872,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
       saveAs.disabled = false;
     }
   };
-  save.onclick = () => writeDocument();
-  saveAs.onclick = () => writeDocument(saveAsName());
+  requestSave = (fileName) => {
+    if (saveQueued) return;
+    saveQueued = true;
+    Promise.resolve(writeDocument(fileName)).finally(() => { saveQueued = false; });
+  };
+  save.onclick = () => requestSave();
+  saveAs.onclick = () => requestSave(saveAsName());
   close.onclick = () => closeViewer(false);
 }
 

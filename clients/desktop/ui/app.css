@@ -1324,9 +1324,9 @@ html.has-doc-tabs .viewer { top: 40px; }
   pointer-events: none;
   box-sizing: border-box;
 }
-.draft-cover { z-index: 22; background: #fff; }
+.draft-cover { z-index: 18; background: #fff; }
 .draft-text {
-  z-index: 23;
+  z-index: 19;
   margin: 0;
   padding: 0 1px;
   overflow: hidden;
@@ -1335,7 +1335,7 @@ html.has-doc-tabs .viewer { top: 40px; }
 }
 .edit-region {
   position: absolute;
-  z-index: 20;
+  z-index: 24;
   box-sizing: border-box;
   border: 1.5px dashed #1d4ed8;
   border-radius: 2px;
