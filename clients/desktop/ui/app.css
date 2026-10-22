@@ -1324,9 +1324,9 @@ html.has-doc-tabs .viewer { top: 40px; }
   pointer-events: none;
   box-sizing: border-box;
 }
-.draft-cover { z-index: 18; background: #fff; }
+.draft-cover { z-index: 22; background: #fff; }
 .draft-text {
-  z-index: 19;
+  z-index: 23;
   margin: 0;
   padding: 0 1px;
   overflow: hidden;

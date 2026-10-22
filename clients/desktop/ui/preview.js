@@ -1919,12 +1919,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const targetY = pdfRects.reduce((sum, rect) => sum + (rect[1] + rect[3]) / 2, 0) / pdfRects.length;
       const overlapping = readable.filter((item) => pdfRects.some((rect) => overlapsPdf(boxOf(item), rect)));
       const pool = overlapping.length ? overlapping : readable;
-      const closest = pool.reduce((best, item) => (Math.abs(boxOf(item).y - targetY) < Math.abs(boxOf(best).y - targetY) ? item : best));
-      const band = Math.max(2.5, boxOf(closest).size * 0.35);
-      picked = pool.filter((item) => Math.abs(boxOf(item).y - boxOf(closest).y) <= band && pdfRects.some((rect) => {
+      const closest = pool.length ? pool.reduce((best, item) => (Math.abs(boxOf(item).y - targetY) < Math.abs(boxOf(best).y - targetY) ? item : best)) : null;
+      const band = closest ? Math.max(2.5, boxOf(closest).size * 0.35) : 2.5;
+      picked = closest ? pool.filter((item) => Math.abs(boxOf(item).y - boxOf(closest).y) <= band && pdfRects.some((rect) => {
         const box = boxOf(item);
         return box.right > rect[0] - 4 && box.left < rect[2] + 4;
-      }));
+      })) : [];
     }
     if (!picked.length && wanted) {
       const exact = readable.filter((item) => norm(item.text) === wanted);
@@ -1979,8 +1979,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
       }
       progress(86, "Yazı belgeye işleniyor…");
       const rebuilt = await writeEditor(`/api/v1/convert/pdf/text-editor/partial/${jobId}`, { pages });
-      textDrafts.splice(0, textDrafts.length);
-      paintDrafts();
       progress(100, "Yazı yazıldı");
       return rebuilt;
     } finally {
@@ -2188,7 +2186,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (!regionMode) return;
     paintRegions();
     const ready = () => {
-      statusMode.textContent = "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir; başka yere tıklayınca yazılır.";
+      statusMode.textContent = "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir. Dosyaya Kaydet ile yazılır.";
       warmEditor();
     };
     if (regionNodes.length) {
@@ -2246,11 +2244,21 @@ async function openViewer(source, pageNumber, title, options = {}) {
     else if (!noted) statusMode.textContent = "Bu sayfada düzenlenebilir yazı alanı bulunamadı.";
   };
   leaveRegions = () => {
-    if (!regionMode) return;
+    if (!field.hidden && pendingReplace) {
+      suspendDraft = false;
+      rememberDraft();
+    }
+    if (!regionMode) {
+      hideReplace();
+      paintDrafts();
+      return;
+    }
     regionMode = false;
     root.classList.remove("is-editing");
     clearRegions();
     hideReplace();
+    paintDrafts();
+    requestAnimationFrame(paintDrafts);
   };
   let formListToken = 0;
   const fieldKindLabel = (kind) => ({
@@ -2326,18 +2334,26 @@ async function openViewer(source, pageNumber, title, options = {}) {
     setViewerMode(queued);
   }
   eventBus.on("textlayerrendered", (evt) => {
-    if (!regionMode) return;
     const number = evt && evt.pageNumber;
     const draw = () => {
+      if (!regionMode) return;
       paintRegions();
-      if (regionNodes.length) statusMode.textContent = "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir; başka yere tıklayınca yazılır.";
+      if (regionNodes.length) statusMode.textContent = "Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir. Dosyaya Kaydet ile yazılır.";
     };
-    if (!number || textRuns.has(number)) draw();
-    else loadPageRuns(number).then(draw);
+    if (regionMode) {
+      if (!number || textRuns.has(number)) draw();
+      else loadPageRuns(number).then(() => { draw(); paintDrafts(); });
+    }
     paintDrafts();
   });
   eventBus.on("pagerendered", () => paintDrafts());
   eventBus.on("scalechanging", () => paintDrafts());
+  eventBus.on("annotationeditormodechanged", () => requestAnimationFrame(paintDrafts));
+  chrome.addEventListener("pointerdown", () => {
+    if (field.hidden || !pendingReplace) return;
+    suspendDraft = false;
+    rememberDraft();
+  }, true);
   applyBtn.hidden = true;
   applyBtn.onclick = () => { rememberDraft(); hideReplace(); };
   cancelBtn.addEventListener("pointerdown", (event) => event.preventDefault());
@@ -2351,7 +2367,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const next = event.relatedTarget;
     if (next && (side.contains(next) || next === field || next === cancelBtn)) return;
     rememberDraft();
-    hideReplace();
+    const stamp = pendingReplace;
+    setTimeout(() => {
+      if (pendingReplace !== stamp || suspendDraft) return;
+      hideReplace();
+      paintDrafts();
+    }, 0);
   });
 
   const addField = el("textarea", "replace-field");
@@ -3553,11 +3574,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
     });
   };
   readCurrentFile = async () => {
-    if (!field.hidden) rememberDraft();
+    if (!field.hidden) {
+      suspendDraft = false;
+      rememberDraft();
+      hideReplace();
+    }
     let bytes = await doc.saveDocument();
     if (textDrafts.length) {
-      bytes = await commitTextDrafts(bytes, false);
-      await showEditedDocument(bytes, pdfViewer.currentPageNumber, pdfViewer.currentScaleValue);
+      const edited = await commitTextDrafts(bytes, false);
+      const shown = await showEditedDocument(edited, pdfViewer.currentPageNumber, pdfViewer.currentScaleValue);
+      if (!shown) throw new Error("Yazı sayfaya işlendi ama görünüm yenilenemedi.");
+      textDrafts.splice(0, textDrafts.length);
+      paintDrafts();
       bytes = await doc.saveDocument();
     }
     if (shapes.length && options.addShapes) {
@@ -3758,15 +3786,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const work = window.SecuriWork;
     if (work) work.begin("Kaydediliyor…");
     try {
-      if (!field.hidden) rememberDraft();
+      if (!field.hidden) {
+        suspendDraft = false;
+        rememberDraft();
+        hideReplace();
+      }
       let bytes = await doc.saveDocument();
+      let reloadBytes = null;
       if (textDrafts.length) {
         setJobProgress(12, "Yazı belgeye işleniyor…");
         bytes = await commitTextDrafts(bytes, true);
-        const shown = await showEditedDocument(bytes, pdfViewer.currentPageNumber, pdfViewer.currentScaleValue);
-        if (!shown) return;
-        bytes = await doc.saveDocument();
-        noteActivity(pdfViewer.currentPageNumber || 1, "Metin güncellendi");
+        reloadBytes = bytes;
       }
       if (shapes.length) {
         if (!options.addShapes) throw new Error("Şekiller bu pencerede dosyaya yazılamıyor.");
@@ -3783,6 +3813,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
       }
       bytes = await bakeComments(bytes);
       const saved = await options.onSave(bytes, fileName);
+      if (reloadBytes) {
+        try {
+          const shown = await showEditedDocument(reloadBytes, pdfViewer.currentPageNumber, pdfViewer.currentScaleValue);
+          if (shown) {
+            textDrafts.splice(0, textDrafts.length);
+            paintDrafts();
+            noteActivity(pdfViewer.currentPageNumber || 1, "Metin güncellendi");
+          }
+        } catch (err) {
+          statusMode.textContent = "Dosya kaydedildi. Sayfa yenilenemedi; yazı yerinde duruyor.";
+        }
+      }
       if (saved && fileName) {
         const base = String(saved).split(/[/\\]/).pop();
         if (base) {
