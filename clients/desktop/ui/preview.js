@@ -618,11 +618,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
   marks.append(textFont, textBold, textItalic, textSize, textColor);
   const printBtn = button("Yazdır", "Belgeyi yazıcıya gönderin (Ctrl+P)", "ghost", ICONS.print);
   const save = button("Kaydet", "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)", "primary", ICONS.save);
+  const saveAs = button("Farklı kaydet", "Belgeyi seçtiğiniz adla kaydedin (Ctrl+Shift+S)", "ghost", ICONS.save);
   save.disabled = true;
+  saveAs.disabled = true;
   const close = button("", "Görüntüleyiciyi kapat (Esc)", "icon", ICONS.close);
   close.classList.add("viewer-btn-close");
 
-  top.append(titleWrap, searchBox, cluster(printBtn, save), close);
+  top.append(titleWrap, searchBox, cluster(printBtn, save, saveAs), close);
   const commentBtn = button("Yorum", "Sayfaya tıklayıp yorum yazın", "tool", ICONS.comment);
   commentBtn.onclick = () => openCommentScreen();
   marks.append(commentBtn);
@@ -701,6 +703,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   if (options.onTask && convertTools.length) commandItems.push(["convert", "Dönüştür", "Belgeyi başka biçime çevir", ICONS.convert]);
   if (options.onTask && signTools.length) commandItems.push(["sign", "İmzala", "Sertifika, doğrulama ve zaman damgası", ICONS.sign]);
   let openCommandMenu = () => {};
+  let commandSource = "";
   const commandButtons = commandItems.map(([id, label, title, icon]) => {
     const node = button(label, title, "tool", icon);
     node.classList.add("viewer-command");
@@ -724,6 +727,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let showToolMatches = () => {};
   toolFind.oninput = () => showToolMatches();
   toolFind.onfocus = () => showToolMatches();
+  const paintCommandMenu = (id) => {
+    commandButtons.forEach((node) => node.classList.toggle("menu-open", Boolean(id) && node.dataset.mode === id));
+  };
   const commandBar = el("div", "viewer-commands");
   commandBar.append(...commandButtons, toolFind);
   ribbon.append(...[pageGroup, viewGroup, commandBar, markGroup, editHint, formHint, shapeGroup].filter(Boolean));
@@ -778,6 +784,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     taskPane.hidden = true;
     taskPane.dataset.open = "";
     taskBody.replaceChildren();
+    commandSource = "";
     thumbsList.querySelectorAll(".viewer-thumb.picked").forEach((cell) => cell.classList.remove("picked"));
     applyViewerChrome(viewerMode);
   };
@@ -837,7 +844,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let viewerMode = "view";
   const applyViewerChrome = (mode) => {
     viewerMode = mode;
-    commandButtons.forEach((node) => node.classList.toggle("active", node.dataset.mode === mode));
+    commandButtons.forEach((node) => {
+      const fromMenu = taskPane.dataset.open === "1" && node.dataset.mode === commandSource;
+      node.classList.toggle("active", node.dataset.mode === mode || fromMenu);
+    });
     markGroup.hidden = mode !== "note";
     shapeGroup.hidden = mode !== "shapes";
     editHint.hidden = mode !== "edit";
@@ -866,7 +876,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
       printDocument();
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      save.click();
+      if (event.shiftKey) saveAs.click();
+      else save.click();
     } else if (!typing && viewerMode === "shapes" && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
       event.preventDefault();
       if (event.shiftKey) redoShape();
@@ -916,9 +927,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const markDirty = (value) => {
     dirty = value;
     save.disabled = false;
+    saveAs.disabled = false;
     dirtyBadge.hidden = !value;
   };
   save.disabled = false;
+  saveAs.disabled = false;
   doc.annotationStorage.onSetModified = () => markDirty(true);
   doc.annotationStorage.onResetModified = () => markDirty(false);
   pdfViewer.setDocument(doc);
@@ -2076,6 +2089,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   setViewerMode = async (mode) => {
     if (regionBusy && mode === "edit") return;
+    commandSource = "";
+    hideMenu();
     if (taskPane.dataset.open === "1") closeTask();
     applyViewerChrome(mode);
     if (mode === "edit") {
@@ -2342,6 +2357,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (menu.hidden) return false;
     menu.hidden = true;
     menu.replaceChildren();
+    paintCommandMenu("");
     return true;
   };
   const openMenu = (x, y, items) => {
@@ -2609,18 +2625,28 @@ async function openViewer(source, pageNumber, title, options = {}) {
   stage.addEventListener("pointercancel", onTaskUp);
   eventBus.on("pagerendered", () => paintComments());
   const menuIcon = (id) => (window.SECURIPDF_MENU_ICONS || {})[id] || "";
-  const menuTool = (tool) => ({ label: tool.title, icon: menuIcon(tool.id), run: () => openTask(tool.id) });
+  const runMenuTool = (menuId, toolId) => {
+    commandSource = menuId;
+    openTask(toolId);
+    applyViewerChrome(viewerMode);
+  };
+  const menuTool = (menuId) => (tool) => ({
+    label: tool.title,
+    icon: menuIcon(tool.id),
+    run: () => runMenuTool(menuId, tool.id),
+  });
   openCommandMenu = (id, x, y) => {
-    if (id === "pages") openMenu(x, y, pageTools.map(menuTool));
-    else if (id === "convert") openMenu(x, y, convertTools.map(menuTool));
-    else if (id === "sign") openMenu(x, y, signTools.map(menuTool));
+    if (id === "pages") openMenu(x, y, pageTools.map(menuTool("pages")));
+    else if (id === "convert") openMenu(x, y, convertTools.map(menuTool("convert")));
+    else if (id === "sign") openMenu(x, y, signTools.map(menuTool("sign")));
     else if (id === "add") {
       openMenu(x, y, [
         { label: "Görsel ekle", icon: menuIcon("add-image"), run: () => pickImage(Math.max(0, (pdfViewer.currentPageNumber || 1) - 1), null, null) },
-        { label: "Damga", icon: menuIcon("add-stamp"), run: () => openTask("add-stamp") },
-        { label: "Ek dosya ekle", icon: menuIcon("add-attachments"), run: () => openTask("add-attachments") },
+        { label: "Damga", icon: menuIcon("add-stamp"), run: () => runMenuTool("add", "add-stamp") },
+        { label: "Ek dosya ekle", icon: menuIcon("add-attachments"), run: () => runMenuTool("add", "add-attachments") },
       ]);
-    }
+    } else return;
+    paintCommandMenu(id);
   };
   showToolMatches = () => {
     const query = toolFind.value.trim().toLocaleLowerCase("tr");
@@ -3247,9 +3273,14 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   if (options.formDesign && options.addFormFields) setViewerMode("form");
 
-  save.onclick = async () => {
+  const saveAsName = () => {
+    const raw = (name.textContent || "belge").trim() || "belge";
+    return /\.pdf$/i.test(raw) ? raw : raw + ".pdf";
+  };
+  const writeDocument = async (fileName) => {
     if (!options.onSave) return;
     save.disabled = true;
+    saveAs.disabled = true;
     const work = window.SecuriWork;
     if (work) work.begin("Kaydediliyor…");
     try {
@@ -3269,7 +3300,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
           page: item.page, x: item.x, y: item.y, text: item.text, color: item.color,
         })));
       }
-      const saved = await options.onSave(bytes);
+      const saved = await options.onSave(bytes, fileName);
+      if (saved && fileName) {
+        const base = String(saved).split(/[/\\]/).pop();
+        if (base) {
+          name.textContent = base;
+          current.title = base;
+          renderDocTabs();
+        }
+      }
       markDirty(!saved);
     } catch (err) {
       markDirty(true);
@@ -3277,8 +3316,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
     } finally {
       if (work) work.end();
       save.disabled = false;
+      saveAs.disabled = false;
     }
   };
+  save.onclick = () => writeDocument();
+  saveAs.onclick = () => writeDocument(saveAsName());
   close.onclick = () => closeViewer(false);
 }
 

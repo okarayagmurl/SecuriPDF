@@ -164,6 +164,8 @@
     "Word": "Word",
     "Uzun düzenleme için Word belgesine dönüştürün": "Convert to a Word document for a longer edit",
     "Kaydet": "Save",
+    "Farklı kaydet": "Save as",
+    "Belgeyi seçtiğiniz adla kaydedin (Ctrl+Shift+S)": "Save the document under a name you choose (Ctrl+Shift+S)",
     "İşaretlemeleri, formu ve yorumları PDF'e yazın (Ctrl+S)": "Write markup, the form and comments into the PDF (Ctrl+S)",
     "Uygula": "Apply",
     "Vazgeç": "Cancel",

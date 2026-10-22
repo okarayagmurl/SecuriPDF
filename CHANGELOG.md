@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Farklı kaydet, belgeyi seçilen adla yazar. Sayfa, Dönüştür ve İmzala açılınca ve işlem sürerken seçili renkte kalır
 - Şerit komutları ve açılan listeler ikonlu. Kaydet yanındaki Word kalktı. Dönüştürme sonucu kendi uzantısıyla gösterilir ve o adla kaydedilir
 - Yorum ekranı: sayfaya tıklanınca not yazılır, listeden açılır ve Kaydet ile PDF notu olur
 - Sayfa seçimi küçük resme tıklayınca da kutuya yazılır. Damga ve numara konumu sayfaya tıklayınca değişir. Kırpma alanı sayfada sürüklenir; sayılar durur
