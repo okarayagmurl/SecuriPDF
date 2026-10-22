@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır"));
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.51");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1510,7 +1510,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const showReplace = (found) => {
     if (!field.hidden && pendingReplace) rememberDraft();
     suspendDraft = true;
-    hideReplace();
+    clearCovers();
     const draft = findDraft(found);
     found.original = draft ? draft.original : found.text;
     found.draftId = draft ? draft.id : 0;
@@ -2123,8 +2123,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
         node.style.height = block.height + "px";
         node.title = block.spans.map((span) => span.text).join(" ").replace(/\s+/g, " ").trim();
         node._spans = block.spans;
-        node.addEventListener("mousedown", (event) => { event.preventDefault(); event.stopPropagation(); });
-        node.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); });
+        node.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openRegion(node);
+        });
         pageEl.appendChild(node);
         regionNodes.push(node);
       });
@@ -2153,17 +2156,29 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   stage.addEventListener("pointerdown", (event) => {
     if (!regionMode || event.button !== 0) return;
-    if (event.target.closest && event.target.closest("textarea, input, button, select, a")) return;
+    if (event.target.closest && event.target.closest("input, button, select")) return;
     const x = event.clientX;
     const y = event.clientY;
+    const onField = !field.hidden && (() => {
+      const box = field.getBoundingClientRect();
+      return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+    })();
+    if (onField) return;
     const hit = regionNodes.find((node) => {
       const box = node.getBoundingClientRect();
       return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
     });
-    if (!hit) return;
-    event.preventDefault();
-    event.stopPropagation();
-    openRegion(hit);
+    if (hit) {
+      event.preventDefault();
+      event.stopPropagation();
+      openRegion(hit);
+      return;
+    }
+    if (!field.hidden && pendingReplace) {
+      suspendDraft = false;
+      rememberDraft();
+      hideReplace();
+    }
   }, true);
   const recognizePage = async (pageNumber) => {
     const bytes = await doc.saveDocument();
@@ -2372,16 +2387,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let saveQueued = false;
   let requestSave = () => {};
   chrome.addEventListener("pointerdown", (event) => {
+    if (field.hidden || !pendingReplace) return;
     const hit = event.target.closest && event.target.closest("button");
     if (hit === save || hit === saveAs) {
-      event.preventDefault();
-      event.stopPropagation();
-      requestSave(hit === saveAs ? saveAsName() : undefined);
+      suspendDraft = false;
+      rememberDraft();
       return;
     }
-    if (field.hidden || !pendingReplace) return;
     suspendDraft = false;
     rememberDraft();
+    hideReplace();
   }, true);
   applyBtn.hidden = true;
   applyBtn.onclick = () => { rememberDraft(); hideReplace(); };
@@ -2394,14 +2409,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
   field.addEventListener("focusout", (event) => {
     if (suppressFocusOut || suspendDraft || replaceBusy || !pendingReplace) return;
     const next = event.relatedTarget;
-    if (next && (side.contains(next) || next === field || next === cancelBtn)) return;
-    const stamp = pendingReplace;
+    if (next && (side.contains(next) || next === field || next === cancelBtn || (next.closest && next.closest(".edit-region")))) return;
     rememberDraft();
-    setTimeout(() => {
-      if (pendingReplace !== stamp || suspendDraft || suppressFocusOut) return;
-      hideReplace();
-      paintDrafts();
-    }, 0);
   });
 
   const addField = el("textarea", "replace-field");
