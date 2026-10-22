@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir
 - Metin düzenlerken başka bir yazı alanına geçilir. Kaydet ve Farklı kaydet tıklaması yazı alanı kapanırken kaybolmaz
 - Metin taslağı menü değişince yerinde kalır. Kaydet ve Farklı kaydet bu taslağı dosyaya yazar

@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.51");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.52");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1508,7 +1508,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     });
   };
   const showReplace = (found) => {
-    if (!field.hidden && pendingReplace) rememberDraft();
+    if (!field.hidden && pendingReplace) {
+      try { rememberDraft(); } catch { /* keep the previous text and still move */ }
+    }
     suspendDraft = true;
     clearCovers();
     const draft = findDraft(found);
@@ -1558,8 +1560,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     found.pageEl.appendChild(field);
     field.focus();
     const end = field.value.length;
-    field.setSelectionRange(end, end);
-    window.getSelection().removeAllRanges();
+    try { field.setSelectionRange(end, end); } catch { /* the caret stays where the browser put it */ }
+    try { window.getSelection().removeAllRanges(); } catch { /* no selection to clear */ }
     suspendDraft = false;
   };
   const rememberDraft = () => {
@@ -2124,8 +2126,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
         node.title = block.spans.map((span) => span.text).join(" ").replace(/\s+/g, " ").trim();
         node._spans = block.spans;
         node.addEventListener("pointerdown", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
+          if (event.button > 0) return;
           openRegion(node);
         });
         pageEl.appendChild(node);
@@ -2154,32 +2155,83 @@ async function openViewer(source, pageNumber, title, options = {}) {
     node.classList.add("selected");
     showReplace(found);
   };
-  stage.addEventListener("pointerdown", (event) => {
-    if (!regionMode || event.button !== 0) return;
-    if (event.target.closest && event.target.closest("input, button, select")) return;
+  const currentCleanupExtras = [];
+  let switchingCell = false;
+  const pointIn = (rect, x, y, pad = 0) => rect && x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad;
+  const pageAtPoint = (x, y) => Array.from(stage.querySelectorAll(".page")).find((pageEl) => pointIn(pageEl.getBoundingClientRect(), x, y));
+  const spanAtPoint = (pageEl, x, y) => {
+    const hits = pageScreenSpans(pageEl).filter((span) => pointIn(span, x, y, 2));
+    hits.sort((a, b) => a.width * a.height - b.width * b.height);
+    return hits[0] || null;
+  };
+  const regionAtPoint = (pageEl, x, y) => {
+    const hits = regionNodes.filter((node) => pageEl.contains(node) && pointIn(node.getBoundingClientRect(), x, y));
+    hits.sort((a, b) => {
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return ar.width * ar.height - br.width * br.height;
+    });
+    return hits[0] || null;
+  };
+  const clickStaysInOpenCell = (x, y) => {
+    if (field.hidden) return false;
+    const box = field.getBoundingClientRect();
+    if (!pointIn(box, x, y)) return false;
+    const pageEl = field.parentElement;
+    const span = pageEl && pageEl.classList && pageEl.classList.contains("page") ? spanAtPoint(pageEl, x, y) : null;
+    if (!span) return true;
+    return box.width <= Math.max(span.width * 2.4, span.width + 24) && box.height <= Math.max(span.height * 2.4, span.height + 16);
+  };
+  const onEditPointer = (event) => {
+    if (!regionMode || !root.isConnected || event.button > 0) return;
+    if (event.type === "mousedown" && onEditPointer.stamp && Date.now() - onEditPointer.stamp < 400) return;
+    const target = event.target;
+    if (target && target.closest && target.closest(".viewer-side, .viewer-chrome, .viewer-menu")) return;
     const x = event.clientX;
     const y = event.clientY;
-    const onField = !field.hidden && (() => {
-      const box = field.getBoundingClientRect();
-      return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
-    })();
-    if (onField) return;
-    const hit = regionNodes.find((node) => {
-      const box = node.getBoundingClientRect();
-      return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
-    });
-    if (hit) {
-      event.preventDefault();
-      event.stopPropagation();
-      openRegion(hit);
+    if (clickStaysInOpenCell(x, y)) return;
+    const pageEl = pageAtPoint(x, y) || (target && target.closest && target.closest(".page"));
+    const span = pageEl ? spanAtPoint(pageEl, x, y) : null;
+    const region = !span && pageEl ? regionAtPoint(pageEl, x, y) : null;
+    if (!span && !region) {
+      if (!field.hidden && pendingReplace && (pageEl || (target && stage.contains(target)))) {
+        switchingCell = true;
+        onEditPointer.stamp = Date.now();
+        setTimeout(() => { switchingCell = false; }, 0);
+        event.preventDefault();
+        event.stopPropagation();
+        suspendDraft = false;
+        try { rememberDraft(); } catch { /* the click still leaves the cell */ }
+        hideReplace();
+      }
       return;
     }
-    if (!field.hidden && pendingReplace) {
-      suspendDraft = false;
-      rememberDraft();
+    switchingCell = true;
+    onEditPointer.stamp = Date.now();
+    setTimeout(() => { switchingCell = false; }, 0);
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      if (span && pageEl) {
+        const mates = cellMates(pageScreenSpans(pageEl), [span]);
+        const found = foundFromSpans(pageEl, mates.length ? mates : [span]);
+        if (found) {
+          showReplace(found);
+          return;
+        }
+      }
+      const fallback = region || (pageEl ? regionAtPoint(pageEl, x, y) : null);
+      if (fallback) openRegion(fallback);
+    } catch {
       hideReplace();
     }
-  }, true);
+  };
+  document.addEventListener("pointerdown", onEditPointer, true);
+  document.addEventListener("mousedown", onEditPointer, true);
+  currentCleanupExtras.push(() => {
+    document.removeEventListener("pointerdown", onEditPointer, true);
+    document.removeEventListener("mousedown", onEditPointer, true);
+  });
   const recognizePage = async (pageNumber) => {
     const bytes = await doc.saveDocument();
     const form = new FormData();
@@ -2400,17 +2452,24 @@ async function openViewer(source, pageNumber, title, options = {}) {
   }, true);
   applyBtn.hidden = true;
   applyBtn.onclick = () => { rememberDraft(); hideReplace(); };
-  cancelBtn.addEventListener("pointerdown", (event) => event.preventDefault());
+  cancelBtn.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    hideReplace();
+  });
   cancelBtn.onclick = hideReplace;
   field.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); rememberDraft(); hideReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }
   });
-  field.addEventListener("focusout", (event) => {
-    if (suppressFocusOut || suspendDraft || replaceBusy || !pendingReplace) return;
-    const next = event.relatedTarget;
-    if (next && (side.contains(next) || next === field || next === cancelBtn || (next.closest && next.closest(".edit-region")))) return;
-    rememberDraft();
+  field.addEventListener("focusout", () => {
+    if (switchingCell || suppressFocusOut || suspendDraft || replaceBusy || !pendingReplace) return;
+    const stamp = pendingReplace;
+    setTimeout(() => {
+      if (switchingCell || pendingReplace !== stamp || suspendDraft || suppressFocusOut) return;
+      try { rememberDraft(); } catch { /* leave the cell anyway */ }
+      if (pendingReplace === stamp) hideReplace();
+    }, 0);
   });
 
   const addField = el("textarea", "replace-field");
@@ -3749,6 +3808,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   eventBus.on("scalechanging", onShapePaint);
 
   current.cleanup = () => {
+    currentCleanupExtras.splice(0).forEach((detach) => detach());
     document.removeEventListener("mousemove", onFormMove, true);
     document.removeEventListener("mouseup", onFormUp, true);
     document.removeEventListener("pointerdown", onHighlightPointer, true);
