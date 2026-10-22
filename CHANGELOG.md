@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Görüntüleme ve düzenlemede yorumlar sağ panelde listelenir. Belgedeki notlar açılınca görünür; yeni yorum ve işlemler de oraya düşer ve silinebilir
+- Sayfa düzeni menüsü sürekli veya tek sayfa geçişi, saat yönü ve tersi döndürme, tek sayfa, çift sayfa, kapak ve tam ekran sunar. Kesme aracı seçilen alanı panoya kopyalar, indirir veya sayfayı o alana kırpar
 - Farklı kaydet, belgeyi seçilen adla yazar. Sayfa, Dönüştür ve İmzala açılınca ve işlem sürerken seçili renkte kalır
 - Şerit komutları ve açılan listeler ikonlu. Kaydet yanındaki Word kalktı. Dönüştürme sonucu kendi uzantısıyla gösterilir ve o adla kaydedilir
 - Yorum ekranı: sayfaya tıklanınca not yazılır, listeden açılır ve Kaydet ile PDF notu olur

@@ -19,6 +19,7 @@ fn main() {
             "add_form_fields",
             "add_shapes",
             "add_comments",
+            "strip_comments",
             "scan_file",
             "cli_job",
             "cli_start_engine",

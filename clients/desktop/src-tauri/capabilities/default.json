@@ -22,6 +22,7 @@
     "allow-add-form-fields",
     "allow-add-shapes",
     "allow-add-comments",
+    "allow-strip-comments",
     "allow-scan-file",
     "allow-make-qr",
     "allow-license-status",

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-strip-comments"
+description = "Enables the strip_comments command without any pre-configured scope."
+commands.allow = ["strip_comments"]
+
+[[permission]]
+identifier = "deny-strip-comments"
+description = "Denies the strip_comments command without any pre-configured scope."
+commands.deny = ["strip_comments"]

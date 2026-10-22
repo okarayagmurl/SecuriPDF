@@ -232,6 +232,7 @@ const ICONS = {
   redo: '<polyline points="15 14 20 9 15 4"/><path d="M4 20v-5a6 6 0 0 1 6-6h10"/>',
   eraser: '<path d="M20 20H9L3.5 14.5a2 2 0 0 1 0-2.8L12 3.2a2 2 0 0 1 2.8 0L20 8.4"/><path d="M7 13l6 6"/>',
   comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
   convert: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
   sign: '<path d="M3 17c2-1 3-4 4-4s2 3 3 3 2-6 4-6 2 5 3 5 2-2 4-2"/><path d="M3 21h18"/>',
 };
@@ -636,7 +637,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
     marks.append(ocrBtn, redactBtn);
   }
   const pageGroup = group("Sayfa", prev, pageBox, next);
-  const viewGroup = group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate);
+  let openLayoutMenu = () => {};
+  const layoutBtn = button("Düzen", "Sayfa geçişi, döndürme ve sayfa düzeni", "tool", ICONS.pages);
+  layoutBtn.onclick = (event) => {
+    event.stopPropagation();
+    const rect = layoutBtn.getBoundingClientRect();
+    openLayoutMenu(rect.left, rect.bottom + 4);
+  };
+  const commentsToggle = button("Yorumlar", "Yorumları ve yapılan işlemleri göster", "tool", ICONS.comment);
+  const viewGroup = group("Görünüm", zoomOut, zoomLabel, zoomIn, fitWidth, fitPage, rotate, layoutBtn, commentsToggle);
   const markGroup = group("İşaret", marks);
   const editHint = el("p", "viewer-ribbon-hint", t("Kesik çizgili alan yazının kendisidir. Tıklayınca orada değişir."));
   const formHint = el("p", "viewer-ribbon-hint", t("Sayfada sürükleyerek metin, onay kutusu veya liste alanı çizin."));
@@ -730,8 +739,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const paintCommandMenu = (id) => {
     commandButtons.forEach((node) => node.classList.toggle("menu-open", Boolean(id) && node.dataset.mode === id));
   };
+  let openSnip = () => {};
+  const snipBtn = button("Kes", "Seçilen alanı panoya kopyalayın, indirin veya kırpın", "tool", ICONS.crop);
+  snipBtn.onclick = () => openSnip();
   const commandBar = el("div", "viewer-commands");
-  commandBar.append(...commandButtons, toolFind);
+  commandBar.append(...commandButtons, snipBtn, toolFind);
   ribbon.append(...[pageGroup, viewGroup, commandBar, markGroup, editHint, formHint, shapeGroup].filter(Boolean));
   chrome.append(top, ribbon);
   const workspace = el("div", "viewer-workspace");
@@ -771,6 +783,30 @@ async function openViewer(source, pageNumber, title, options = {}) {
   taskHead.append(taskTitle, taskClose);
   const taskBody = el("div", "viewer-task-body");
   taskPane.append(taskHead, taskBody);
+  const commentsPane = el("aside", "viewer-comments");
+  commentsPane.hidden = true;
+  const commentsHead = el("div", "viewer-comments-head");
+  const commentsTitle = el("h2", "viewer-side-title", t("Yorumlar"));
+  const commentsClose = button("", "Yorum panelini kapat", "icon", ICONS.close);
+  commentsHead.append(commentsTitle, commentsClose);
+  const commentsSearch = el("input", "viewer-comments-search");
+  commentsSearch.type = "search";
+  commentsSearch.placeholder = t("Yorumlarda ara");
+  const commentsSort = el("select", "viewer-comments-sort");
+  [["position", "Konum"], ["time", "Zaman"]].forEach(([value, label]) => {
+    const option = el("option", null, t(label));
+    option.value = value;
+    commentsSort.appendChild(option);
+  });
+  const commentsTools = el("div", "viewer-comments-tools");
+  commentsTools.append(el("span", null, t("Sırala")), commentsSort);
+  const commentsBody = el("div", "viewer-comments-body");
+  const commentsAdd = button("Yorum ekle", "Sayfaya tıklayıp yorum yazın", "ghost", ICONS.comment);
+  commentsPane.append(commentsHead, commentsSearch, commentsTools, commentsAdd, commentsBody);
+  let commentsOpen = false;
+  let commentsDismissed = false;
+  let revealComments = () => {};
+  let reloadComments = async () => {};
   let taskToken = 0;
   const closeTask = () => {
     taskToken += 1;
@@ -787,12 +823,13 @@ async function openViewer(source, pageNumber, title, options = {}) {
     commandSource = "";
     thumbsList.querySelectorAll(".viewer-thumb.picked").forEach((cell) => cell.classList.remove("picked"));
     applyViewerChrome(viewerMode);
+    if (commentsOpen) commentsPane.hidden = false;
   };
   taskClose.onclick = (event) => {
     event.stopPropagation();
     closeTask();
   };
-  workspace.append(thumbs, body, side, taskPane);
+  workspace.append(thumbs, body, side, commentsPane, taskPane);
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
@@ -978,8 +1015,32 @@ async function openViewer(source, pageNumber, title, options = {}) {
   let commentPlacing = false;
   let commentPop = null;
   const comments = [];
+  const activities = [];
   let commentSeq = 1;
+  let activitySeq = 1;
   let commentColor = "#f59e0b";
+  const commentStamp = (raw) => {
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      return new Date(raw).toLocaleString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    }
+    const match = /^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(String(raw || ""));
+    if (!match) return "";
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]));
+    return date.toLocaleString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  };
+  const commentTime = (raw) => {
+    if (typeof raw === "number") return raw;
+    const match = /^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(String(raw || ""));
+    if (!match) return 0;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5])).getTime();
+  };
+  const noteActivity = (page, text, undo) => {
+    activities.push({ id: activitySeq++, page: page || (pdfViewer.currentPageNumber || 1), text, when: Date.now(), undo });
+    commentsDismissed = false;
+    commentsOpen = true;
+    if (taskPane.dataset.open !== "1") commentsPane.hidden = false;
+    renderCommentsPane();
+  };
   let readCurrentFile = async () => {
     throw new Error("Belge henüz hazır değil.");
   };
@@ -1499,6 +1560,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       pdfViewer.update();
     }
     if (view && view.div) view.div.scrollIntoView({ block: "nearest" });
+    reloadComments();
     return true;
   };
 
@@ -1788,6 +1850,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       warmEditor();
       setJobProgress(100, "Metin yazıldı");
       statusMode.textContent = "Metin belgenin yazısına işlendi. Kaydet ile dosyaya yazın.";
+      noteActivity(pageNumber, "Metin güncellendi");
     } catch (err) {
       hideReplace();
       const message = options.errorText ? options.errorText(err) : String((err && err.message) || err || "Metin yazılamadı.");
@@ -2091,8 +2154,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (regionBusy && mode === "edit") return;
     commandSource = "";
     hideMenu();
+    if (mode === "edit") commentsDismissed = false;
     if (taskPane.dataset.open === "1") closeTask();
     applyViewerChrome(mode);
+    revealComments();
     if (mode === "edit") {
       if (formMode) setFormMode(false);
       regionBusy = true;
@@ -2358,13 +2423,19 @@ async function openViewer(source, pageNumber, title, options = {}) {
     menu.hidden = true;
     menu.replaceChildren();
     paintCommandMenu("");
+    layoutBtn.classList.remove("menu-open");
     return true;
   };
   const openMenu = (x, y, items) => {
     menu.replaceChildren();
     items.forEach((item) => {
+      if (item.heading) {
+        menu.appendChild(el("div", "viewer-menu-label", t(item.label)));
+        return;
+      }
       const node = el("button");
       node.type = "button";
+      if (item.checked) node.classList.add("checked");
       if (item.icon) node.innerHTML = svgIcon(item.icon) + `<span>${t(item.label)}</span>`;
       else node.textContent = t(item.label);
       node.disabled = Boolean(item.disabled);
@@ -2388,6 +2459,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
   openTask = (toolId) => {
     if (!options.onTask || !toolId) return;
+    commentsPane.hidden = true;
     taskToken += 1;
     const token = taskToken;
     taskPane.dataset.open = "1";
@@ -2423,53 +2495,151 @@ async function openViewer(source, pageNumber, title, options = {}) {
       },
     });
   };
-  const renderCommentScreen = () => {
-    commentPlacing = true;
-    root.classList.add("is-commenting");
-    taskTitle.textContent = t("Yorumlar");
-    taskBody.replaceChildren();
-    const hint = el("p", "viewer-side-note", t("Sayfada yorumun duracağı yere tıklayın. Kaydet ile PDF'e yazılır."));
-    const colorRow = el("label", "viewer-task-color");
-    colorRow.append(document.createTextNode(t("Yorum rengi")));
-    const color = el("input", "viewer-color");
-    color.type = "color";
-    color.value = commentColor;
-    color.oninput = () => { commentColor = color.value; paintComments(); };
-    colorRow.appendChild(color);
-    const list = el("ul", "comment-list");
-    if (!comments.length) list.appendChild(el("li", "comment-empty", t("Henüz yorum yok.")));
-    comments.forEach((item) => {
-      const row = el("li", "comment-row");
-      const open = el("button", "comment-open");
-      open.type = "button";
-      open.append(el("strong", null, t("Sayfa") + " " + item.page), el("span", null, item.text));
-      open.onclick = () => { pdfViewer.currentPageNumber = item.page; };
-      const remove = el("button", "comment-remove", "×");
+  const liveComments = () => comments.filter((item) => !item.removed);
+  const renderCommentCards = (host, items, onRemove) => {
+    let page = 0;
+    items.forEach((item) => {
+      if (item.page !== page) {
+        page = item.page;
+        host.appendChild(el("div", "viewer-comments-page", t("Sayfa") + " " + item.page));
+      }
+      const row = el("article", "comment-card");
+      const top = el("div", "comment-card-top");
+      const who = el("div", "comment-card-who");
+      who.append(el("strong", null, item.author || t("(isimsiz)")), el("span", null, commentStamp(item.when)));
+      const remove = el("button", "comment-remove", "–");
       remove.type = "button";
-      remove.title = t("Yorumu sil");
-      remove.onclick = () => {
+      remove.title = t("Sil");
+      remove.onclick = () => onRemove(item);
+      top.append(who, remove);
+      const body = el("button", "comment-card-text");
+      body.type = "button";
+      body.textContent = item.text ? "“" + item.text + "”" : t("Yorum");
+      body.onclick = () => { pdfViewer.currentPageNumber = item.page; };
+      row.append(top, body);
+      host.appendChild(row);
+    });
+  };
+  const renderCommentsPane = () => {
+    const query = commentsSearch.value.trim().toLocaleLowerCase("tr");
+    const byTime = commentsSort.value === "time";
+    const matches = (item) => !query || String(item.text || "").toLocaleLowerCase("tr").includes(query) || String(item.author || "").toLocaleLowerCase("tr").includes(query);
+    const sortItems = (list) => list.slice().sort((a, b) => {
+      if (byTime) return commentTime(b.when) - commentTime(a.when);
+      if (a.page !== b.page) return a.page - b.page;
+      return (b.y || 0) - (a.y || 0);
+    });
+    const notes = sortItems(liveComments().filter(matches));
+    const acts = sortItems(activities.filter(matches));
+    commentsTitle.textContent = t("Yorumlar") + " (" + liveComments().length + ")";
+    commentsBody.replaceChildren();
+    if (!notes.length) commentsBody.appendChild(el("p", "comment-empty", t("Henüz yorum yok.")));
+    else renderCommentCards(commentsBody, notes, (item) => {
+      if (item.source === "file") item.removed = true;
+      else {
         const index = comments.findIndex((entry) => entry.id === item.id);
         if (index >= 0) comments.splice(index, 1);
-        markDirty(true);
-        paintComments();
-        renderCommentScreen();
-      };
-      row.append(open, remove);
-      list.appendChild(row);
+      }
+      markDirty(true);
+      paintComments();
+      renderCommentsPane();
     });
-    taskBody.append(hint, colorRow, list);
+    if (acts.length) {
+      commentsBody.appendChild(el("h3", "viewer-comments-page", t("İşlemler") + " (" + activities.length + ")"));
+      renderCommentCards(commentsBody, acts, (item) => {
+        const index = activities.findIndex((entry) => entry.id === item.id);
+        if (index >= 0) activities.splice(index, 1);
+        if (typeof item.undo === "function") item.undo();
+        renderCommentsPane();
+      });
+    }
+  };
+  revealComments = () => {
+    if (commentsDismissed || taskPane.dataset.open === "1") return;
+    if (!liveComments().length && !activities.length) return;
+    commentsOpen = true;
+    commentsPane.hidden = false;
+    renderCommentsPane();
+  };
+  commentsSearch.oninput = () => renderCommentsPane();
+  commentsSort.onchange = () => renderCommentsPane();
+  commentsClose.onclick = () => {
+    commentsOpen = false;
+    commentsDismissed = true;
+    commentPlacing = false;
+    root.classList.remove("is-commenting");
+    commentsPane.hidden = true;
+  };
+  commentsAdd.onclick = () => openCommentScreen();
+  commentsToggle.onclick = () => {
+    if (!commentsPane.hidden) commentsClose.onclick();
+    else {
+      commentsDismissed = false;
+      commentsOpen = true;
+      commentsPane.hidden = false;
+      renderCommentsPane();
+    }
   };
   openCommentScreen = () => {
-    taskToken += 1;
-    taskPages = null;
-    taskPoint = null;
-    taskCrop = null;
-    root.classList.remove("is-paging", "is-cropping");
-    taskPane.dataset.open = "1";
-    taskPane.hidden = false;
-    side.hidden = true;
-    renderCommentScreen();
+    commentsDismissed = false;
+    commentsOpen = true;
+    commentPlacing = true;
+    root.classList.add("is-commenting");
+    if (taskPane.dataset.open === "1") commentsPane.hidden = true;
+    else commentsPane.hidden = false;
+    renderCommentsPane();
+    statusMode.textContent = t("Sayfada yorumun duracağı yere tıklayın. Kaydet ile PDF'e yazılır.");
   };
+  const sessionNotes = () => comments.filter((item) => item.source !== "file" && !item.removed).map((item) => ({
+    page: item.page, x: item.x, y: item.y, text: item.text, color: item.color,
+  }));
+  const removedNotes = () => comments.filter((item) => item.source === "file" && item.removed).map((item) => ({
+    page: item.page, text: item.text,
+  }));
+  const bakeComments = async (bytes) => {
+    const removed = removedNotes();
+    if (removed.length && options.stripComments) bytes = await options.stripComments(bytes, removed);
+    const fresh = sessionNotes();
+    if (fresh.length && options.addComments) bytes = await options.addComments(bytes, fresh);
+    return bytes;
+  };
+  const loadFileComments = async () => {
+    const found = [];
+    for (let page = 1; page <= doc.numPages; page++) {
+      let annots = [];
+      try { annots = await doc.getPage(page).then((pdfPage) => pdfPage.getAnnotations()); }
+      catch { annots = []; }
+      annots.forEach((annot) => {
+        const text = annot.contentsObj && annot.contentsObj.str ? String(annot.contentsObj.str).trim() : "";
+        const subtype = annot.subtype || "";
+        if (subtype !== "Text" && subtype !== "FreeText" && !text) return;
+        if (!["Text", "FreeText", "Highlight", "Underline", "StrikeOut", "Squiggly", "Caret"].includes(subtype)) return;
+        const rect = Array.isArray(annot.rect) ? annot.rect : [0, 0, 0, 0];
+        const color = annot.color && annot.color.length >= 3
+          ? "#" + [annot.color[0], annot.color[1], annot.color[2]].map((part) => {
+            const value = Number(part) <= 1 ? Number(part) * 255 : Number(part);
+            return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0");
+          }).join("")
+          : "#f59e0b";
+        found.push({
+          id: "file-" + page + "-" + (annot.id || found.length),
+          source: "file",
+          page,
+          x: Number(rect[0]) || 0,
+          y: Number(rect[1]) || 0,
+          text,
+          author: annot.titleObj && annot.titleObj.str ? String(annot.titleObj.str) : "",
+          when: annot.modificationDate || "",
+          color,
+          removed: false,
+        });
+      });
+    }
+    comments.splice(0, comments.length, ...found);
+    paintComments();
+    revealComments();
+  };
+  reloadComments = loadFileComments;
   const paintComments = () => {
     stage.querySelectorAll(".page").forEach((pageEl) => {
       let layer = pageEl.querySelector(":scope > .comment-layer");
@@ -2486,7 +2656,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const canvasBox = canvas.getBoundingClientRect();
       const ox = canvasBox.left - pageBox.left;
       const oy = canvasBox.top - pageBox.top;
-      comments.filter((item) => item.page === pageNumber).forEach((item) => {
+      comments.filter((item) => item.page === pageNumber && !item.removed).forEach((item) => {
         const vp = view.viewport.convertToViewportPoint(item.x, item.y);
         const pin = el("button", "comment-pin", String(comments.indexOf(item) + 1));
         pin.type = "button";
@@ -2545,17 +2715,23 @@ async function openViewer(source, pageNumber, title, options = {}) {
       if (!text) { area.focus(); return; }
       comments.push({
         id: commentSeq++,
+        source: "session",
         page: hit.page,
         x: hit.x,
         y: hit.y,
         text,
+        author: "SecuriPDF",
+        when: Date.now(),
         color: commentColor,
       });
       pop.remove();
       if (commentPop === pop) commentPop = null;
       markDirty(true);
+      commentsDismissed = false;
+      commentsOpen = true;
+      if (taskPane.dataset.open !== "1") commentsPane.hidden = false;
       paintComments();
-      if (taskPane.dataset.open === "1" && commentPlacing) renderCommentScreen();
+      renderCommentsPane();
     };
   };
   const onTaskPointer = (event) => {
@@ -2624,6 +2800,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   stage.addEventListener("pointerup", onTaskUp);
   stage.addEventListener("pointercancel", onTaskUp);
   eventBus.on("pagerendered", () => paintComments());
+  loadFileComments();
   const menuIcon = (id) => (window.SECURIPDF_MENU_ICONS || {})[id] || "";
   const runMenuTool = (menuId, toolId) => {
     commandSource = menuId;
@@ -2647,6 +2824,142 @@ async function openViewer(source, pageNumber, title, options = {}) {
       ]);
     } else return;
     paintCommandMenu(id);
+  };
+  const toggleFull = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else root.requestFullscreen().catch(() => {});
+  };
+  openLayoutMenu = (x, y) => {
+    layoutBtn.classList.add("menu-open");
+    const full = Boolean(document.fullscreenElement);
+    openMenu(x, y, [
+      { heading: true, label: "Sayfa geçişi" },
+      { label: "Sürekli sayfa", checked: pdfViewer.scrollMode === 0, run: () => { pdfViewer.scrollMode = 0; } },
+      { label: "Sayfa sayfa", checked: pdfViewer.scrollMode === 3, run: () => { pdfViewer.scrollMode = 3; } },
+      { heading: true, label: "Döndür" },
+      { label: "Saat yönünde döndür", run: () => { pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360; } },
+      { label: "Saat yönünün tersine çevirin", run: () => { pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 270) % 360; } },
+      { heading: true, label: "Sayfa düzeni" },
+      { label: "Tek sayfa", checked: pdfViewer.spreadMode === 0, run: () => { pdfViewer.spreadMode = 0; } },
+      { label: "Çift sayfa", checked: pdfViewer.spreadMode === 1, run: () => { pdfViewer.spreadMode = 1; } },
+      { label: "Kapak sayfası", checked: pdfViewer.spreadMode === 2, run: () => { pdfViewer.spreadMode = 2; } },
+      { label: full ? "Tam ekrandan çık" : "Tam ekran", run: toggleFull },
+    ]);
+  };
+  let snipPdf = null;
+  const captureSnip = () => {
+    if (!cropBox || !cropBox.parentElement) return null;
+    const pageEl = cropBox.parentElement;
+    const canvas = pageEl.querySelector("canvas");
+    if (!canvas) return null;
+    const pageBox = pageEl.getBoundingClientRect();
+    const canvasBox = canvas.getBoundingClientRect();
+    const left = parseFloat(cropBox.style.left) || 0;
+    const top = parseFloat(cropBox.style.top) || 0;
+    const width = parseFloat(cropBox.style.width) || 0;
+    const height = parseFloat(cropBox.style.height) || 0;
+    if (width < 4 || height < 4) return null;
+    const scaleX = canvas.width / canvasBox.width;
+    const scaleY = canvas.height / canvasBox.height;
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.round(width * scaleX));
+    out.height = Math.max(1, Math.round(height * scaleY));
+    out.getContext("2d").drawImage(
+      canvas,
+      (pageBox.left + left - canvasBox.left) * scaleX,
+      (pageBox.top + top - canvasBox.top) * scaleY,
+      width * scaleX,
+      height * scaleY,
+      0, 0, out.width, out.height,
+    );
+    return out;
+  };
+  const applySnip = async (choice) => {
+    if (choice === "crop") {
+      if (!snipPdf || snipPdf.width < 8 || snipPdf.height < 8) {
+        window.alert(t("Önce sayfada bir alan çizin."));
+        return;
+      }
+      if (!options.engine) {
+        window.alert(t("Kırpma bu pencerede yapılamıyor."));
+        return;
+      }
+      const file = await readCurrentFile();
+      const form = new FormData();
+      form.append("fileInput", file, file.name);
+      form.append("autoCrop", "false");
+      form.append("removeDataOutsideCrop", "true");
+      form.append("x", String(snipPdf.x));
+      form.append("y", String(snipPdf.y));
+      form.append("width", String(snipPdf.width));
+      form.append("height", String(snipPdf.height));
+      const bytes = await options.engine("/api/v1/general/crop", form);
+      await adoptDocument(bytes);
+      noteActivity(snipPdf.page, "Sayfa kırpıldı");
+      closeTask();
+      return;
+    }
+    const image = captureSnip();
+    if (!image) {
+      window.alert(t("Önce sayfada bir alan çizin."));
+      return;
+    }
+    const blob = await new Promise((resolve) => image.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Görüntü alınamadı.");
+    if (choice === "copy") {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        statusMode.textContent = t("Seçilen alan panoya kopyalandı.");
+        noteActivity(snipPdf && snipPdf.page, "Alan panoya kopyalandı");
+        return;
+      } catch { /* the clipboard refused the image; save it instead */ }
+    }
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (!options.onSave) throw new Error("Kayıt bu pencerede yok.");
+    const saved = await options.onSave(bytes, "kesim.png");
+    statusMode.textContent = saved ? t("Seçilen alan kaydedildi.") : t("Kayıt iptal edildi.");
+    if (saved) noteActivity(snipPdf && snipPdf.page, "Alan indirildi");
+  };
+  openSnip = () => {
+    snipPdf = null;
+    commentsPane.hidden = true;
+    taskToken += 1;
+    taskPages = null;
+    taskPoint = null;
+    commentPlacing = false;
+    root.classList.remove("is-commenting", "is-paging");
+    root.classList.add("is-cropping");
+    taskPane.dataset.open = "1";
+    taskPane.hidden = false;
+    side.hidden = true;
+    taskTitle.textContent = t("Kesme Aracı");
+    taskBody.replaceChildren();
+    const hint = el("p", "viewer-side-note", t("Sayfada alanı sürükleyin. Uygula seçilen işi yapar."));
+    let choice = "copy";
+    const radios = [["copy", "Panoya kopyala"], ["download", "İndir"], ["crop", "Kırp ve kaldır"]].map(([value, label]) => {
+      const row = el("label", "snip-choice");
+      const input = el("input");
+      input.type = "radio";
+      input.name = "snip-action";
+      input.value = value;
+      input.checked = value === "copy";
+      input.onchange = () => { choice = value; };
+      row.append(input, document.createTextNode(" " + t(label)));
+      return row;
+    });
+    const actions = el("div", "comment-actions");
+    const cancel = button("İptal", "Kesmeyi kapat", "ghost");
+    const apply = button("Uygula", "Seçilen işlemi uygula", "primary");
+    actions.append(cancel, apply);
+    cancel.onclick = () => closeTask();
+    apply.onclick = async () => {
+      apply.disabled = true;
+      try { await applySnip(choice); }
+      catch (err) { window.alert(String((err && err.message) || err || "Kesme tamamlanamadı.")); }
+      finally { apply.disabled = false; }
+    };
+    taskBody.append(hint, ...radios, actions);
+    taskCrop = (box) => { snipPdf = box; };
   };
   showToolMatches = () => {
     const query = toolFind.value.trim().toLocaleLowerCase("tr");
@@ -2698,6 +3011,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       );
       markDirty(true);
       statusMode.textContent = t("Görsel sayfaya eklendi. Kaydet ile dosyaya yazın.");
+      noteActivity(pageIndex + 1, "Görsel eklendi");
     } catch {
       window.alert(t("Görsel eklenemedi."));
     }
@@ -3093,11 +3407,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       selectedShapeId = null;
       paintShapes();
     }
-    if (comments.length && options.addComments) {
-      bytes = await options.addComments(bytes, comments.map((item) => ({
-        page: item.page, x: item.x, y: item.y, text: item.text, color: item.color,
-      })));
-    }
+    bytes = await bakeComments(bytes);
     const label = (name.textContent || "belge").trim() || "belge";
     const fileName = /\.pdf$/i.test(label) ? label : label + ".pdf";
     return new File([bytes], fileName, { type: "application/pdf" });
@@ -3106,11 +3416,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const page = pdfViewer.currentPageNumber || 1;
     const scale = pdfViewer.currentScaleValue;
     const ok = await showEditedDocument(bytes, page, scale);
-    if (ok) {
-      comments.splice(0, comments.length);
-      paintComments();
-      markDirty(true);
-    }
+    if (ok) markDirty(true);
     return ok;
   };
   const onShapeDown = (event) => {
@@ -3197,9 +3503,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
       to: { x: to.x, y: to.y },
       paths,
     });
+    const shapeId = shapeSeq;
     shapeSeq += 1;
     paintShapes();
     statusMode.textContent = t(shapeStatus);
+    noteActivity(from.page, "Şekil eklendi", () => {
+      const index = shapes.findIndex((shape) => shape.id === shapeId);
+      if (index >= 0) shapes.splice(index, 1);
+      if (selectedShapeId === shapeId) selectedShapeId = null;
+      paintShapes();
+      markDirty(true);
+    });
   };
   stage.addEventListener("pointerdown", onShapeDown, true);
   stage.addEventListener("pointermove", onShapeMove);
@@ -3264,6 +3578,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       hideFormDraft();
       refreshFormList();
       statusMode.textContent = `"${fieldName}" alanı eklendi. Kaydet ile PDF'e yazın.`;
+      noteActivity(pdfViewer.currentPageNumber || 1, "Form alanı eklendi");
     } catch (err) {
       window.alert(String(err && err.message || err || "Form alanı eklenemedi."));
     } finally {
@@ -3294,12 +3609,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
           paths: shape.paths,
         })));
       }
-      if (comments.length) {
-        if (!options.addComments) throw new Error("Yorumlar bu pencerede dosyaya yazılamıyor.");
-        bytes = await options.addComments(bytes, comments.map((item) => ({
-          page: item.page, x: item.x, y: item.y, text: item.text, color: item.color,
-        })));
+      if ((comments.some((item) => item.source !== "file" && !item.removed) && !options.addComments)
+        || (comments.some((item) => item.source === "file" && item.removed) && !options.stripComments)) {
+        throw new Error("Yorumlar bu pencerede dosyaya yazılamıyor.");
       }
+      bytes = await bakeComments(bytes);
       const saved = await options.onSave(bytes, fileName);
       if (saved && fileName) {
         const base = String(saved).split(/[/\\]/).pop();

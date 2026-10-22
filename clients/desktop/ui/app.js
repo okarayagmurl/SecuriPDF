@@ -1159,6 +1159,13 @@
     return new Uint8Array(await core.invoke("make_qr", { text }));
   }
 
+  async function stripComments(bytes, comments) {
+    const output = await core.invoke("strip_comments", bytes, {
+      headers: { "x-securipdf-strip-comments": encodeURIComponent(JSON.stringify(comments)) },
+    });
+    return new Uint8Array(output);
+  }
+
   async function addComments(bytes, comments) {
     const output = await core.invoke("add_comments", bytes, {
       headers: { "x-securipdf-comments": encodeURIComponent(JSON.stringify(comments)) },
@@ -1617,6 +1624,7 @@
         onSave: (bytes, name) => saveBytes(bytes, name || stem + "_duzenli.pdf"),
         addShapes,
         addComments,
+        stripComments,
         onTask: (toolId, api) => openDocumentTask(toolId, api),
         convertTools: (window.SECURIPDF_TOOLS || [])
           .filter((tool) => tool.category === "convert")

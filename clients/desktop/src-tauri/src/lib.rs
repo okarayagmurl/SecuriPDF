@@ -153,6 +153,7 @@ pub fn run() {
             form_fields::add_form_fields,
             shapes::add_shapes,
             comments::add_comments,
+            comments::strip_comments,
             defender::scan_file,
             qr::make_qr,
             license::license_status,
