@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.52");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.53");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1461,7 +1461,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
   };
 
   const rectHits = (a, b) => a && b && a[0] < b[2] - 0.5 && a[2] > b[0] + 0.5 && a[1] < b[3] - 0.5 && a[3] > b[1] + 0.5;
-  const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && draft.pdfRects.some((rect) => (found.pdfRects || []).some((other) => rectHits(rect, other))));
+  const rectCenter = (rect) => [(rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2];
+  const centerInRect = (rect, point) => point[0] > rect[0] && point[0] < rect[2] && point[1] > rect[1] && point[1] < rect[3];
+  const sameCellRects = (aRects, bRects) => (aRects || []).some((rect) => (bRects || []).some((other) => centerInRect(rect, rectCenter(other)) && centerInRect(other, rectCenter(rect))));
+  const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && sameCellRects(draft.pdfRects, found.pdfRects));
   const paintDrafts = () => {
     stage.querySelectorAll(".draft-cover, .draft-text").forEach((node) => node.remove());
     textDrafts.forEach((draft) => {
@@ -1470,15 +1473,17 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const canvas = pageEl && pageEl.querySelector("canvas");
       if (!pageEl || !view || !view.viewport || !canvas) return;
       const pageBox = pageEl.getBoundingClientRect();
-      const canvasBox = canvas.getBoundingClientRect();
-      const ox = canvasBox.left - pageBox.left;
-      const oy = canvasBox.top - pageBox.top;
-      const boxes = draft.pdfRects.map((rect) => {
+      const originEl = pageEl.querySelector(".canvasWrapper") || canvas;
+      const origin = originEl.getBoundingClientRect();
+      const ox = origin.left - pageBox.left;
+      const oy = origin.top - pageBox.top;
+      const sameScale = draft.cssBoxes && draft.cssBoxes.length && Math.abs((draft.scale || 0) - (pdfViewer.currentScale || 1)) < 0.001;
+      const boxes = (sameScale ? draft.cssBoxes : draft.pdfRects.map((rect) => {
         const vp = view.viewport.convertToViewportRectangle(rect);
         const left = Math.min(vp[0], vp[2]);
         const top = Math.min(vp[1], vp[3]);
         return { left: ox + left, top: oy + top, width: Math.abs(vp[2] - vp[0]), height: Math.abs(vp[3] - vp[1]) };
-      }).filter((box) => box.width > 1 && box.height > 1);
+      })).filter((box) => box.width > 1 && box.height > 1);
       if (!boxes.length) return;
       boxes.forEach((box) => {
         const cover = el("div", "draft-cover");
@@ -1502,6 +1507,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       label.style.height = Math.max(12, bottom - top) + "px";
       label.style.fontFamily = draft.fontFamily || "sans-serif";
       label.style.fontWeight = draft.fontWeight || "400";
+      label.style.fontStyle = draft.fontStyle || "normal";
       label.style.fontSize = Math.max(8, draft.fontSize || (bottom - top) * 0.8) + "px";
       label.style.lineHeight = draft.text.includes("\n") ? "1.15" : Math.max(12, bottom - top) + "px";
       pageEl.appendChild(label);
@@ -1569,19 +1575,28 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const next = field.value;
     const original = pendingReplace.original || pendingReplace.text;
     const unchanged = next === original && !styleDirty && !colorTouched;
-    const index = textDrafts.findIndex((draft) => draft.id === pendingReplace.draftId || (draft.pageNumber === pendingReplace.pageNumber && draft.pdfRects.some((rect) => (pendingReplace.pdfRects || []).some((other) => rectHits(rect, other)))));
+    const index = textDrafts.findIndex((draft) => (pendingReplace.draftId && draft.id === pendingReplace.draftId) || (draft.pageNumber === pendingReplace.pageNumber && sameCellRects(draft.pdfRects, pendingReplace.pdfRects)));
     if (unchanged || !String(next || "").trim()) {
       if (index >= 0) textDrafts.splice(index, 1);
     } else {
+      const cssBoxes = [{
+        left: (parseFloat(field.style.left) || 0) - 1,
+        top: (parseFloat(field.style.top) || 0) - 1,
+        width: (parseFloat(field.style.width) || 0) + 2,
+        height: (parseFloat(field.style.height) || 0) + 2,
+      }].filter((box) => box.width > 1 && box.height > 1);
       const draft = {
         id: pendingReplace.draftId || draftSeq++,
         pageNumber: pendingReplace.pageNumber,
         pdfRects: pendingReplace.pdfRects,
+        cssBoxes,
+        scale: pdfViewer.currentScale || 1,
         boxCount: (pendingReplace.boxes || []).length,
         original,
         text: next,
         fontFamily: field.style.fontFamily,
         fontWeight: field.style.fontWeight,
+        fontStyle: field.style.fontStyle || "normal",
         fontSize: parseFloat(field.style.fontSize) || 12,
         style: {
           dirty: styleDirty,
@@ -2466,9 +2481,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (switchingCell || suppressFocusOut || suspendDraft || replaceBusy || !pendingReplace) return;
     const stamp = pendingReplace;
     setTimeout(() => {
-      if (switchingCell || pendingReplace !== stamp || suspendDraft || suppressFocusOut) return;
+      if (switchingCell || pendingReplace !== stamp || suspendDraft || suppressFocusOut || document.activeElement === field) return;
       try { rememberDraft(); } catch { /* leave the cell anyway */ }
-      if (pendingReplace === stamp) hideReplace();
+      if (pendingReplace === stamp && document.activeElement !== field) hideReplace();
     }, 0);
   });
 
