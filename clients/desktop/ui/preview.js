@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.59");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.60");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1440,15 +1440,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
       })];
     }
     const pad = Math.max(2, (screen[0].height || 12) * 0.12);
-    let boxes = lines.length
+    const tight = lines.length
       ? lines.map((line) => {
         const left = Math.min(...line.map((item) => item.left));
         const top = Math.min(...line.map((item) => item.top));
         const right = Math.max(...line.map((item) => item.right));
         const bottom = Math.max(...line.map((item) => item.bottom));
-        return padBox({ left, top, right, bottom, width: right - left, height: bottom - top }, pad);
+        return { left, top, right, bottom, width: right - left, height: bottom - top };
       })
-      : screen.map((rect) => padBox(rect, pad));
+      : screen.map((rect) => ({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height }));
+    let boxes = tight.map((box) => padBox(box, pad));
     const value = lines.length
       ? lines.map((line) => {
         const parts = [];
@@ -1469,7 +1470,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     };
     const sample = (lines[0] && lines[0][0]) || hits[0] || {};
     return {
-      text: value, pageNumber, pageEl, originEl, view, boxes, pdfRects: boxes.map(pdfOf), wrapWidth,
+      text: value, pageNumber, pageEl, originEl, view, boxes, ink: tight, pdfRects: boxes.map(pdfOf), wrapWidth,
       fontFamily: sample.fontFamily, fontWeight: sample.fontWeight, fontSize: sample.fontSize,
     };
   };
@@ -1626,48 +1627,30 @@ async function openViewer(source, pageNumber, title, options = {}) {
       const editorOpen = !field.hidden && pendingReplace;
       drafts.forEach((draft) => {
         if (editorOpen && ((pendingReplace.draftId && draft.id === pendingReplace.draftId) || (draft.pageNumber === pendingReplace.pageNumber && sameCellRects(draft.pdfRects, pendingReplace.pdfRects)))) return;
-        const sameScale = draft.cssBoxes && draft.cssBoxes.length && Math.abs((draft.scale || 0) - (pdfViewer.currentScale || 1)) < 0.001;
-        let glyph = null;
-        if (sameScale) {
-          const box = draft.cssBoxes[0];
-          glyph = {
-            left: pageBox.left + box.left,
-            top: pageBox.top + box.top,
-            width: box.width,
-            height: box.height,
-          };
-          glyph.right = glyph.left + glyph.width;
-          glyph.bottom = glyph.top + glyph.height;
-        } else {
-          const targets = (draft.pdfRects || []).map(screenOf).filter((box) => box.width > 1 && box.height > 1);
-          if (!targets.length) return;
-          glyph = {
-            left: Math.min(...targets.map((box) => box.left)),
-            top: Math.min(...targets.map((box) => box.top)),
-            right: Math.max(...targets.map((box) => box.right)),
-            bottom: Math.max(...targets.map((box) => box.bottom)),
-          };
-          glyph.width = glyph.right - glyph.left;
-          glyph.height = glyph.bottom - glyph.top;
-        }
-        if (!glyph || glyph.width < 1 || glyph.height < 1) return;
-        const tone = toneOf(pageEl, glyph);
-        const bg = tone ? cssColor(tone.bg) : (draft.bg || "#ffffff");
-        const fg = cssColor(tone ? contrastFg(tone.bg, tone.fg) : [17, 24, 39]);
-        const fontPx = Math.max(8, glyph.height * pixelY * 0.78);
-        ctx.font = `400 ${fontPx}px sans-serif`;
-        ctx.textBaseline = "middle";
+        const sameScale = draft.inkBoxes && draft.inkBoxes.length && Math.abs((draft.scale || 0) - (pdfViewer.currentScale || 1)) < 0.001;
+        const pieces = sameScale
+          ? draft.inkBoxes.map((box) => ({ left: pageBox.left + box.left, top: pageBox.top + box.top, width: box.width, height: box.height }))
+          : (draft.pdfRects || []).map(screenOf).filter((box) => box.width > 1 && box.height > 1);
+        if (!pieces.length) return;
         const lines = String(draft.text || "").replace(/\r/g, "").split("\n");
-        const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 4);
-        const x = (glyph.left - canvasBox.left) * pixelX;
-        const y = (glyph.top - canvasBox.top) * pixelY;
-        const w = Math.max(glyph.width * pixelX, textWidth + fontPx * 0.35);
-        const h = Math.max(glyph.height * pixelY, fontPx * lines.length * 1.15);
-        ctx.fillStyle = bg;
-        ctx.fillRect(Math.floor(x) - 1, Math.floor(y) - 1, Math.ceil(w) + 3, Math.ceil(h) + 3);
-        ctx.fillStyle = fg;
-        lines.forEach((line, index) => {
-          ctx.fillText(line, x + fontPx * 0.08, y + ((index + 0.55) * h) / lines.length);
+        pieces.forEach((glyph, index) => {
+          if (glyph.width < 1 || glyph.height < 1) return;
+          const tone = toneOf(pageEl, { left: glyph.left, top: glyph.top, right: glyph.left + glyph.width, bottom: glyph.top + glyph.height, width: glyph.width, height: glyph.height });
+          const bg = tone ? cssColor(tone.bg) : (draft.bg || "#ffffff");
+          const fg = cssColor(tone ? contrastFg(tone.bg, tone.fg) : [17, 24, 39]);
+          const fontPx = Math.max(1, glyph.height * pixelY * 0.72);
+          ctx.font = `400 ${fontPx}px sans-serif`;
+          ctx.textBaseline = "middle";
+          const x = (glyph.left - canvasBox.left) * pixelX;
+          const y = (glyph.top - canvasBox.top) * pixelY;
+          const w = glyph.width * pixelX;
+          const h = glyph.height * pixelY;
+          ctx.fillStyle = bg;
+          ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
+          const line = lines[index] != null ? lines[index] : (index === 0 ? lines.join(" ") : "");
+          if (!line) return;
+          ctx.fillStyle = fg;
+          ctx.fillText(line, x, y + h * 0.55);
         });
       });
     });
@@ -1694,16 +1677,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
     toneBox.height = toneBox.bottom - toneBox.top;
     const tone = toneOf(found.pageEl, toneBox);
     const coverBg = tone ? cssColor(tone.bg) : ((draft && draft.bg) || "rgb(191, 219, 254)");
-    found.boxes.forEach((box) => {
+    const coverBoxes = found.ink && found.ink.length ? found.ink : found.boxes;
+    coverBoxes.forEach((box) => {
       const cover = el("div", "replace-cover");
       cover.style.background = coverBg;
-      cover.style.left = (box.left - pageBox.left - 1) + "px";
-      cover.style.top = (box.top - pageBox.top - 1) + "px";
-      cover.style.width = (box.width + 2) + "px";
-      cover.style.height = (box.height + 2) + "px";
+      cover.style.left = (box.left - pageBox.left) + "px";
+      cover.style.top = (box.top - pageBox.top) + "px";
+      cover.style.width = box.width + "px";
+      cover.style.height = box.height + "px";
       found.pageEl.appendChild(cover);
       covers.push(cover);
     });
+    const inkBox = (found.ink && found.ink[0]) || found.boxes[0];
     const first = found.boxes[0];
     const last = found.boxes[found.boxes.length - 1];
     const blockWidth = found.wrapWidth || Math.max(...found.boxes.map((box) => box.width));
@@ -1717,7 +1702,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.fontFamily = "sans-serif";
     field.style.fontWeight = "400";
     field.style.fontStyle = "normal";
-    field.style.fontSize = Math.max(8, (first.height || 12) * 0.8) + "px";
+    field.style.fontSize = Math.max(1, (inkBox.height || first.height || 12) * 0.72) + "px";
     field.style.lineHeight = single ? Math.max(blockHeight, 12) + "px" : "1.15";
     field.style.padding = "0 1px";
     colorTouched = false;
@@ -1750,17 +1735,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const original = pendingReplace.original || pendingReplace.text;
     const unchanged = next === original && !styleDirty && !colorTouched;
     const index = textDrafts.findIndex((draft) => (pendingReplace.draftId && draft.id === pendingReplace.draftId) || (draft.pageNumber === pendingReplace.pageNumber && sameCellRects(draft.pdfRects, pendingReplace.pdfRects)));
-    if (unchanged || !String(next || "").trim()) {
+    if (unchanged) {
       if (index >= 0) textDrafts.splice(index, 1);
     } else {
-      const cssBoxes = [{
-        left: (parseFloat(field.style.left) || 0) - 1,
-        top: (parseFloat(field.style.top) || 0) - 1,
-        width: (parseFloat(field.style.width) || 0) + 2,
-        height: (parseFloat(field.style.height) || 0) + 2,
-      }].filter((box) => box.width > 1 && box.height > 1);
       const pageBox = pendingReplace.pageEl.getBoundingClientRect();
-      const placed = cssBoxes[0];
+      const source = pendingReplace.ink && pendingReplace.ink.length ? pendingReplace.ink : (pendingReplace.boxes || []);
+      const inkBoxes = source.map((box) => ({
+        left: box.left - pageBox.left,
+        top: box.top - pageBox.top,
+        width: box.width,
+        height: box.height,
+      })).filter((box) => box.width > 1 && box.height > 1);
+      const placed = inkBoxes[0];
       const tone = placed ? toneOf(pendingReplace.pageEl, {
         left: pageBox.left + placed.left,
         top: pageBox.top + placed.top,
@@ -1773,7 +1759,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
         id: pendingReplace.draftId || draftSeq++,
         pageNumber: pendingReplace.pageNumber,
         pdfRects: pendingReplace.pdfRects,
-        cssBoxes,
+        inkBoxes,
         scale: pdfViewer.currentScale || 1,
         bg: pendingReplace.tone ? cssColor(pendingReplace.tone.bg) : (tone ? cssColor(tone.bg) : "#ffffff"),
         fg: pendingReplace.tone ? cssColor(pendingReplace.tone.fg) : (tone ? cssColor(contrastFg(tone.bg, tone.fg)) : "#111827"),
@@ -2230,7 +2216,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
     });
     lines.forEach((line) => line.sort((a, b) => a.left - b.left));
     const pad = Math.max(2, (spans[0].height || 12) * 0.12);
-    const boxes = lines.map((line) => padBox(unionSpan(line), pad));
+    const ink = lines.map((line) => unionSpan(line));
+    const boxes = ink.map((box) => padBox(box, pad));
     const lineText = (line) => {
       const parts = [];
       line.forEach((item) => {
@@ -2256,6 +2243,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
       originEl,
       view,
       boxes,
+      ink,
       pdfRects: boxes.map(pdfOf),
       wrapWidth: Math.max(...boxes.map((box) => box.width)),
       fontFamily: sample.fontFamily,
