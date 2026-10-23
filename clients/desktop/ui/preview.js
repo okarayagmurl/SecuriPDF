@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.61");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.62");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1481,14 +1481,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const sameCellRects = (aRects, bRects) => (aRects || []).some((rect) => (bRects || []).some((other) => centerInRect(rect, rectCenter(other)) && centerInRect(other, rectCenter(rect))));
   const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && sameCellRects(draft.pdfRects, found.pdfRects));
   const cssColor = (rgb) => `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-  const contrastFg = (bg, fg) => {
-    const lum = (color) => (color ? color[0] * 0.299 + color[1] * 0.587 + color[2] * 0.114 : 0);
-    const background = bg || [255, 255, 255];
-    const ink = lum(background) > 170 ? [0, 0, 0] : [255, 255, 255];
-    if (!fg) return ink;
-    const saturation = Math.max(fg[0], fg[1], fg[2]) - Math.min(fg[0], fg[1], fg[2]);
-    if (saturation < 36 || Math.abs(lum(background) - lum(fg)) < 70) return ink;
-    return fg;
+  const previewInk = (bg) => {
+    const lum = bg ? bg[0] * 0.299 + bg[1] * 0.587 + bg[2] * 0.114 : 255;
+    return lum > 160 ? [0, 0, 0] : [255, 255, 255];
   };
   const pageCanvas = (pageEl) => {
     const wrapped = pageEl.querySelector(".canvasWrapper > canvas");
@@ -1640,7 +1635,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
           if (glyph.width < 1 || glyph.height < 1) return;
           const tone = toneOf(pageEl, { left: glyph.left, top: glyph.top, right: glyph.left + glyph.width, bottom: glyph.top + glyph.height, width: glyph.width, height: glyph.height });
           const bg = tone ? cssColor(tone.bg) : (draft.bg || "#ffffff");
-          const fg = cssColor(tone ? contrastFg(tone.bg, tone.fg) : [0, 0, 0]);
+          const fg = (draft.style && draft.style.color) || cssColor(tone ? previewInk(tone.bg) : [0, 0, 0]);
           const fontPx = Math.max(1, glyph.height * pixelY);
           ctx.font = `400 ${fontPx}px sans-serif`;
           ctx.textBaseline = "middle";
@@ -1716,9 +1711,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     italicBtn.classList.remove("on");
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
-    found.tone = tone ? { bg: tone.bg, fg: contrastFg(tone.bg, tone.fg) } : null;
+    found.tone = tone ? { bg: tone.bg, fg: previewInk(tone.bg) } : null;
     field.style.background = coverBg;
-    field.style.color = cssColor(found.tone ? found.tone.fg : [17, 24, 39]);
+    field.style.color = cssColor(found.tone ? found.tone.fg : [0, 0, 0]);
     watchStyle = true;
     styleNote.textContent = t("Yazı yerinde değişir. Kaydet ile dosyaya yazılır.");
     applyBtn.disabled = false;
@@ -1765,7 +1760,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
         inkBoxes,
         scale: pdfViewer.currentScale || 1,
         bg: pendingReplace.tone ? cssColor(pendingReplace.tone.bg) : (tone ? cssColor(tone.bg) : "#ffffff"),
-        fg: pendingReplace.tone ? cssColor(pendingReplace.tone.fg) : (tone ? cssColor(contrastFg(tone.bg, tone.fg)) : "#111827"),
+        fg: pendingReplace.tone ? cssColor(pendingReplace.tone.fg) : (tone ? cssColor(previewInk(tone.bg)) : "#000000"),
         boxCount: (pendingReplace.boxes || []).length,
         original,
         text: next,
