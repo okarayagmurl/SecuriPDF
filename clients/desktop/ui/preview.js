@@ -374,7 +374,7 @@ const fontChoice = (familyId, bold, italic, currentFontId) => {
   const face = family.face || ((bold || italic) ? faceFromFontId(currentFontId) : "");
   return {
     css: family.css,
-    weight: bold ? "700" : "500",
+    weight: bold ? "700" : "400",
     style: italic ? "italic" : "normal",
     stirling: face ? liberationId(face, bold, italic) : "",
   };
@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.58");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.59");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1304,11 +1304,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
     height: rect.height + pad * 2,
   });
 
-  const textSpans = (pageEl) => Array.from(pageEl.querySelectorAll(".textLayer span")).filter((node) => !node.querySelector("span")).map((node) => {
+  const textSpans = (pageEl) => Array.from(pageEl.querySelectorAll(".textLayer span")).map((node) => {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
+    let text = "";
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === 3) text += child.textContent || "";
+    });
+    if (!text.trim() && !node.querySelector("span")) text = node.textContent || "";
     return {
-      text: node.textContent || "",
+      text,
       left: rect.left,
       top: rect.top,
       right: rect.right,
@@ -1475,6 +1480,12 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const sameCellRects = (aRects, bRects) => (aRects || []).some((rect) => (bRects || []).some((other) => centerInRect(rect, rectCenter(other)) && centerInRect(other, rectCenter(rect))));
   const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && sameCellRects(draft.pdfRects, found.pdfRects));
   const cssColor = (rgb) => `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+  const contrastFg = (bg, fg) => {
+    const lum = (color) => (color ? color[0] * 0.299 + color[1] * 0.587 + color[2] * 0.114 : 0);
+    const background = bg || [255, 255, 255];
+    if (fg && Math.abs(lum(background) - lum(fg)) >= 80) return fg;
+    return lum(background) > 160 ? [17, 24, 39] : [255, 255, 255];
+  };
   const pageCanvas = (pageEl) => {
     const wrapped = pageEl.querySelector(".canvasWrapper > canvas");
     if (wrapped && wrapped.width > 8 && wrapped.height > 8) return wrapped;
@@ -1641,10 +1652,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
         }
         if (!glyph || glyph.width < 1 || glyph.height < 1) return;
         const tone = toneOf(pageEl, glyph);
-        const bg = draft.bg || (tone ? cssColor(tone.bg) : "#ffffff");
-        const fg = draft.fg || (tone ? cssColor(tone.fg) : "#111827");
-        const fontPx = Math.max(8, (draft.fontSize || glyph.height * 0.8) * pixelY);
-        ctx.font = `${fontPx}px sans-serif`;
+        const bg = tone ? cssColor(tone.bg) : (draft.bg || "#ffffff");
+        const fg = cssColor(tone ? contrastFg(tone.bg, tone.fg) : [17, 24, 39]);
+        const fontPx = Math.max(8, glyph.height * pixelY * 0.78);
+        ctx.font = `400 ${fontPx}px sans-serif`;
         ctx.textBaseline = "middle";
         const lines = String(draft.text || "").replace(/\r/g, "").split("\n");
         const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 4);
@@ -1703,9 +1714,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.width = Math.max(blockWidth, 8) + "px";
     field.style.height = Math.max(blockHeight, 12) + "px";
     field.value = found.text;
-    field.style.fontFamily = found.fontFamily || "sans-serif";
-    field.style.fontWeight = found.fontWeight || "400";
-    field.style.fontSize = Math.max(8, found.fontSize || first.height * 0.8) + "px";
+    field.style.fontFamily = "sans-serif";
+    field.style.fontWeight = "400";
+    field.style.fontStyle = "normal";
+    field.style.fontSize = Math.max(8, (first.height || 12) * 0.8) + "px";
     field.style.lineHeight = single ? Math.max(blockHeight, 12) + "px" : "1.15";
     field.style.padding = "0 1px";
     colorTouched = false;
@@ -1716,11 +1728,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     italicBtn.classList.remove("on");
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
-    paintReplaceFont();
+    found.tone = tone ? { bg: tone.bg, fg: contrastFg(tone.bg, tone.fg) } : null;
     field.style.background = coverBg;
-    if (!colorTouched) {
-      field.style.color = tone ? cssColor(tone.fg) : ((draft && draft.fg) || "#111827");
-    }
+    field.style.color = cssColor(found.tone ? found.tone.fg : [17, 24, 39]);
     watchStyle = true;
     styleNote.textContent = t("Yazı yerinde değişir. Kaydet ile dosyaya yazılır.");
     applyBtn.disabled = false;
@@ -1765,8 +1775,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
         pdfRects: pendingReplace.pdfRects,
         cssBoxes,
         scale: pdfViewer.currentScale || 1,
-        bg: tone ? cssColor(tone.bg) : (field.style.background || "#ffffff"),
-        fg: tone ? cssColor(tone.fg) : (field.style.color || "#111827"),
+        bg: pendingReplace.tone ? cssColor(pendingReplace.tone.bg) : (tone ? cssColor(tone.bg) : "#ffffff"),
+        fg: pendingReplace.tone ? cssColor(pendingReplace.tone.fg) : (tone ? cssColor(contrastFg(tone.bg, tone.fg)) : "#111827"),
         boxCount: (pendingReplace.boxes || []).length,
         original,
         text: next,
