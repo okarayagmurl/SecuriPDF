@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.54");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.55");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1466,61 +1466,96 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const sameCellRects = (aRects, bRects) => (aRects || []).some((rect) => (bRects || []).some((other) => centerInRect(rect, rectCenter(other)) && centerInRect(other, rectCenter(rect))));
   const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && sameCellRects(draft.pdfRects, found.pdfRects));
   const cssColor = (rgb) => `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-  const toneOf = (pageEl, screenBox) => {
-    const fallback = { bg: [255, 255, 255], fg: [17, 24, 39] };
-    const canvas = pageEl && pageEl.querySelector("canvas");
-    if (!canvas || !screenBox || screenBox.width < 1 || screenBox.height < 1) return fallback;
+  const pageCanvas = (pageEl) => {
+    const wrapped = pageEl.querySelector(".canvasWrapper > canvas");
+    if (wrapped && wrapped.width > 8 && wrapped.height > 8) return wrapped;
+    const list = Array.from(pageEl.querySelectorAll("canvas")).filter((node) => node.width > 8 && node.height > 8 && !node.classList.contains("draft-paint"));
+    list.sort((a, b) => b.width * b.height - a.width * a.height);
+    return list[0] || null;
+  };
+  const sampleCanvas = (canvas, screenBox) => {
+    if (!canvas || canvas.classList.contains("draft-paint") || !screenBox) return null;
     const canvasBox = canvas.getBoundingClientRect();
-    if (canvasBox.width < 2 || !canvas.width) return fallback;
-    let source;
-    try { source = canvas.getContext("2d", { willReadFrequently: true }); } catch { return fallback; }
-    if (!source) return fallback;
+    if (canvasBox.width < 2 || !canvas.width) return null;
+    const left = Math.max(screenBox.left, canvasBox.left);
+    const top = Math.max(screenBox.top, canvasBox.top);
+    const right = Math.min(screenBox.right, canvasBox.right);
+    const bottom = Math.min(screenBox.bottom, canvasBox.bottom);
+    if (right - left < 2 || bottom - top < 2) return null;
     const sx = canvas.width / canvasBox.width;
     const sy = canvas.height / canvasBox.height;
-    const x = Math.max(0, Math.floor((screenBox.left - canvasBox.left) * sx) - 3);
-    const y = Math.max(0, Math.floor((screenBox.top - canvasBox.top) * sy) - 3);
-    const right = Math.min(canvas.width, Math.ceil((screenBox.right - canvasBox.left) * sx) + 3);
-    const bottom = Math.min(canvas.height, Math.ceil((screenBox.bottom - canvasBox.top) * sy) + 3);
-    const width = right - x;
-    const height = bottom - y;
-    if (width < 2 || height < 2) return fallback;
+    const x = (left - canvasBox.left) * sx;
+    const y = (top - canvasBox.top) * sy;
+    const w = Math.max(1, Math.round((right - left) * sx));
+    const h = Math.max(1, Math.round((bottom - top) * sy));
+    const scratch = document.createElement("canvas");
+    scratch.width = w;
+    scratch.height = h;
+    const reader = scratch.getContext("2d", { willReadFrequently: true });
+    if (!reader) return null;
+    try { reader.drawImage(canvas, x, y, w, h, 0, 0, w, h); } catch { return null; }
     let pixels;
-    try { pixels = source.getImageData(x, y, width, height).data; } catch { return fallback; }
-    const innerL = Math.max(0, Math.floor((screenBox.left - canvasBox.left) * sx) - x);
-    const innerT = Math.max(0, Math.floor((screenBox.top - canvasBox.top) * sy) - y);
-    const innerR = Math.min(width, Math.ceil((screenBox.right - canvasBox.left) * sx) - x);
-    const innerB = Math.min(height, Math.ceil((screenBox.bottom - canvasBox.top) * sy) - y);
-    const tally = (samples) => {
-      const counts = new Map();
-      samples.forEach((sample) => {
-        const key = `${sample[0] >> 3},${sample[1] >> 3},${sample[2] >> 3}`;
-        const bin = counts.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+    try { pixels = reader.getImageData(0, 0, w, h).data; } catch { return null; }
+    const bins = new Map();
+    const step = w * h > 8000 ? 2 : 1;
+    for (let row = 0; row < h; row += step) {
+      for (let col = 0; col < w; col += step) {
+        const offset = (row * w + col) * 4;
+        if (pixels[offset + 3] < 16) continue;
+        const key = `${pixels[offset] >> 3},${pixels[offset + 1] >> 3},${pixels[offset + 2] >> 3}`;
+        const bin = bins.get(key) || { n: 0, r: 0, g: 0, b: 0 };
         bin.n += 1;
-        bin.r += sample[0];
-        bin.g += sample[1];
-        bin.b += sample[2];
-        counts.set(key, bin);
-      });
-      let best = null;
-      counts.forEach((bin) => { if (!best || bin.n > best.n) best = bin; });
-      if (!best) return null;
-      return [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
-    };
-    const outside = [];
-    const inside = [];
-    for (let row = 0; row < height; row += 1) {
-      for (let col = 0; col < width; col += 1) {
-        const offset = (row * width + col) * 4;
-        const sample = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
-        if (col < innerL || col >= innerR || row < innerT || row >= innerB) outside.push(sample);
-        else inside.push(sample);
+        bin.r += pixels[offset];
+        bin.g += pixels[offset + 1];
+        bin.b += pixels[offset + 2];
+        bins.set(key, bin);
       }
     }
-    const bg = tally(outside.length ? outside : inside) || fallback.bg;
-    const distance = (sample) => Math.abs(sample[0] - bg[0]) + Math.abs(sample[1] - bg[1]) + Math.abs(sample[2] - bg[2]);
-    const ink = tally(inside.filter((sample) => distance(sample) > 90));
+    const ranked = Array.from(bins.values()).sort((a, b) => b.n - a.n);
+    if (!ranked.length) return null;
+    const average = (bin) => [Math.round(bin.r / bin.n), Math.round(bin.g / bin.n), Math.round(bin.b / bin.n)];
+    const bg = average(ranked[0]);
+    const distance = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+    let fg = null;
+    for (let index = 1; index < ranked.length; index += 1) {
+      const color = average(ranked[index]);
+      if (distance(color, bg) > 80) {
+        fg = color;
+        break;
+      }
+    }
     const light = bg[0] + bg[1] + bg[2] > 380;
-    return { bg, fg: ink || (light ? [17, 24, 39] : [255, 255, 255]) };
+    return { bg, fg: fg || (light ? [17, 24, 39] : [255, 255, 255]) };
+  };
+  const toneOf = (pageEl, screenBox) => {
+    if (!screenBox || screenBox.width < 1) return null;
+    const cx = (screenBox.left + (screenBox.right || screenBox.left + screenBox.width)) / 2;
+    const cy = (screenBox.top + (screenBox.bottom || screenBox.top + screenBox.height)) / 2;
+    const seen = new Set();
+    const candidates = [];
+    const addCanvas = (canvas) => {
+      if (!canvas || seen.has(canvas) || canvas.classList.contains("draft-paint")) return;
+      const box = canvas.getBoundingClientRect();
+      if (cx < box.left || cx > box.right || cy < box.top || cy > box.bottom) return;
+      seen.add(canvas);
+      candidates.push(canvas);
+    };
+    (document.elementsFromPoint(cx, cy) || []).forEach((el) => {
+      if (el.tagName === "CANVAS") addCanvas(el);
+      else if (el.querySelectorAll) Array.from(el.querySelectorAll("canvas")).forEach(addCanvas);
+    });
+    const page = pageCanvas(pageEl);
+    if (page && !seen.has(page)) candidates.push(page);
+    candidates.sort((a, b) => {
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return ar.width * ar.height - br.width * br.height;
+    });
+    for (let index = 0; index < candidates.length; index += 1) {
+      const tone = sampleCanvas(candidates[index], screenBox);
+      if (tone) return tone;
+    }
+    return null;
   };
   const paintDrafts = () => {
     stage.querySelectorAll(".draft-cover, .draft-text").forEach((node) => node.remove());
@@ -1539,7 +1574,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
         return;
       }
       const view = pdfViewer.getPageView(number - 1);
-      const canvas = pageEl.querySelector("canvas");
+      const canvas = pageCanvas(pageEl);
       if (!view || !view.viewport || !canvas) return;
       const pageBox = pageEl.getBoundingClientRect();
       const canvasBox = canvas.getBoundingClientRect();
@@ -1586,12 +1621,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
         glyph.width = glyph.right - glyph.left;
         glyph.height = glyph.bottom - glyph.top;
         const tone = toneOf(pageEl, glyph);
-        const sample = spans[0] || {};
-        const fontPx = Math.max(8, (sample.fontSize || glyph.height * 0.8) * pixelY);
-        const weight = sample.fontWeight || draft.fontWeight || "400";
-        const fontStyle = draft.fontStyle || "normal";
-        const family = sample.fontFamily || draft.fontFamily || "sans-serif";
-        ctx.font = `${fontStyle} ${weight} ${fontPx}px ${family}`;
+        if (!tone) return;
+        const fontPx = Math.max(8, glyph.height * pixelY * 0.78);
+        ctx.font = `${fontPx}px sans-serif`;
         ctx.textBaseline = "middle";
         const lines = String(draft.text || "").replace(/\r/g, "").split("\n");
         const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 4);
@@ -1631,7 +1663,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const tone = toneOf(found.pageEl, toneBox);
     found.boxes.forEach((box) => {
       const cover = el("div", "replace-cover");
-      cover.style.background = cssColor(tone.bg);
+      cover.style.background = tone ? cssColor(tone.bg) : "transparent";
       cover.style.left = (box.left - pageBox.left - 1) + "px";
       cover.style.top = (box.top - pageBox.top - 1) + "px";
       cover.style.width = (box.width + 2) + "px";
@@ -1663,7 +1695,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
-    if (!colorTouched) {
+    if (!colorTouched && tone) {
       field.style.color = cssColor(tone.fg);
       field.style.background = cssColor(tone.bg);
     }
