@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.60");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.61");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1484,8 +1484,11 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const contrastFg = (bg, fg) => {
     const lum = (color) => (color ? color[0] * 0.299 + color[1] * 0.587 + color[2] * 0.114 : 0);
     const background = bg || [255, 255, 255];
-    if (fg && Math.abs(lum(background) - lum(fg)) >= 80) return fg;
-    return lum(background) > 160 ? [17, 24, 39] : [255, 255, 255];
+    const ink = lum(background) > 170 ? [0, 0, 0] : [255, 255, 255];
+    if (!fg) return ink;
+    const saturation = Math.max(fg[0], fg[1], fg[2]) - Math.min(fg[0], fg[1], fg[2]);
+    if (saturation < 36 || Math.abs(lum(background) - lum(fg)) < 70) return ink;
+    return fg;
   };
   const pageCanvas = (pageEl) => {
     const wrapped = pageEl.querySelector(".canvasWrapper > canvas");
@@ -1637,8 +1640,8 @@ async function openViewer(source, pageNumber, title, options = {}) {
           if (glyph.width < 1 || glyph.height < 1) return;
           const tone = toneOf(pageEl, { left: glyph.left, top: glyph.top, right: glyph.left + glyph.width, bottom: glyph.top + glyph.height, width: glyph.width, height: glyph.height });
           const bg = tone ? cssColor(tone.bg) : (draft.bg || "#ffffff");
-          const fg = cssColor(tone ? contrastFg(tone.bg, tone.fg) : [17, 24, 39]);
-          const fontPx = Math.max(1, glyph.height * pixelY * 0.72);
+          const fg = cssColor(tone ? contrastFg(tone.bg, tone.fg) : [0, 0, 0]);
+          const fontPx = Math.max(1, glyph.height * pixelY);
           ctx.font = `400 ${fontPx}px sans-serif`;
           ctx.textBaseline = "middle";
           const x = (glyph.left - canvasBox.left) * pixelX;
@@ -1702,7 +1705,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.fontFamily = "sans-serif";
     field.style.fontWeight = "400";
     field.style.fontStyle = "normal";
-    field.style.fontSize = Math.max(1, (inkBox.height || first.height || 12) * 0.72) + "px";
+    field.style.fontSize = Math.max(1, inkBox.height || first.height || 12) + "px";
     field.style.lineHeight = single ? Math.max(blockHeight, 12) + "px" : "1.15";
     field.style.padding = "0 1px";
     colorTouched = false;
