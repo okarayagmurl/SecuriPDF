@@ -1323,9 +1323,10 @@ html.has-doc-tabs .viewer { top: 40px; }
   background: rgba(191, 219, 254, 0.96);
   pointer-events: none;
 }
+.viewer .page > .annotationLayer { z-index: 4; }
 .draft-paint {
   position: absolute;
-  z-index: 46;
+  z-index: 80;
   pointer-events: none;
 }
 .edit-region {
@@ -1346,7 +1347,7 @@ html.has-doc-tabs .viewer { top: 40px; }
 .edit-region.selected { border-style: solid; }
 .replace-field {
   position: absolute;
-  z-index: 50;
+  z-index: 90;
   pointer-events: auto;
   margin: 0;
   border: 0;

@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.55");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.56");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1604,38 +1604,48 @@ async function openViewer(source, pageNumber, title, options = {}) {
         return { left, top, right: left + width, bottom: top + height, width, height };
       };
       drafts.forEach((draft) => {
-        const targets = (draft.pdfRects || []).map(screenOf).filter((box) => box.width > 1 && box.height > 1);
-        if (!targets.length) return;
-        const spans = textSpans(pageEl).filter((span) => targets.some((box) => span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top));
-        const glyph = spans.length ? {
-          left: Math.min(...spans.map((span) => span.left)),
-          top: Math.min(...spans.map((span) => span.top)),
-          right: Math.max(...spans.map((span) => span.right)),
-          bottom: Math.max(...spans.map((span) => span.bottom)),
-        } : {
-          left: Math.min(...targets.map((box) => box.left)),
-          top: Math.min(...targets.map((box) => box.top)),
-          right: Math.max(...targets.map((box) => box.right)),
-          bottom: Math.max(...targets.map((box) => box.bottom)),
-        };
-        glyph.width = glyph.right - glyph.left;
-        glyph.height = glyph.bottom - glyph.top;
+        const sameScale = draft.cssBoxes && draft.cssBoxes.length && Math.abs((draft.scale || 0) - (pdfViewer.currentScale || 1)) < 0.001;
+        let glyph = null;
+        if (sameScale) {
+          const box = draft.cssBoxes[0];
+          glyph = {
+            left: pageBox.left + box.left,
+            top: pageBox.top + box.top,
+            width: box.width,
+            height: box.height,
+          };
+          glyph.right = glyph.left + glyph.width;
+          glyph.bottom = glyph.top + glyph.height;
+        } else {
+          const targets = (draft.pdfRects || []).map(screenOf).filter((box) => box.width > 1 && box.height > 1);
+          if (!targets.length) return;
+          glyph = {
+            left: Math.min(...targets.map((box) => box.left)),
+            top: Math.min(...targets.map((box) => box.top)),
+            right: Math.max(...targets.map((box) => box.right)),
+            bottom: Math.max(...targets.map((box) => box.bottom)),
+          };
+          glyph.width = glyph.right - glyph.left;
+          glyph.height = glyph.bottom - glyph.top;
+        }
+        if (!glyph || glyph.width < 1 || glyph.height < 1) return;
         const tone = toneOf(pageEl, glyph);
-        if (!tone) return;
-        const fontPx = Math.max(8, glyph.height * pixelY * 0.78);
+        const bg = draft.bg || (tone ? cssColor(tone.bg) : "#ffffff");
+        const fg = draft.fg || (tone ? cssColor(tone.fg) : "#111827");
+        const fontPx = Math.max(8, (draft.fontSize || glyph.height * 0.8) * pixelY);
         ctx.font = `${fontPx}px sans-serif`;
         ctx.textBaseline = "middle";
         const lines = String(draft.text || "").replace(/\r/g, "").split("\n");
         const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 4);
         const x = (glyph.left - canvasBox.left) * pixelX;
         const y = (glyph.top - canvasBox.top) * pixelY;
-        const w = Math.max(glyph.width * pixelX, textWidth + fontPx * 0.2);
-        const h = Math.max(glyph.height * pixelY, fontPx * lines.length * 1.05);
-        ctx.fillStyle = cssColor(tone.bg);
-        ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-        ctx.fillStyle = cssColor(tone.fg);
+        const w = Math.max(glyph.width * pixelX, textWidth + fontPx * 0.35);
+        const h = Math.max(glyph.height * pixelY, fontPx * lines.length * 1.15);
+        ctx.fillStyle = bg;
+        ctx.fillRect(Math.floor(x) - 1, Math.floor(y) - 1, Math.ceil(w) + 3, Math.ceil(h) + 3);
+        ctx.fillStyle = fg;
         lines.forEach((line, index) => {
-          ctx.fillText(line, x, y + ((index + 0.5) * h) / lines.length);
+          ctx.fillText(line, x + fontPx * 0.08, y + ((index + 0.55) * h) / lines.length);
         });
       });
     });
@@ -1726,12 +1736,24 @@ async function openViewer(source, pageNumber, title, options = {}) {
         width: (parseFloat(field.style.width) || 0) + 2,
         height: (parseFloat(field.style.height) || 0) + 2,
       }].filter((box) => box.width > 1 && box.height > 1);
+      const pageBox = pendingReplace.pageEl.getBoundingClientRect();
+      const placed = cssBoxes[0];
+      const tone = placed ? toneOf(pendingReplace.pageEl, {
+        left: pageBox.left + placed.left,
+        top: pageBox.top + placed.top,
+        right: pageBox.left + placed.left + placed.width,
+        bottom: pageBox.top + placed.top + placed.height,
+        width: placed.width,
+        height: placed.height,
+      }) : null;
       const draft = {
         id: pendingReplace.draftId || draftSeq++,
         pageNumber: pendingReplace.pageNumber,
         pdfRects: pendingReplace.pdfRects,
         cssBoxes,
         scale: pdfViewer.currentScale || 1,
+        bg: tone ? cssColor(tone.bg) : (field.style.background || "#ffffff"),
+        fg: tone ? cssColor(tone.fg) : (field.style.color || "#111827"),
         boxCount: (pendingReplace.boxes || []).length,
         original,
         text: next,
