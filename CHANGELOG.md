@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Hücreden çıkınca yeni metin ekranda kalır; eski harfler Kaydet beklenmeden görünmez
+- Düzenleme açılınca metin bir kez görünür; hücreden çıkınca yeni yazı ekranda kalır
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir

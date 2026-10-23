@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.56");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.57");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1303,7 +1303,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     height: rect.height + pad * 2,
   });
 
-  const textSpans = (pageEl) => Array.from(pageEl.querySelectorAll(".textLayer span")).map((node) => {
+  const textSpans = (pageEl) => Array.from(pageEl.querySelectorAll(".textLayer span")).filter((node) => !node.querySelector("span")).map((node) => {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
     return {
@@ -1444,7 +1444,15 @@ async function openViewer(source, pageNumber, title, options = {}) {
       })
       : screen.map((rect) => padBox(rect, pad));
     const value = lines.length
-      ? lines.map((line) => line.map((item) => item.text).join("")).join("\n").trim()
+      ? lines.map((line) => {
+        const parts = [];
+        line.forEach((item) => {
+          const text = item.text || "";
+          if (parts.length && parts[parts.length - 1] === text) return;
+          parts.push(text);
+        });
+        return parts.join("");
+      }).join("\n").trim()
       : text;
     const wrapWidth = Math.max(...boxes.map((box) => box.width));
     const toPdf = (x, y) => view.getPagePoint(x - origin.left, y - origin.top);
@@ -1603,7 +1611,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
         const height = Math.abs(vp[3] - vp[1]);
         return { left, top, right: left + width, bottom: top + height, width, height };
       };
+      const editorOpen = !field.hidden && pendingReplace;
       drafts.forEach((draft) => {
+        if (editorOpen && ((pendingReplace.draftId && draft.id === pendingReplace.draftId) || (draft.pageNumber === pendingReplace.pageNumber && sameCellRects(draft.pdfRects, pendingReplace.pdfRects)))) return;
         const sameScale = draft.cssBoxes && draft.cssBoxes.length && Math.abs((draft.scale || 0) - (pdfViewer.currentScale || 1)) < 0.001;
         let glyph = null;
         if (sameScale) {
@@ -1671,9 +1681,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     toneBox.width = toneBox.right - toneBox.left;
     toneBox.height = toneBox.bottom - toneBox.top;
     const tone = toneOf(found.pageEl, toneBox);
+    const coverBg = tone ? cssColor(tone.bg) : ((draft && draft.bg) || "rgb(191, 219, 254)");
     found.boxes.forEach((box) => {
       const cover = el("div", "replace-cover");
-      cover.style.background = tone ? cssColor(tone.bg) : "transparent";
+      cover.style.background = coverBg;
       cover.style.left = (box.left - pageBox.left - 1) + "px";
       cover.style.top = (box.top - pageBox.top - 1) + "px";
       cover.style.width = (box.width + 2) + "px";
@@ -1705,9 +1716,9 @@ async function openViewer(source, pageNumber, title, options = {}) {
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
-    if (!colorTouched && tone) {
-      field.style.color = cssColor(tone.fg);
-      field.style.background = cssColor(tone.bg);
+    field.style.background = coverBg;
+    if (!colorTouched) {
+      field.style.color = tone ? cssColor(tone.fg) : ((draft && draft.fg) || "#111827");
     }
     watchStyle = true;
     styleNote.textContent = t("Yazı yerinde değişir. Kaydet ile dosyaya yazılır.");
@@ -1720,6 +1731,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     try { field.setSelectionRange(end, end); } catch { /* the caret stays where the browser put it */ }
     try { window.getSelection().removeAllRanges(); } catch { /* no selection to clear */ }
     suspendDraft = false;
+    paintDrafts();
   };
   const rememberDraft = () => {
     if (suspendDraft || !pendingReplace) return;
@@ -2208,7 +2220,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
     lines.forEach((line) => line.sort((a, b) => a.left - b.left));
     const pad = Math.max(2, (spans[0].height || 12) * 0.12);
     const boxes = lines.map((line) => padBox(unionSpan(line), pad));
-    const value = lines.map((line) => line.map((item) => item.text).join("")).join("\n").trim();
+    const lineText = (line) => {
+      const parts = [];
+      line.forEach((item) => {
+        const text = item.text || "";
+        if (parts.length && parts[parts.length - 1] === text) return;
+        parts.push(text);
+      });
+      return parts.join("");
+    };
+    const value = lines.map(lineText).join("\n").trim();
     if (!value) return null;
     const toPdf = (x, y) => view.getPagePoint(x - origin.left, y - origin.top);
     const pdfOf = (box) => {
