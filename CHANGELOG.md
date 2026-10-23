@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Düzenleme açılınca metin bir kez görünür; hücreden çıkınca yeni yazı ekranda kalır
+- Hücre kapanınca yeni metin çizilir; düzenleme açıkken aynı yazı ikinci kez görünmez
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir

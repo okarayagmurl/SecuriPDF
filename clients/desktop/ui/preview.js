@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.57");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.58");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1291,6 +1291,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     stage.querySelectorAll(".edit-region.selected").forEach((node) => node.classList.remove("selected"));
     clearCovers();
     pendingReplace = null;
+    paintDrafts();
     queueMicrotask(() => { suppressFocusOut = Math.max(0, suppressFocusOut - 1); });
   };
 
