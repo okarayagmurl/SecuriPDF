@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.53");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.54");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1465,52 +1465,147 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const centerInRect = (rect, point) => point[0] > rect[0] && point[0] < rect[2] && point[1] > rect[1] && point[1] < rect[3];
   const sameCellRects = (aRects, bRects) => (aRects || []).some((rect) => (bRects || []).some((other) => centerInRect(rect, rectCenter(other)) && centerInRect(other, rectCenter(rect))));
   const findDraft = (found) => textDrafts.find((draft) => draft.pageNumber === found.pageNumber && sameCellRects(draft.pdfRects, found.pdfRects));
+  const cssColor = (rgb) => `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+  const toneOf = (pageEl, screenBox) => {
+    const fallback = { bg: [255, 255, 255], fg: [17, 24, 39] };
+    const canvas = pageEl && pageEl.querySelector("canvas");
+    if (!canvas || !screenBox || screenBox.width < 1 || screenBox.height < 1) return fallback;
+    const canvasBox = canvas.getBoundingClientRect();
+    if (canvasBox.width < 2 || !canvas.width) return fallback;
+    let source;
+    try { source = canvas.getContext("2d", { willReadFrequently: true }); } catch { return fallback; }
+    if (!source) return fallback;
+    const sx = canvas.width / canvasBox.width;
+    const sy = canvas.height / canvasBox.height;
+    const x = Math.max(0, Math.floor((screenBox.left - canvasBox.left) * sx) - 3);
+    const y = Math.max(0, Math.floor((screenBox.top - canvasBox.top) * sy) - 3);
+    const right = Math.min(canvas.width, Math.ceil((screenBox.right - canvasBox.left) * sx) + 3);
+    const bottom = Math.min(canvas.height, Math.ceil((screenBox.bottom - canvasBox.top) * sy) + 3);
+    const width = right - x;
+    const height = bottom - y;
+    if (width < 2 || height < 2) return fallback;
+    let pixels;
+    try { pixels = source.getImageData(x, y, width, height).data; } catch { return fallback; }
+    const innerL = Math.max(0, Math.floor((screenBox.left - canvasBox.left) * sx) - x);
+    const innerT = Math.max(0, Math.floor((screenBox.top - canvasBox.top) * sy) - y);
+    const innerR = Math.min(width, Math.ceil((screenBox.right - canvasBox.left) * sx) - x);
+    const innerB = Math.min(height, Math.ceil((screenBox.bottom - canvasBox.top) * sy) - y);
+    const tally = (samples) => {
+      const counts = new Map();
+      samples.forEach((sample) => {
+        const key = `${sample[0] >> 3},${sample[1] >> 3},${sample[2] >> 3}`;
+        const bin = counts.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+        bin.n += 1;
+        bin.r += sample[0];
+        bin.g += sample[1];
+        bin.b += sample[2];
+        counts.set(key, bin);
+      });
+      let best = null;
+      counts.forEach((bin) => { if (!best || bin.n > best.n) best = bin; });
+      if (!best) return null;
+      return [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
+    };
+    const outside = [];
+    const inside = [];
+    for (let row = 0; row < height; row += 1) {
+      for (let col = 0; col < width; col += 1) {
+        const offset = (row * width + col) * 4;
+        const sample = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
+        if (col < innerL || col >= innerR || row < innerT || row >= innerB) outside.push(sample);
+        else inside.push(sample);
+      }
+    }
+    const bg = tally(outside.length ? outside : inside) || fallback.bg;
+    const distance = (sample) => Math.abs(sample[0] - bg[0]) + Math.abs(sample[1] - bg[1]) + Math.abs(sample[2] - bg[2]);
+    const ink = tally(inside.filter((sample) => distance(sample) > 90));
+    const light = bg[0] + bg[1] + bg[2] > 380;
+    return { bg, fg: ink || (light ? [17, 24, 39] : [255, 255, 255]) };
+  };
   const paintDrafts = () => {
     stage.querySelectorAll(".draft-cover, .draft-text").forEach((node) => node.remove());
+    const byPage = new Map();
     textDrafts.forEach((draft) => {
-      const pageEl = stage.querySelector(`.page[data-page-number="${draft.pageNumber}"]`);
-      const view = pdfViewer.getPageView(draft.pageNumber - 1);
-      const canvas = pageEl && pageEl.querySelector("canvas");
-      if (!pageEl || !view || !view.viewport || !canvas) return;
+      const list = byPage.get(draft.pageNumber) || [];
+      list.push(draft);
+      byPage.set(draft.pageNumber, list);
+    });
+    stage.querySelectorAll(".page").forEach((pageEl) => {
+      const number = Number(pageEl.dataset.pageNumber);
+      const drafts = byPage.get(number) || [];
+      let paint = pageEl.querySelector(".draft-paint");
+      if (!drafts.length) {
+        if (paint) paint.remove();
+        return;
+      }
+      const view = pdfViewer.getPageView(number - 1);
+      const canvas = pageEl.querySelector("canvas");
+      if (!view || !view.viewport || !canvas) return;
       const pageBox = pageEl.getBoundingClientRect();
+      const canvasBox = canvas.getBoundingClientRect();
       const originEl = pageEl.querySelector(".canvasWrapper") || canvas;
       const origin = originEl.getBoundingClientRect();
-      const ox = origin.left - pageBox.left;
-      const oy = origin.top - pageBox.top;
-      const sameScale = draft.cssBoxes && draft.cssBoxes.length && Math.abs((draft.scale || 0) - (pdfViewer.currentScale || 1)) < 0.001;
-      const boxes = (sameScale ? draft.cssBoxes : draft.pdfRects.map((rect) => {
+      if (!paint) {
+        paint = document.createElement("canvas");
+        paint.className = "draft-paint";
+        pageEl.appendChild(paint);
+      }
+      paint.width = canvas.width;
+      paint.height = canvas.height;
+      paint.style.left = (canvasBox.left - pageBox.left) + "px";
+      paint.style.top = (canvasBox.top - pageBox.top) + "px";
+      paint.style.width = canvasBox.width + "px";
+      paint.style.height = canvasBox.height + "px";
+      const ctx = paint.getContext("2d");
+      ctx.clearRect(0, 0, paint.width, paint.height);
+      const pixelX = canvas.width / canvasBox.width;
+      const pixelY = canvas.height / canvasBox.height;
+      const screenOf = (rect) => {
         const vp = view.viewport.convertToViewportRectangle(rect);
-        const left = Math.min(vp[0], vp[2]);
-        const top = Math.min(vp[1], vp[3]);
-        return { left: ox + left, top: oy + top, width: Math.abs(vp[2] - vp[0]), height: Math.abs(vp[3] - vp[1]) };
-      })).filter((box) => box.width > 1 && box.height > 1);
-      if (!boxes.length) return;
-      boxes.forEach((box) => {
-        const cover = el("div", "draft-cover");
-        cover.style.pointerEvents = "none";
-        cover.style.left = box.left + "px";
-        cover.style.top = box.top + "px";
-        cover.style.width = box.width + "px";
-        cover.style.height = box.height + "px";
-        pageEl.appendChild(cover);
+        const left = origin.left + Math.min(vp[0], vp[2]);
+        const top = origin.top + Math.min(vp[1], vp[3]);
+        const width = Math.abs(vp[2] - vp[0]);
+        const height = Math.abs(vp[3] - vp[1]);
+        return { left, top, right: left + width, bottom: top + height, width, height };
+      };
+      drafts.forEach((draft) => {
+        const targets = (draft.pdfRects || []).map(screenOf).filter((box) => box.width > 1 && box.height > 1);
+        if (!targets.length) return;
+        const spans = textSpans(pageEl).filter((span) => targets.some((box) => span.left < box.right && span.right > box.left && span.top < box.bottom && span.bottom > box.top));
+        const glyph = spans.length ? {
+          left: Math.min(...spans.map((span) => span.left)),
+          top: Math.min(...spans.map((span) => span.top)),
+          right: Math.max(...spans.map((span) => span.right)),
+          bottom: Math.max(...spans.map((span) => span.bottom)),
+        } : {
+          left: Math.min(...targets.map((box) => box.left)),
+          top: Math.min(...targets.map((box) => box.top)),
+          right: Math.max(...targets.map((box) => box.right)),
+          bottom: Math.max(...targets.map((box) => box.bottom)),
+        };
+        glyph.width = glyph.right - glyph.left;
+        glyph.height = glyph.bottom - glyph.top;
+        const tone = toneOf(pageEl, glyph);
+        const sample = spans[0] || {};
+        const fontPx = Math.max(8, (sample.fontSize || glyph.height * 0.8) * pixelY);
+        const weight = sample.fontWeight || draft.fontWeight || "400";
+        const fontStyle = draft.fontStyle || "normal";
+        const family = sample.fontFamily || draft.fontFamily || "sans-serif";
+        ctx.font = `${fontStyle} ${weight} ${fontPx}px ${family}`;
+        ctx.textBaseline = "middle";
+        const lines = String(draft.text || "").replace(/\r/g, "").split("\n");
+        const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 4);
+        const x = (glyph.left - canvasBox.left) * pixelX;
+        const y = (glyph.top - canvasBox.top) * pixelY;
+        const w = Math.max(glyph.width * pixelX, textWidth + fontPx * 0.2);
+        const h = Math.max(glyph.height * pixelY, fontPx * lines.length * 1.05);
+        ctx.fillStyle = cssColor(tone.bg);
+        ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+        ctx.fillStyle = cssColor(tone.fg);
+        lines.forEach((line, index) => {
+          ctx.fillText(line, x, y + ((index + 0.5) * h) / lines.length);
+        });
       });
-      const left = Math.min(...boxes.map((box) => box.left));
-      const top = Math.min(...boxes.map((box) => box.top));
-      const right = Math.max(...boxes.map((box) => box.left + box.width));
-      const bottom = Math.max(...boxes.map((box) => box.top + box.height));
-      const label = el("div", "draft-text");
-      label.style.pointerEvents = "none";
-      label.textContent = draft.text;
-      label.style.left = left + "px";
-      label.style.top = top + "px";
-      label.style.width = Math.max(8, right - left) + "px";
-      label.style.height = Math.max(12, bottom - top) + "px";
-      label.style.fontFamily = draft.fontFamily || "sans-serif";
-      label.style.fontWeight = draft.fontWeight || "400";
-      label.style.fontStyle = draft.fontStyle || "normal";
-      label.style.fontSize = Math.max(8, draft.fontSize || (bottom - top) * 0.8) + "px";
-      label.style.lineHeight = draft.text.includes("\n") ? "1.15" : Math.max(12, bottom - top) + "px";
-      pageEl.appendChild(label);
     });
   };
   const showReplace = (found) => {
@@ -1525,8 +1620,18 @@ async function openViewer(source, pageNumber, title, options = {}) {
     found.text = draft ? draft.text : found.text;
     pendingReplace = found;
     const pageBox = found.pageEl.getBoundingClientRect();
+    const toneBox = {
+      left: Math.min(...found.boxes.map((box) => box.left)),
+      top: Math.min(...found.boxes.map((box) => box.top)),
+      right: Math.max(...found.boxes.map((box) => box.right || box.left + box.width)),
+      bottom: Math.max(...found.boxes.map((box) => box.bottom || box.top + box.height)),
+    };
+    toneBox.width = toneBox.right - toneBox.left;
+    toneBox.height = toneBox.bottom - toneBox.top;
+    const tone = toneOf(found.pageEl, toneBox);
     found.boxes.forEach((box) => {
       const cover = el("div", "replace-cover");
+      cover.style.background = cssColor(tone.bg);
       cover.style.left = (box.left - pageBox.left - 1) + "px";
       cover.style.top = (box.top - pageBox.top - 1) + "px";
       cover.style.width = (box.width + 2) + "px";
@@ -1558,6 +1663,10 @@ async function openViewer(source, pageNumber, title, options = {}) {
     boldBtn.setAttribute("aria-pressed", "false");
     italicBtn.setAttribute("aria-pressed", "false");
     paintReplaceFont();
+    if (!colorTouched) {
+      field.style.color = cssColor(tone.fg);
+      field.style.background = cssColor(tone.bg);
+    }
     watchStyle = true;
     styleNote.textContent = t("Yazı yerinde değişir. Kaydet ile dosyaya yazılır.");
     applyBtn.disabled = false;
@@ -1799,7 +1908,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.fontStyle = chosen.style;
     const size = Number(sizeInput.value);
     if (size >= 6 && size <= 72) field.style.fontSize = Math.round(size * (pdfViewer.currentScale || 1)) + "px";
-    field.style.color = replaceColor.value || "#111827";
+    if (colorTouched) field.style.color = replaceColor.value || "#111827";
   };
   fontSel.onchange = paintReplaceFont;
   sizeInput.oninput = paintReplaceFont;

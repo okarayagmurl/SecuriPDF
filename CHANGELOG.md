@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Düzenlenen yazı beyaz kutuya alınmaz; sayfadaki zemin ve yazı rengiyle yerinde çizilir
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir
