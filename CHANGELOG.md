@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- PDF oluştur içine Yeni PDF eklendi. Sayfa boyutu ve sayısı seçilince boş belge açılır
 - Modern sol menü kısa tutulur: Ana sayfa, dosya aç, PDF oluştur, metin tanıma, birleştir, dönüştür, sayfalar, düzenle, güvenlik ve sıkıştır. Diğer araçlar bu başlıkların içinde açılır
 - Modern anahtar sol menüyü de değiştirir: Ana sayfa, bölümler ve alttaki lisans kartı. Kapalıyken mevcut menü durur
 - Açılışta modern ekran varsayılandır. Üstteki anahtar mevcut ekrana döner; seçim hatırlanır

@@ -489,6 +489,32 @@
 
   window.SECURIPDF_TOOLS = [
     {
+      id: "new-pdf",
+      category: "view",
+      title: "Yeni PDF",
+      description: "Boş bir PDF belgesi oluşturup açın.",
+      usesEngine: false,
+      batch: false,
+      openResult: true,
+      runLabel: "Oluştur",
+      files: [{ name: "fileInput", label: "PDF", accept: PDF, min: 0, picker: false, preview: false }],
+      fields: [
+        { name: "pageSize", label: "Sayfa boyutu", type: "select", local: true, default: "a4", options: [
+          { value: "a4", label: "A4" },
+          { value: "a3", label: "A3" },
+          { value: "letter", label: "Letter" },
+        ] },
+        { name: "pageCount", label: "Sayfa sayısı", type: "number", default: 1, min: 1, max: 50, local: true },
+      ],
+      run({ values }) {
+        const sizes = { a4: [595.28, 841.89], a3: [841.89, 1190.55], letter: [612, 792] };
+        const [width, height] = sizes[values.pageSize] || sizes.a4;
+        const count = Math.max(1, Math.min(50, Number(values.pageCount) || 1));
+        const bytes = solidColorPdf(Array.from({ length: count }, () => ({ width, height })), "#ffffff");
+        return { bytes, name: "Yeni belge.pdf" };
+      },
+    },
+    {
       id: "open-pdf",
       category: "view",
       title: "Belge aç",

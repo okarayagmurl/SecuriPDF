@@ -456,7 +456,8 @@
     document.body.classList.toggle("home", home);
     renderProcess();
     run.disabled = viewing || state.busy || waiting || unlicensed;
-    run.textContent = state.busy ? t("İşleniyor…") : waiting ? t("Ön gereksinimler hazırlanıyor…") : t("Çalıştır");
+    const idle = state.tool && state.tool.runLabel ? t(state.tool.runLabel) : t("Çalıştır");
+    run.textContent = state.busy ? t("İşleniyor…") : waiting ? t("Ön gereksinimler hazırlanıyor…") : idle;
     if (unlicensed && !viewing) run.textContent = t("Lisans gerekli");
     $("openViewer").disabled = viewing && !hasFile;
     $("toWord").disabled = viewing && !hasFile;
@@ -575,7 +576,7 @@
       title: "Araçlar",
       items: [
         { id: "open-file", title: "Dosya aç", icon: "open-pdf", action: "open" },
-        { id: "create", title: "PDF oluştur", hint: "Office, görsel veya UDF dosyasından PDF", icon: "office-to-pdf", tools: ["office-to-pdf", "img-to-pdf", "udf-to-pdf", "einvoice-to-pdf"] },
+        { id: "create", title: "PDF oluştur", hint: "Boş sayfa, Office, görsel veya UDF", icon: "new-pdf", tools: ["new-pdf", "office-to-pdf", "img-to-pdf", "udf-to-pdf", "einvoice-to-pdf"] },
         { id: "ocr-pdf", title: "Metin tanıma", icon: "ocr-pdf", tool: "ocr-pdf" },
         { id: "merge-pdfs", title: "Birleştir", icon: "merge-pdfs", tool: "merge-pdfs" },
       ],
@@ -887,6 +888,7 @@
     const files = allFiles();
     if (!files.includes(state.preview.file)) state.preview.file = files[0] || null;
     state.tool.files.forEach((spec) => {
+      if (spec.picker === false) return;
       const multiple = isMultiple(spec);
       const picker = el("input", {
         type: "file",
@@ -1941,6 +1943,12 @@
       }
       const { bytes, note, name } = await execute(tool, values);
       if (state.tool !== tool) return;
+      if (tool.openResult) {
+        const file = new File([bytes], name || "Yeni belge.pdf", { type: "application/pdf" });
+        selectTool("open-pdf", [file]);
+        await openCurrentViewer(file);
+        return;
+      }
       state.result = { bytes, name: name || outputName(bytes) };
       const seconds = ((Date.now() - started) / 1000).toFixed(1);
       $("resultText").textContent = `Hazır: ${state.result.name} (${formatSize(bytes.length)}, ${seconds} sn)${note ? ". " + note : ""}`;
