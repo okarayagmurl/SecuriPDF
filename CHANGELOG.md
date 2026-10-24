@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Değişen satır kayıttan önce de yanındaki yazıyla aynı siyahta görünür
+- Yazı kutusunda metnin tamamı görünür; kutu köşeden büyür, üst kenardan taşınır
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir

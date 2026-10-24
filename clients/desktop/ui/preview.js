@@ -836,7 +836,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
   const status = el("div", "viewer-status");
   const statusPage = el("span", "viewer-status-page", "Sayfa —");
   const statusMode = el("span", "viewer-status-mode", MARKS[0].title);
-  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.62");
+  const statusKeys = el("span", "viewer-status-keys", t("Ctrl+S kaydet · Ctrl+F ara · Ctrl+tekerlek yakınlaştır") + " · 1.2.63");
   const statusZoom = el("span", "viewer-status-zoom", "—");
   status.append(statusPage, statusMode, statusKeys, statusZoom);
   const jobProgress = el("div", "viewer-progress");
@@ -1691,7 +1691,6 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const last = found.boxes[found.boxes.length - 1];
     const blockWidth = found.wrapWidth || Math.max(...found.boxes.map((box) => box.width));
     const blockHeight = Math.max(last.bottom - first.top, first.height);
-    const single = !found.text.includes("\n");
     field.style.left = (first.left - pageBox.left) + "px";
     field.style.top = (first.top - pageBox.top) + "px";
     field.style.width = Math.max(blockWidth, 8) + "px";
@@ -1700,9 +1699,16 @@ async function openViewer(source, pageNumber, title, options = {}) {
     field.style.fontFamily = "sans-serif";
     field.style.fontWeight = "400";
     field.style.fontStyle = "normal";
-    field.style.fontSize = Math.max(1, inkBox.height || first.height || 12) + "px";
-    field.style.lineHeight = single ? Math.max(blockHeight, 12) + "px" : "1.15";
-    field.style.padding = "0 1px";
+    const fontPx = Math.max(1, inkBox.height || first.height || 12);
+    field.style.fontSize = fontPx + "px";
+    field.style.lineHeight = fontPx + "px";
+    field.style.padding = "0 2px";
+    const probe = document.createElement("canvas").getContext("2d");
+    probe.font = `400 ${fontPx}px sans-serif`;
+    const lines = String(found.text || "").replace(/\r/g, "").split("\n");
+    const measured = Math.max(8, ...lines.map((line) => probe.measureText(line || " ").width));
+    field.style.width = Math.max(blockWidth, measured + 8) + "px";
+    field.style.height = Math.max(blockHeight, fontPx * Math.max(lines.length, 1) + 4) + "px";
     colorTouched = false;
     styleDirty = false;
     watchStyle = false;
@@ -1724,6 +1730,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     const end = field.value.length;
     try { field.setSelectionRange(end, end); } catch { /* the caret stays where the browser put it */ }
     try { window.getSelection().removeAllRanges(); } catch { /* no selection to clear */ }
+    requestAnimationFrame(() => { field.scrollLeft = 0; field.scrollTop = 0; });
     suspendDraft = false;
     paintDrafts();
   };
@@ -2385,7 +2392,7 @@ async function openViewer(source, pageNumber, title, options = {}) {
     if (target && target.closest && target.closest(".viewer-side, .viewer-chrome, .viewer-menu")) return;
     const x = event.clientX;
     const y = event.clientY;
-    if (clickStaysInOpenCell(x, y)) return;
+    if (target === field || clickStaysInOpenCell(x, y)) return;
     const pageEl = pageAtPoint(x, y) || (target && target.closest && target.closest(".page"));
     const span = pageEl ? spanAtPoint(pageEl, x, y) : null;
     const region = !span && pageEl ? regionAtPoint(pageEl, x, y) : null;
@@ -2654,6 +2661,41 @@ async function openViewer(source, pageNumber, title, options = {}) {
     hideReplace();
   });
   cancelBtn.onclick = hideReplace;
+  field.title = "Üst kenardan taşıyın, sağ alt köşeden büyütün";
+  field.addEventListener("input", () => {
+    const size = parseFloat(field.style.fontSize) || 12;
+    const probe = document.createElement("canvas").getContext("2d");
+    probe.font = `${field.style.fontWeight || "400"} ${size}px ${field.style.fontFamily || "sans-serif"}`;
+    const lines = String(field.value || "").replace(/\r/g, "").split("\n");
+    const measured = Math.max(8, ...lines.map((line) => probe.measureText(line || " ").width));
+    const width = measured + 8;
+    const height = size * Math.max(lines.length, 1) + 4;
+    if (width > (parseFloat(field.style.width) || 0)) field.style.width = width + "px";
+    if (height > (parseFloat(field.style.height) || 0)) field.style.height = height + "px";
+    field.scrollLeft = 0;
+  });
+  field.addEventListener("pointerdown", (event) => {
+    const rect = field.getBoundingClientRect();
+    const onCorner = rect.right - event.clientX < 16 && rect.bottom - event.clientY < 16;
+    const onEdge = event.clientY - rect.top < 8;
+    if (!onEdge || onCorner) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = parseFloat(field.style.left) || 0;
+    const startTop = parseFloat(field.style.top) || 0;
+    const move = (ev) => {
+      field.style.left = (startLeft + ev.clientX - startX) + "px";
+      field.style.top = (startTop + ev.clientY - startY) + "px";
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  });
   field.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); rememberDraft(); hideReplace(); }
     if (event.key === "Escape") { event.preventDefault(); hideReplace(); }

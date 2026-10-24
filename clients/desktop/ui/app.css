@@ -1357,9 +1357,12 @@ html.has-doc-tabs .viewer { top: 40px; }
   color: #111827;
   padding: 0 1px;
   font-weight: 400;
+  box-sizing: border-box;
   line-height: 1;
-  resize: none;
+  resize: both;
   overflow: hidden;
+  min-width: 28px;
+  min-height: 18px;
   box-shadow: inset 0 0 0 1.5px #1d4ed8;
   caret-color: #1d4ed8;
 }
