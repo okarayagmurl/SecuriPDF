@@ -479,19 +479,8 @@
     const list = $("toolList");
     list.replaceChildren();
     if (modernOn()) {
-      const homeOn = Boolean(state.tool && state.tool.id === "open-pdf" && !allFiles().length);
-      const home = el("button", {
-        type: "button",
-        class: "side-home",
-        "aria-current": homeOn ? "true" : undefined,
-        onclick: () => selectTool("open-pdf", []),
-      });
-      const mark = document.createElement("span");
-      mark.className = "tool-icon";
-      mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>`;
-      home.appendChild(mark);
-      home.appendChild(el("span", { text: "Ana sayfa" }));
-      list.appendChild(home);
+      renderModernNav(list, query);
+      return;
     }
     categories.forEach((category) => {
       const items = allowedTools().filter((tool) => tool.category === category.id &&
@@ -580,6 +569,138 @@
   const UI_KEY = "securipdf-ui";
   const RECENT_KEY = "securipdf-recent";
   let recentView = "large";
+  let navBoard = null;
+  const MODERN_NAV = [
+    {
+      title: "Araçlar",
+      items: [
+        { id: "open-file", title: "Dosya aç", icon: "open-pdf", action: "open" },
+        { id: "create", title: "PDF oluştur", hint: "Office, görsel veya UDF dosyasından PDF", icon: "office-to-pdf", tools: ["office-to-pdf", "img-to-pdf", "udf-to-pdf", "einvoice-to-pdf"] },
+        { id: "ocr-pdf", title: "Metin tanıma", icon: "ocr-pdf", tool: "ocr-pdf" },
+        { id: "merge-pdfs", title: "Birleştir", icon: "merge-pdfs", tool: "merge-pdfs" },
+      ],
+    },
+    {
+      title: "PDF araçları",
+      items: [
+        { id: "convert", title: "Dönüştür", hint: "PDF'i Word, Excel, görsel veya metne çevirin", icon: "pdf-to-word", tools: ["pdf-to-word", "pdf-to-excel", "pdf-to-ppt", "pdf-to-csv", "pdf-to-text", "pdf-to-img", "pdf-to-pdfa", "pdf-to-udf"] },
+        { id: "pages", title: "Sayfalar", hint: "Döndürün, silin, çıkarın veya sıralayın", icon: "rotate-pdf", tools: ["split-pages", "remove-pages", "extract-pages", "rotate-pdf", "auto-rotate-pdf", "rearrange-pages", "insert-pages", "crop", "scale-pages", "add-page-numbers", "add-header-footer", "add-background", "booklet", "multi-page-layout", "pdf-to-single-page", "create-portfolio", "flatten-portfolio"] },
+        { id: "edit", title: "Düzenle", hint: "Karşılaştırın, form ekleyin, görsel ve ek koyun", icon: "compare-pdfs", tools: ["compare-pdfs", "overlay-pdf", "flatten", "add-image", "add-form-fields", "fill-forms", "unlock-pdf-forms", "edit-table-of-contents", "add-attachments", "auto-rename"] },
+        { id: "security", title: "Güvenlik", hint: "Parola, karartma, damga ve imza", icon: "add-password", tools: ["add-password", "remove-password", "redact", "add-stamp", "add-watermark", "scan-file", "cert-sign", "timestamp-pdf", "validate-signature", "remove-cert-sign"] },
+        { id: "optimize", title: "Sıkıştır", hint: "Sıkıştırın, onarın veya temizleyin", icon: "compress-pdf", tools: ["compress-pdf", "repair-pdf", "sanitize-pdf", "remove-blanks", "update-metadata", "extract-images", "remove-image-pdf", "extract-attachments", "get-info-on-pdf", "replace-invert-pdf"] },
+      ],
+    },
+  ];
+  function boardItem(id) {
+    for (const section of MODERN_NAV) {
+      const found = section.items.find((item) => item.id === id);
+      if (found) return found;
+    }
+    return null;
+  }
+  function navItemVisible(item) {
+    if (item.action === "open" || item.tool) {
+      return !item.tool || allowedTools().some((tool) => tool.id === item.tool);
+    }
+    return (item.tools || []).some((id) => allowedTools().some((tool) => tool.id === id));
+  }
+  function navItemCurrent(item) {
+    const toolId = state.tool && state.tool.id;
+    if (item.tool) return toolId === item.tool;
+    if (!item.tools) return false;
+    if (item.tools.includes(toolId)) return true;
+    return navBoard === item.id && toolId === "open-pdf" && !allFiles().length;
+  }
+  function paintToolIcon(button, toolId, fallback) {
+    const icon = (window.SECURIPDF_MENU_ICONS || {})[toolId] || fallback || "";
+    if (!icon) return;
+    const mark = document.createElement("span");
+    mark.className = "tool-icon";
+    mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+    button.appendChild(mark);
+  }
+  function openBoard(id) {
+    navBoard = id;
+    selectTool("open-pdf", []);
+  }
+  function renderModernNav(list, query) {
+    if (query) {
+      const items = allowedTools().filter((tool) => (tool.title + " " + tool.description).toLocaleLowerCase("tr").includes(query));
+      if (!items.length) {
+        list.appendChild(el("p", { class: "modern-empty", text: "Eşleşen araç yok." }));
+        return;
+      }
+      items.forEach((tool) => {
+        const button = el("button", {
+          type: "button",
+          "aria-current": state.tool && state.tool.id === tool.id ? "true" : undefined,
+          onclick: () => selectTool(tool.id),
+        });
+        paintToolIcon(button, tool.id);
+        button.appendChild(el("span", { text: tool.title }));
+        list.appendChild(button);
+      });
+      return;
+    }
+    const homeOn = Boolean(!navBoard && state.tool && state.tool.id === "open-pdf" && !allFiles().length);
+    const home = el("button", {
+      type: "button",
+      class: "side-home",
+      "aria-current": homeOn ? "true" : undefined,
+      onclick: () => { navBoard = null; selectTool("open-pdf", []); },
+    });
+    const mark = document.createElement("span");
+    mark.className = "tool-icon";
+    mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>`;
+    home.appendChild(mark);
+    home.appendChild(el("span", { text: "Ana sayfa" }));
+    list.appendChild(home);
+    MODERN_NAV.forEach((section) => {
+      const items = section.items.filter(navItemVisible);
+      if (!items.length) return;
+      list.appendChild(el("h2", { text: section.title }));
+      items.forEach((item) => {
+        const button = el("button", {
+          type: "button",
+          "aria-current": navItemCurrent(item) ? "true" : undefined,
+          onclick: () => {
+            if (item.action === "open") {
+              navBoard = null;
+              $("openFile").click();
+              return;
+            }
+            if (item.tool) {
+              navBoard = null;
+              selectTool(item.tool);
+              return;
+            }
+            openBoard(item.id);
+          },
+        });
+        paintToolIcon(button, item.icon);
+        button.appendChild(el("span", { text: item.title }));
+        list.appendChild(button);
+      });
+    });
+  }
+  function renderModernBoard() {
+    const item = boardItem(navBoard);
+    const title = $("modernBoardTitle");
+    const hint = $("modernBoardHint");
+    const host = $("modernBoardCards");
+    if (!item || !host) return;
+    if (title) title.textContent = t(item.title);
+    if (hint) hint.textContent = t(item.hint || "");
+    host.replaceChildren();
+    (item.tools || []).forEach((id) => {
+      const tool = allowedTools().find((entry) => entry.id === id);
+      if (!tool) return;
+      host.appendChild(el("button", { type: "button", class: "modern-action", onclick: () => selectTool(tool.id) }, [
+        el("strong", { text: tool.title }),
+        el("span", { text: tool.description }),
+      ]));
+    });
+  }
   function modernOn() {
     return localStorage.getItem(UI_KEY) !== "classic";
   }
@@ -626,7 +747,7 @@
     if (actions && !actions.childElementCount) {
       const cards = [
         ["Dosya aç", "PDF belgesini seçin", () => $("openFile").click()],
-        ["Dönüştür", "PDF'i Word belgesine çevirin", () => selectTool("pdf-to-word")],
+        ["Dönüştür", "PDF'i Word, Excel, görsel veya metne çevirin", () => openBoard("convert")],
         ["Birleştir", "Birden çok PDF'i tek belgede toplayın", () => selectTool("merge-pdfs")],
         ["Metin tanıma", "Taranmış sayfadaki yazıyı seçilebilir yapın", () => selectTool("ocr-pdf")],
       ];
@@ -676,10 +797,15 @@
     const home = state.tool && state.tool.id === "open-pdf";
     const spec = home && state.tool.files[0];
     const files = spec ? (state.files[spec.name] || []) : [];
-    const show = modernOn() && home && !files.length;
-    document.body.classList.toggle("modern", show);
+    const showShell = modernOn() && home && !files.length;
+    const showBoard = showShell && Boolean(navBoard && boardItem(navBoard));
+    const show = showShell && !showBoard;
+    document.body.classList.toggle("modern", showShell);
     const node = $("modernHome");
     if (node) node.hidden = !show;
+    const board = $("modernBoard");
+    if (board) board.hidden = !showBoard;
+    if (showBoard) renderModernBoard();
     const box = $("uiModern");
     if (box) box.checked = modernOn();
     if (show) renderModernHome();
@@ -688,6 +814,7 @@
   }
 
   function selectTool(id, carry) {
+    if (id !== "open-pdf") navBoard = null;
     const tool = tools.find((item) => item.id === id);
     if (!tool) return;
     const previous = carry || (state.tool ? state.files[state.tool.files[0].name] || [] : []);
@@ -2406,6 +2533,8 @@
   }
   const sideAccount = $("sideAccount");
   if (sideAccount) sideAccount.addEventListener("click", () => openLicense(false));
+  const modernBoardBack = $("modernBoardBack");
+  if (modernBoardBack) modernBoardBack.addEventListener("click", () => { navBoard = null; selectTool("open-pdf", []); });
   const modernSearch = $("modernSearch");
   if (modernSearch) modernSearch.addEventListener("input", renderModernHome);
   document.querySelectorAll(".modern-views button").forEach((button) => {
