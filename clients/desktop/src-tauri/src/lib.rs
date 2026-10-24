@@ -103,6 +103,7 @@ pub fn run() {
                 .visible(false)
                 .title("SecuriPDF")
                 .inner_size(1180.0, 780.0)
+                .center()
                 .min_inner_size(820.0, 560.0)
                 .background_color(tauri::window::Color(0xf8, 0xfa, 0xfc, 255))
                 .disable_drag_drop_handler()

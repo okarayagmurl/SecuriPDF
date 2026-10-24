@@ -6,6 +6,7 @@
   <style>
     html, body { margin: 0; height: 100%; background: #f8fafc; }
     .splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #f8fafc 0%, #e0e7ff 100%); }
+    .splash[hidden] { display: none !important; }
     .splash-card { width: min(520px, 90vw); padding: 36px 40px 28px; border-radius: 18px; background: #fff; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14); text-align: center; font: 15px/1.5 "Segoe UI", sans-serif; color: #0f172a; }
     .splash-entera { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 22px 0 0; padding-top: 18px; border-top: 1px solid #e2e8f0; color: #0f172a; font: 600 15px/1 "Segoe UI", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
     .splash-entera img { width: 42px; height: 42px; }
@@ -21,7 +22,7 @@
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <div class="splash" id="splash" role="status" aria-live="polite">
+  <div class="splash" id="splash" role="status" aria-live="polite" hidden>
     <div class="splash-card">
       <img class="splash-logo" src="logo.svg" alt="SecuriPDF">
       <p class="splash-version" id="splashVersion"></p>

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Yazı kutusunda metnin tamamı görünür; kutu köşeden büyür, üst kenardan taşınır
+- Uygulama ekranın ortasında açılır. Hazırlık sırasında ayrı yükleme ekranı çıkmaz
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir
