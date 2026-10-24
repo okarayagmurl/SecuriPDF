@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Modern anahtar sol menüyü de değiştirir: Ana sayfa, bölümler ve alttaki lisans kartı. Kapalıyken mevcut menü durur
 - Açılışta modern ekran varsayılandır. Üstteki anahtar mevcut ekrana döner; seçim hatırlanır
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır

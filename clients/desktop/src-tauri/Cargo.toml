@@ -1,6 +1,6 @@
 [package]
 name = "securipdf-desktop"
-version = "1.2.66"
+version = "1.2.67"
 description = "SecuriPDF for Windows. Runs PDF tools on the user's machine without a server."
 authors = ["Entera"]
 license = "MIT"

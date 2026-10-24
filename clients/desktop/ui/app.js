@@ -478,6 +478,21 @@
     const query = (filter || "").trim().toLocaleLowerCase("tr");
     const list = $("toolList");
     list.replaceChildren();
+    if (modernOn()) {
+      const homeOn = Boolean(state.tool && state.tool.id === "open-pdf" && !allFiles().length);
+      const home = el("button", {
+        type: "button",
+        class: "side-home",
+        "aria-current": homeOn ? "true" : undefined,
+        onclick: () => selectTool("open-pdf", []),
+      });
+      const mark = document.createElement("span");
+      mark.className = "tool-icon";
+      mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>`;
+      home.appendChild(mark);
+      home.appendChild(el("span", { text: "Ana sayfa" }));
+      list.appendChild(home);
+    }
     categories.forEach((category) => {
       const items = allowedTools().filter((tool) => tool.category === category.id &&
         (!query || (tool.title + " " + tool.description).toLocaleLowerCase("tr").includes(query)));
@@ -642,7 +657,22 @@
       ]));
     });
   }
+  function renderSideAccount() {
+    const name = $("sideAccountName");
+    const meta = $("sideAccountMeta");
+    const avatar = $("sideAvatar");
+    if (!name || !meta || !avatar) return;
+    const status = state.license;
+    const customer = status && status.customer ? status.customer : "SecuriPDF";
+    name.textContent = customer;
+    avatar.textContent = customer.trim().charAt(0).toLocaleUpperCase("tr") || "S";
+    if (!status) meta.textContent = t("Lisans");
+    else if (!status.valid) meta.textContent = t("Lisans doldu");
+    else if (status.licenseType === "demo") meta.textContent = t("Demo") + (status.daysLeft == null ? "" : ` · ${status.daysLeft} ${t("gün")}`);
+    else meta.textContent = t("Lisanslı");
+  }
   function applyHomeFace() {
+    document.body.classList.toggle("ui-modern", modernOn());
     const home = state.tool && state.tool.id === "open-pdf";
     const spec = home && state.tool.files[0];
     const files = spec ? (state.files[spec.name] || []) : [];
@@ -653,6 +683,8 @@
     const box = $("uiModern");
     if (box) box.checked = modernOn();
     if (show) renderModernHome();
+    renderSideAccount();
+    renderToolList($("search") ? $("search").value : "");
   }
 
   function selectTool(id, carry) {
@@ -2100,6 +2132,7 @@
     banner.hidden = status.valid;
     banner.textContent = status.valid ? "" : status.message;
     updateRunButton();
+    renderSideAccount();
   }
 
   function openLicense(force) {
@@ -2371,6 +2404,8 @@
       else applyHomeFace();
     });
   }
+  const sideAccount = $("sideAccount");
+  if (sideAccount) sideAccount.addEventListener("click", () => openLicense(false));
   const modernSearch = $("modernSearch");
   if (modernSearch) modernSearch.addEventListener("input", renderModernHome);
   document.querySelectorAll(".modern-views button").forEach((button) => {
