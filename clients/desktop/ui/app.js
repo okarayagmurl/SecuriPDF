@@ -190,7 +190,6 @@
     if (splash.closed) return;
 
     if (status.state === "failed" || status.state === "missing") {
-      $("splash").hidden = false;
       $("splashStage").textContent = t("Ön gereksinimler hazırlanamadı.");
       $("splashPercent").textContent = "";
       $("splashError").hidden = false;

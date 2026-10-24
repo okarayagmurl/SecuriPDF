@@ -104,6 +104,7 @@ pub fn run() {
                 .title("SecuriPDF")
                 .inner_size(1180.0, 780.0)
                 .center()
+                .maximized(true)
                 .min_inner_size(820.0, 560.0)
                 .background_color(tauri::window::Color(0xf8, 0xfa, 0xfc, 255))
                 .disable_drag_drop_handler()
@@ -623,6 +624,7 @@ fn start_engine(app: &AppHandle, work_dir_name: &str) {
 }
 
 fn reveal_main(window: &WebviewWindow) {
+    let _ = window.maximize();
     let _ = window.show();
     let _ = window.set_focus();
 }
