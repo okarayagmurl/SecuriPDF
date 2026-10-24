@@ -56,6 +56,10 @@
     <span class="brand"><img src="logo-mark.svg" alt="">SecuriPDF <span class="brand-version" id="brandVersion"></span></span>
     <button type="button" class="open-file" id="openFile" data-tr="Belge aç">Belge aç</button>
     <div class="top-end">
+      <label class="ui-switch" data-tr-title="Açılış ekranı. Açıkken modern, kapalıyken mevcut ekran.">
+        <span data-tr="Modern">Modern</span>
+        <input type="checkbox" id="uiModern" checked>
+      </label>
       <button type="button" class="secondary settings-open" id="settingsBtn" data-tr="Ayarlar">Ayarlar</button>
       <label class="lang" for="lang">
         <select id="lang" data-tr-aria="Uygulama dili">
@@ -77,6 +81,21 @@
       <div id="toolList"></div>
     </nav>
     <main class="workspace">
+      <section class="modern-home" id="modernHome" hidden>
+        <p class="modern-date" id="modernDate"></p>
+        <h1 class="modern-hello" data-tr="Hoş geldiniz">Hoş geldiniz</h1>
+        <input class="modern-search" id="modernSearch" type="search" placeholder="Belge ara…" data-tr-placeholder="Belge ara…" autocomplete="off">
+        <div class="modern-actions" id="modernActions"></div>
+        <div class="modern-recent-head">
+          <h2 data-tr="Son belgeler">Son belgeler</h2>
+          <div class="modern-views" role="group" aria-label="Görünüm">
+            <button type="button" data-view="list" data-tr="Liste">Liste</button>
+            <button type="button" data-view="small" data-tr="Küçük">Küçük</button>
+            <button type="button" data-view="large" class="on" data-tr="Büyük">Büyük</button>
+          </div>
+        </div>
+        <div class="modern-recent is-large" id="modernRecent"></div>
+      </section>
       <section class="panel" id="tool" hidden>
         <h1 id="toolTitle"></h1>
         <p class="lead" id="toolDescription"></p>

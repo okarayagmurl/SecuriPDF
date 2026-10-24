@@ -562,6 +562,99 @@
     note.textContent = t(officeNoteText(kind, status));
   }
 
+  const UI_KEY = "securipdf-ui";
+  const RECENT_KEY = "securipdf-recent";
+  let recentView = "large";
+  function modernOn() {
+    return localStorage.getItem(UI_KEY) !== "classic";
+  }
+  function readRecent() {
+    try {
+      const list = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+  function rememberRecent(file) {
+    const path = file.securipdfPath || file.path || "";
+    const entry = { name: file.name || "belge.pdf", size: file.size || 0, at: Date.now(), path };
+    const list = [entry, ...readRecent().filter((item) => (path && item.path !== path) || (!path && item.name !== entry.name))].slice(0, 12);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+  }
+  function ago(at) {
+    const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
+    if (mins < 1) return t("Az önce");
+    if (mins < 60) return `${mins} ${t("dk önce")}`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours} ${t("sa önce")}`;
+    return `${Math.round(hours / 24)} ${t("gün önce")}`;
+  }
+  async function openRecent(item) {
+    if (!item.path || !core) {
+      $("openFile").click();
+      return;
+    }
+    const data = await core.invoke("read_opened_file", { path: item.path });
+    const file = new File([data], item.name, { type: "application/pdf" });
+    file.securipdfPath = item.path;
+    selectTool("open-pdf");
+    addFiles(state.tool.files[0], [file]);
+  }
+  function renderModernHome() {
+    const date = $("modernDate");
+    if (date) {
+      const locale = window.SecuriI18n && window.SecuriI18n.lang === "en" ? "en-GB" : "tr-TR";
+      date.textContent = new Date().toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    }
+    const actions = $("modernActions");
+    if (actions && !actions.childElementCount) {
+      const cards = [
+        ["Dosya aç", "PDF belgesini seçin", () => $("openFile").click()],
+        ["Dönüştür", "PDF'i Word belgesine çevirin", () => selectTool("pdf-to-word")],
+        ["Birleştir", "Birden çok PDF'i tek belgede toplayın", () => selectTool("merge-pdfs")],
+        ["Metin tanıma", "Taranmış sayfadaki yazıyı seçilebilir yapın", () => selectTool("ocr-pdf")],
+      ];
+      cards.forEach(([title, hint, action]) => {
+        actions.appendChild(el("button", { type: "button", class: "modern-action", onclick: action }, [
+          el("strong", { text: title }),
+          el("span", { text: hint }),
+        ]));
+      });
+    }
+    const query = ($("modernSearch") && $("modernSearch").value || "").trim().toLocaleLowerCase("tr");
+    const host = $("modernRecent");
+    if (!host) return;
+    host.className = `modern-recent is-${recentView}`;
+    const items = readRecent().filter((item) => !query || String(item.name || "").toLocaleLowerCase("tr").includes(query));
+    host.replaceChildren();
+    if (!items.length) {
+      host.appendChild(el("p", { class: "modern-empty", text: "Henüz açılmış belge yok." }));
+      return;
+    }
+    items.forEach((item) => {
+      host.appendChild(el("button", { type: "button", class: "modern-doc", onclick: () => openRecent(item) }, [
+        el("span", { class: "modern-doc-sheet", text: "PDF" }),
+        el("span", { class: "modern-doc-meta" }, [
+          el("strong", { text: item.name, title: item.name }),
+          el("span", { text: `${ago(item.at)} · ${formatSize(item.size || 0)}` }),
+        ]),
+      ]));
+    });
+  }
+  function applyHomeFace() {
+    const home = state.tool && state.tool.id === "open-pdf";
+    const spec = home && state.tool.files[0];
+    const files = spec ? (state.files[spec.name] || []) : [];
+    const show = modernOn() && home && !files.length;
+    document.body.classList.toggle("modern", show);
+    const node = $("modernHome");
+    if (node) node.hidden = !show;
+    const box = $("uiModern");
+    if (box) box.checked = modernOn();
+    if (show) renderModernHome();
+  }
+
   function selectTool(id, carry) {
     const tool = tools.find((item) => item.id === id);
     if (!tool) return;
@@ -586,6 +679,7 @@
     renderFiles();
     renderToolList($("search").value);
     updateRunButton();
+    applyHomeFace();
   }
 
   // ---- Files ----
@@ -609,6 +703,7 @@
       ? t("Bazı dosyalar bu araç için uygun değil ve eklenmedi.")
       : "";
     if (!accepted.length) return;
+    accepted.forEach(rememberRecent);
     state.files[spec.name] = isMultiple(spec) ? state.files[spec.name].concat(accepted) : [accepted[0]];
     clearResult();
     renderFiles();
@@ -677,6 +772,7 @@
       host.appendChild(drop);
     });
     if (state.preview.tab === "source") refreshPreview();
+    applyHomeFace();
   }
 
   function moveFile(spec, index, delta) {
@@ -2264,6 +2360,26 @@
   }
 
   initSettings();
+  const uiModern = $("uiModern");
+  if (uiModern) {
+    uiModern.checked = modernOn();
+    uiModern.addEventListener("change", () => {
+      localStorage.setItem(UI_KEY, uiModern.checked ? "modern" : "classic");
+      const spec = state.tool && state.tool.files && state.tool.files[0];
+      const files = spec ? (state.files[spec.name] || []) : [];
+      if (!files.length) selectTool("open-pdf");
+      else applyHomeFace();
+    });
+  }
+  const modernSearch = $("modernSearch");
+  if (modernSearch) modernSearch.addEventListener("input", renderModernHome);
+  document.querySelectorAll(".modern-views button").forEach((button) => {
+    button.addEventListener("click", () => {
+      recentView = button.dataset.view || "large";
+      document.querySelectorAll(".modern-views button").forEach((node) => node.classList.toggle("on", node === button));
+      renderModernHome();
+    });
+  });
   selectTool("open-pdf");
   (async () => {
     const job = core ? await core.invoke("cli_job").catch(() => null) : null;

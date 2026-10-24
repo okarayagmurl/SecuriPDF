@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Uygulama tam ekran açılır. Hazırlanıyor yazısı ortada durur, çevresinde kart çerçevesi yoktur
+- Açılışta modern ekran varsayılandır. Üstteki anahtar mevcut ekrana döner; seçim hatırlanır
 - Hücreden çıkınca yazılan metin yerinde kalır; yan hücreye geçmek önceki taslağı silmez
 - Açık yazı hücresinden başka bir hücreye tıklanınca geçilir; boş sayfaya tıklanınca hücre kapanır
 - Metin alanları arasında geçiş yazı kutusunu kapatmadan olur. Kaydet tıklaması bu kapanışa bağlı değildir

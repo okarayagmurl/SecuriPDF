@@ -242,6 +242,42 @@ body.viewing .preview { display: none; }
 body.viewing .panel { max-width: 760px; margin: 0 auto; }
 body.viewing .drop { padding: 28px 24px; }
 body.home .panel { max-width: 820px; width: min(820px, 100%); margin: auto; align-self: center; padding-top: 12px; }
+body.modern .workspace { display: block; overflow: auto; background: #f8fafc; }
+body.modern .panel, body.modern .preview { display: none !important; }
+.ui-switch { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; }
+.ui-switch input { width: 36px; height: 20px; accent-color: var(--accent); }
+.modern-home { max-width: 1080px; margin: 0 auto; padding: 40px 36px 56px; }
+.modern-home[hidden] { display: none !important; }
+.modern-date { margin: 0; color: var(--muted); font-size: 13px; }
+.modern-hello { margin: 4px 0 18px; font-size: 28px; font-weight: 650; }
+.modern-search { width: min(420px, 100%); height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font: 14px "Segoe UI", sans-serif; }
+.modern-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 22px 0 28px; }
+.modern-action { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-height: 108px; padding: 16px; border: 1px solid #e7edf4; border-radius: 16px; background: #f4f7fb; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.modern-action:hover { border-color: #bfd0ea; background: #fff; }
+.modern-action strong { font-size: 15px; }
+.modern-action span { color: var(--muted); font-size: 12px; }
+.modern-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.modern-recent-head h2 { margin: 0; font-size: 16px; }
+.modern-views { display: flex; gap: 6px; }
+.modern-views button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 10px; font: 12px "Segoe UI", sans-serif; font-weight: 650; color: #334155; cursor: pointer; }
+.modern-views button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.modern-recent { display: grid; gap: 14px; }
+.modern-recent.is-large { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.modern-recent.is-small { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.modern-recent.is-list { grid-template-columns: 1fr; }
+.modern-doc { display: flex; flex-direction: column; gap: 8px; padding: 0; border: 1px solid #e7edf4; border-radius: 14px; background: #fff; text-align: left; cursor: pointer; overflow: hidden; font: inherit; color: inherit; }
+.modern-recent.is-list .modern-doc { flex-direction: row; align-items: center; }
+.modern-doc-sheet { display: grid; place-items: center; min-height: 140px; background: #f8fafc; color: #94a3b8; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
+.modern-recent.is-small .modern-doc-sheet { min-height: 88px; }
+.modern-recent.is-list .modern-doc-sheet { width: 72px; min-height: 56px; }
+.modern-doc-meta { padding: 0 12px 12px; }
+.modern-recent.is-list .modern-doc-meta { padding: 10px 12px; }
+.modern-doc-meta strong { display: block; font-size: 13px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modern-doc-meta span { color: var(--muted); font-size: 12px; }
+.modern-empty { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+@media (max-width: 900px) {
+  .modern-actions, .modern-recent.is-large, .modern-recent.is-small { grid-template-columns: 1fr 1fr; }
+}
 body.home .lead { max-width: 40em; }
 body.home .drop {
   min-height: 280px;
